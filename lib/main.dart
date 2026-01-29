@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'data/database_helper.dart';
 import 'services/provisioning_server.dart';
 import 'models/device.dart';
+import 'screens/template_manager.dart';
 
 void main() {
   runApp(const MaterialApp(
@@ -33,12 +34,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _checkPermissions();
   }
 
-  /// Ensure we have Camera and Local Network permissions
   Future<void> _checkPermissions() async {
     await [Permission.camera, Permission.location].request();
   }
 
-  // --- SETTINGS DIALOG ---
   void _openSettings() async {
     final prefs = await SharedPreferences.getInstance();
     final controller = TextEditingController(text: prefs.getString('public_wallpaper_url') ?? '');
@@ -50,8 +49,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text("Public Wallpaper URL (Optional)", style: TextStyle(fontWeight: FontWeight.bold)),
-            const Text("Use this for phones that don't store images locally (e.g. VVX1500).", style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const Text("Public Wallpaper URL", style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text("Use for legacy phones (e.g. VVX1500)", style: TextStyle(fontSize: 12, color: Colors.grey)),
             const SizedBox(height: 10),
             TextField(
               controller: controller,
@@ -59,6 +58,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 hintText: "https://my-site.com/logo.png",
                 border: OutlineInputBorder()
               ),
+            ),
+            const Divider(height: 30),
+            ListTile(
+              leading: const Icon(Icons.file_copy, color: Colors.blue),
+              title: const Text("Manage Templates"),
+              subtitle: const Text("Add/Import new phone models"),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (c) => const TemplateManagerScreen()));
+              },
             ),
           ],
         ),
@@ -77,39 +86,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// Generates sample data for demonstration
   Future<void> _importMockData() async {
     await DatabaseHelper.instance.clearAll();
     
-    // Add Yealink Examples
     await DatabaseHelper.instance.insertDevice(Device(
         model: 'T58G', extension: '101', secret: '928374', label: 'Reception'));
     await DatabaseHelper.instance.insertDevice(Device(
-        model: 'T58G', extension: '102', secret: '112233', label: 'Boardroom'));
-    
-    // Add Polycom Example
-    await DatabaseHelper.instance.insertDevice(Device(
-        model: 'VVX411', extension: '103', secret: '445566', label: 'Kitchen'));
+        model: 'VVX411', extension: '102', secret: '445566', label: 'Kitchen'));
         
     if(mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Success: Imported 3 Mock Devices."))
+        const SnackBar(content: Text("Success: Imported Mock Devices."))
       );
     }
   }
 
-  /// Toggles the Web Server on/off
   Future<void> _toggleServer() async {
     if (_isServerRunning) {
-      // STOP
       setState(() {
         _serverStatus = "OFFLINE";
         _isServerRunning = false;
         _statusColor = Colors.red.shade100;
       });
-      WakelockPlus.disable(); // Allow screen to sleep
+      WakelockPlus.disable(); 
     } else {
-      // START
       try {
         String url = await ProvisioningServer().start();
         setState(() {
@@ -117,7 +117,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _isServerRunning = true;
           _statusColor = Colors.green.shade100;
         });
-        WakelockPlus.enable(); // Keep screen awake for the server!
+        WakelockPlus.enable(); 
       } catch (e) {
         setState(() => _serverStatus = "ERROR: ${e.toString()}");
       }
@@ -128,7 +128,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Pocket Provisioner v0.0.2"),
+        title: const Text("Pocket Provisioner v0.0.1"),
         backgroundColor: Colors.blueAccent,
         foregroundColor: Colors.white,
         actions: [
@@ -140,7 +140,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // --- SERVER STATUS CARD ---
             Card(
               color: _statusColor,
               elevation: 4,
@@ -164,7 +163,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: 20),
 
-            // --- ACTION BUTTONS ---
             Row(
               children: [
                 Expanded(
@@ -193,7 +191,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             
             const Spacer(),
             
-            // --- SCANNER BUTTON ---
             SizedBox(
               height: 120,
               child: ElevatedButton(
@@ -222,7 +219,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-// --- SCANNER SCREEN ---
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
   @override
@@ -239,7 +235,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
     _loadNextTarget();
   }
 
-  /// Finds the next PENDING device from SQL
   Future<void> _loadNextTarget() async {
     final next = await DatabaseHelper.instance.getNextPendingDevice();
     setState(() {
@@ -275,7 +270,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
       appBar: AppBar(title: const Text("Scan Barcode")),
       body: Column(
         children: [
-          // HUD (Heads Up Display)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(24),
@@ -293,7 +287,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
             ),
           ),
           
-          // Camera View
           Expanded(
             child: MobileScanner(
               onDetect: (capture) async {
@@ -303,17 +296,14 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 if (barcodes.isEmpty) return;
 
                 final String? rawMac = barcodes.first.rawValue;
-                if (rawMac == null || rawMac.length < 10) return; // Basic validation
+                if (rawMac == null || rawMac.length < 10) return;
 
                 setState(() => _isProcessing = true);
                 
-                // Clean the MAC
                 String cleanMac = rawMac.replaceAll(':', '').toUpperCase();
                 
-                // Save to DB
                 await DatabaseHelper.instance.assignMac(_target!.id!, cleanMac);
                 
-                // Feedback
                 if(mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -324,7 +314,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
                   );
                 }
                 
-                // Advance
                 _loadNextTarget();
               },
             ),
