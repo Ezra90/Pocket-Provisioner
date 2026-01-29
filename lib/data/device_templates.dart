@@ -40,7 +40,8 @@ account.1.display_name = {{label}}
 account.1.auth_name = {{extension}}
 account.1.user_name = {{extension}}
 account.1.password = {{secret}}
-account.1.sip_server.1.address = {{local_ip}}
+# SIP SERVER: Injected from Settings (Real PBX IP) or Defaults to Android IP (Temp)
+account.1.sip_server.1.address = {{sip_server_url}}
 account.1.sip_server.1.port = 5060
 
 # 2. LOCAL ASSETS
@@ -69,7 +70,7 @@ features.show_quick_setup.enable = 0
     reg.1.address="{{extension}}"
     reg.1.auth.userId="{{extension}}"
     reg.1.auth.password="{{secret}}"
-    reg.1.server.1.address="{{local_ip}}"
+    reg.1.server.1.address="{{sip_server_url}}"
     reg.1.server.1.port="5060"
   />
   <bg>
@@ -94,7 +95,7 @@ features.show_quick_setup.enable = 0
     <sipProfile>
         <sipProxies>
             <registerWithProxy>true</registerWithProxy>
-            <proxy1_address>{{local_ip}}</proxy1_address>
+            <proxy1_address>{{sip_server_url}}</proxy1_address>
             <proxy1_port>5060</proxy1_port>
         </sipProxies>
         <sipLines>
