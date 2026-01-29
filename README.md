@@ -1,47 +1,77 @@
-# Pocket Provisioner v0.0.2
+# Pocket Provisioner v0.0.3
 
-**Pocket Provisioner** is a mobile field utility designed for Telecommunications Technicians. It turns an Android/iOS device into a temporary **Provisioning Server**, allowing for rapid deployment of VoIP handsets without needing a laptop or complex on-site server infrastructure.
+**Pocket Provisioner** is a mobile field utility for Telecommunications Technicians. It turns an Android/iOS device into a temporary **Provisioning Server**, allowing for rapid deployment of VoIP handsets (Yealink, Polycom, Cisco) without needing a laptop or complex on-site infrastructure.
 
 ## 🚀 Core Features
 
-* **Mobile Web Server:** Hosts configuration files directly from your phone on Port 8080.
-* **The "Server Hop":** Generates config files that apply local settings (Wallpapers, Buttons) and then automatically repoint the handset to the ISP's production DMS (e.g., Telstra, 3CX, FusionPBX).
-* **Multi-Vendor Support:**
-    * **Yealink:** T4x, T5x (Generated `.cfg` with BLF injection).
-    * **Polycom:** VVX, Edge E Series (Generated XML).
-    * **Cisco:** 8851/8865 (3PCC `.cnf.xml` support).
-* **Visual Layout Editor:** Drag-and-drop style editor to configure BLF, Speed Dials, and Line keys for Yealink models.
+* **Server Hop Architecture:** Provisions a handset with local settings (Wallpaper, Buttons) and then automatically hands it off to your production **DMS / EPM** (Endpoint Manager).
+* **Smart CSV Import:** Automatically detects Carrier/Broadworks headers and generic exports.
 * **Auto-Advance Scanning:** Rapidly map MAC addresses to Extensions using the camera.
+* **Smart Wallpaper Tool:** Pick any image from your gallery; the app auto-resizes and formats it for the specific handset model (e.g., Yealink T54W) and hosts it locally.
+* **Button Layout Editor:** Configure BLF, Speed Dial, and Line keys before the phone even boots.
 
-## 🛠 Supported Hardware & Templates
+---
 
-We provide built-in fallback templates for the following. Wallpaper sizes are noted for your reference when hosting local media:
+## 🛠 Usage Workflow
 
-| Manufacturer | Models | Wallpaper Size |
-| :--- | :--- | :--- |
-| **Yealink** | T54W, T46U | 480 x 272 |
-| **Yealink** | T48G, T57W | 800 x 480 |
-| **Poly** | Edge E450 | 480 x 272 |
-| **Poly** | Edge E350 | 320 x 240 |
-| **Poly** | VVX 1500 | 800 x 480 |
-| **Cisco** | 8851, 8865 | 800 x 480 |
+### 1. The Setup (Global Settings)
+Tap the **Gear Icon [⚙]** to configure your job environment.
 
-## 📦 Usage Workflow
+* **Target DMS / EPM Server:**
+    * Enter the URL where the phone should go *after* initial setup.
+    * *Example:* `http://dms.example.com/bootstrap`
+* **Primary SIP Server:**
+    * **Leave Blank** for Cloud/DMS jobs. It will default to the local Android IP temporarily.
+    * **Enter IP** (e.g., `192.168.1.10`) for manual On-Premise PBX jobs.
+* **Wallpaper Source:**
+    * Use the **Smart Tool [🪄]** to pick an image. It will save as `LOCAL_HOSTED`.
 
-1.  **Import:** Tap "Import CSV". Load your Telstra or FreePBX export file.
-2.  **Design (Optional):** Go to "Manage Button Layouts". Select your model and define keys 1-10 as BLFs or Speed Dials (Yealink only).
-3.  **Scan:** Walk the site. Scan the box barcode to assign MAC to Extension.
-4.  **Network Setup:**
-    * Connect Mobile to Voice VLAN.
-    * Configure **DHCP Option 66** on the router to `http://<YOUR_IP>:8080`.
-5.  **Deploy:** Boot the phones. They will:
-    1.  Pull the config from your mobile.
-    2.  Apply your custom buttons and wallpaper.
-    3.  **Hop** (Reboot) into the production ISP ecosystem.
+### 2. Import Data (CSV)
+Tap **Import CSV**. The app supports two main formats:
 
-## 📚 References & Credits
+**A. Carrier / Broadworks Copy-Paste:**
+The app looks for these specific headers:
+* `Device username` -> Maps to **Extension** (Auth ID)
+* `DMS password` -> Maps to **Secret** (Auth Password)
+* `Device type` -> Maps to **Model**
+* `User ID` or `Phone Number` -> Combined with Name for the Label (e.g., "0755551234 - Reception")
 
+**B. Standard / FreePBX Export:**
+* `Extension`
+* `Secret`
+* `Model`
+* `Label` or `Name`
 
-## 🤝 Contributing
+### 3. Deploy
+1.  Tap **Start Server**. (Android will ask for Location permission to find Wi-Fi IP).
+2.  Set your Router's **DHCP Option 66** to the URL displayed (e.g., `http://192.168.1.50:8080`).
+3.  Tap **Start Scanning**.
+4.  Scan the barcode on the phone box. The app matches it to the user and auto-advances.
+5.  Boot the phone. It will:
+    * Download Config from App.
+    * Apply Wallpaper & Buttons.
+    * Read the "Target DMS" URL.
+    * Reboot and connect to your Carrier/PBX using the injected credentials.
 
-This is an Alpha release. Pull requests for new Handset Templates or improved Regex matching for MAC addresses are welcome.
+---
+
+## 📦 Supported Hardware
+
+* **Yealink:** T54W, T46U, T48G, T57W, T58W (Generic T4x/T5x support)
+* **Poly (Polycom):** Edge E Series (E350, E450), VVX Series
+* **Cisco:** 8851, 8865 (3PCC / MPP)
+
+## 🔧 Template Management
+Missing a model?
+1.  Go to **Settings -> Manage Templates**.
+2.  Import a `.cfg` or `.xml` file.
+3.  Or load a "Base Template" (Yealink/Poly/Cisco), edit it, and save it.
+4.  You can also **Export** templates to share with your team.
+
+## 📦 Tech Stack
+
+* **Framework:** Flutter (Dart)
+* **Server:** `shelf` & `shelf_router`
+* **Database:** `sqflite`
+* **Scanner:** `mobile_scanner`
+* **Image Processing:** `image`
