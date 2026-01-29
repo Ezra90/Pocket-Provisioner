@@ -10,7 +10,7 @@ class DatabaseHelper {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('provisioner.db');
+    _database = await _initDB('provisioner_v2.db');
     return _database!;
   }
 
@@ -18,7 +18,8 @@ class DatabaseHelper {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
-    return await openDatabase(path, version: 2, onCreate: (db, version) async {
+    return await openDatabase(path, version: 1, onCreate: (db, version) async {
+      // 1. Devices Table
       await db.execute('''
         CREATE TABLE devices (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -31,6 +32,7 @@ class DatabaseHelper {
         )
       ''');
 
+      // 2. Templates Table
       await db.execute('''
         CREATE TABLE templates (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,20 +41,10 @@ class DatabaseHelper {
           content TEXT NOT NULL
         )
       ''');
-    }, onUpgrade: (db, oldVersion, newVersion) async {
-      if (oldVersion < 2) {
-        await db.execute('''
-          CREATE TABLE templates (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            model_name TEXT UNIQUE NOT NULL,
-            content_type TEXT NOT NULL,
-            content TEXT NOT NULL
-          )
-        ''');
-      }
     });
   }
 
+  // --- Device Methods ---
   Future<void> insertDevice(Device device) async {
     final db = await instance.database;
     await db.insert('devices', device.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
@@ -77,6 +69,7 @@ class DatabaseHelper {
     return null;
   }
 
+  // --- Template Methods ---
   Future<void> saveTemplate(String model, String type, String content) async {
     final db = await instance.database;
     await db.insert(
