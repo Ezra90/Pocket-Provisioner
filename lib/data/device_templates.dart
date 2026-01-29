@@ -30,6 +30,11 @@ linekey.1.label = Line 1
 linekey.2.type = 0
 linekey.3.type = 0
 
+# Wallpaper Logic
+# If a public URL is set, the phone fetches it from the internet.
+# If not, it fetches from this Android phone.
+phone_setting.backgrounds = {{wallpaper_url}}
+
 # SERVER HOP: Point to Telstra for next boot
 static.auto_provision.server.url = {{target_url}}
 static.auto_provision.enable = 1
@@ -38,6 +43,7 @@ static.auto_provision.power_on = 1
 
   // -- TEMPLATE 2: POLYCOM VVX (XML) --
   // Uses .xml format.
+  // Updated with Background Image support for VVX series
   static const String polycomGeneric = '''
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <PHONE_CONFIG>
@@ -50,6 +56,12 @@ static.auto_provision.power_on = 1
     reg.1.server.1.port="5060"
     reg.1.server.1.transport="TCPOnly"
   />
+  
+  <bg 
+    bg.color.selection="2,1" 
+    bg.color.bm.1.name="{{wallpaper_url}}" 
+  />
+
   <DEVICE device.prov.serverName="{{target_url}}" />
 </PHONE_CONFIG>
 ''';
