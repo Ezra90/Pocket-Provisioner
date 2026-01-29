@@ -10,7 +10,7 @@ import 'data/database_helper.dart';
 import 'services/provisioning_server.dart';
 import 'models/device.dart';
 import 'screens/template_manager.dart';
-import 'screens/button_layout_editor.dart'; // NEW IMPORT (for visual button editor)
+import 'screens/button_layout_editor.dart';
 import 'data/device_templates.dart';
 
 void main() {
