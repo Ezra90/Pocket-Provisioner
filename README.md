@@ -10,10 +10,11 @@
 * **Multi-Vendor Support:** Smart detection for Yealink (`.cfg`) and Polycom (`.xml`) request formats.
 * **Dynamic Template Engine:** Add new handset models on-the-fly by importing text or XML templates directly in the app.
 * **Database Driven:** Uses SQLite to manage deployment lists for 100+ devices.
+* **Smart CSV Import:** Automatically maps Telstra and FreePBX exports to the correct fields.
 
 ## 🛠 Usage Workflow
 
-1.  **Import:** Load your extension list (CSV) or use the "Mock Data" generator.
+1.  **Import:** Tap "Import CSV". Load your Telstra or FreePBX export file.
 2.  **Scan:** Walk the site. The app prompts: *"Find the phone for Ext 101"*. Scan the box barcode. The app assigns it and instantly advances to Ext 102.
 3.  **Network Setup:**
     * Connect your Mobile to the local Voice VLAN (e.g., Unifi UX Express).
@@ -28,7 +29,7 @@
 * **Database:** `sqflite`
 * **Scanner:** `mobile_scanner`
 * **Background:** `wakelock_plus` (Prevents server sleep on iOS/Android)
-* **File Handling:** `file_picker` & `share_plus`
+* **File Handling:** `file_picker`, `csv`, `share_plus`
 
 ## 🤝 Contributing
 
