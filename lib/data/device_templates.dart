@@ -2,7 +2,8 @@ import '../data/database_helper.dart';
 
 class DeviceTemplates {
   
-  static const String telstraTarget = "http://polydms.digitalbusiness.telstra.com/dms/bootstrap";
+  // Default fallback if nothing is set in App Settings
+  static const String defaultTarget = "http://polydms.digitalbusiness.telstra.com/dms/bootstrap";
 
   // --- TEMPLATE 1: YEALINK GENERIC ---
   static const String yealinkGeneric = '''
@@ -20,22 +21,22 @@ account.1.sip_server.1.address = {{local_ip}}
 account.1.sip_server.1.port = 5060
 account.1.sip_server.1.transport_type = 1
 
-# 2. LOCAL CUSTOMIZATIONS (Wallpaper)
+# 2. LOCAL CUSTOMIZATIONS
 phone_setting.backgrounds = {{wallpaper_url}}
 
-# 3. SERVER HOP (Telstra/FreePBX Handoff)
-# We use the {{extension}} and {{secret}} as the Provisioning Credentials
+# 3. SERVER HOP (The Handover)
+# Points the phone to the final destination (Telstra/3CX/FreePBX)
 static.auto_provision.server.url = {{target_url}}
 static.auto_provision.server.username = {{extension}}
 static.auto_provision.server.password = {{secret}}
 static.auto_provision.enable = 1
 static.auto_provision.power_on = 1
 
-# CRITICAL: Disable the "Quick Setup" wizard to skip manual entry
+# Disable Quick Setup to automate the handover
 features.show_quick_setup.enable = 0
 ''';
 
-  // --- TEMPLATE 2: POLYCOM VVX (XML) ---
+  // --- TEMPLATE 2: POLYCOM VVX ---
   static const String polycomGeneric = '''
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <PHONE_CONFIG>
@@ -60,13 +61,10 @@ features.show_quick_setup.enable = 0
 </PHONE_CONFIG>
 ''';
 
-  // --- DYNAMIC LOGIC ---
   static Future<String> getTemplateForModel(String model) async {
-    // A. Check Database First
     final custom = await DatabaseHelper.instance.getTemplate(model);
     if (custom != null) return custom['content'] as String;
 
-    // B. Fallback Defaults
     if (model.toUpperCase().contains("POLY") || model.toUpperCase().contains("VVX") || model.toUpperCase().contains("EDGE")) {
       return polycomGeneric;
     }
