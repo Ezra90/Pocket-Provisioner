@@ -10,7 +10,7 @@ import 'data/database_helper.dart';
 import 'services/provisioning_server.dart';
 import 'models/device.dart';
 import 'screens/template_manager.dart';
-
+import 'data/device_templates.dart';
 void main() {
   runApp(const MaterialApp(
     title: 'Pocket Provisioner',
@@ -41,6 +41,84 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await [Permission.camera, Permission.location].request();
   }
 
+  // --- SETTINGS DIALOG ---
+  void _openSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Load saved settings or use defaults
+    final wallpaperController = TextEditingController(text: prefs.getString('public_wallpaper_url') ?? '');
+    final targetUrlController = TextEditingController(text: prefs.getString('target_provisioning_url') ?? DeviceTemplates.defaultTarget);
+
+    if(!mounted) return;
+
+    showDialog(
+      context: context, 
+      builder: (context) => AlertDialog(
+        title: const Text("Global Settings"),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. Target URL (The most important setting)
+              const Text("Target Provisioning Server (The Hop)", style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text("Where phones go after initial setup (Telstra/3CX/FreePBX).", style: TextStyle(fontSize: 12, color: Colors.grey)),
+              const SizedBox(height: 5),
+              TextField(
+                controller: targetUrlController,
+                decoration: const InputDecoration(
+                  hintText: "http://provisioning.server.com/cfg",
+                  border: OutlineInputBorder()
+                ),
+              ),
+              const SizedBox(height: 15),
+
+              // 2. Wallpaper URL
+              const Text("Public Wallpaper URL", style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text("For phones that don't cache images locally.", style: TextStyle(fontSize: 12, color: Colors.grey)),
+              const SizedBox(height: 5),
+              TextField(
+                controller: wallpaperController,
+                decoration: const InputDecoration(
+                  hintText: "https://my-site.com/logo.png",
+                  border: OutlineInputBorder()
+                ),
+              ),
+              
+              const Divider(height: 30),
+              
+              // 3. Template Manager
+              ListTile(
+                leading: const Icon(Icons.file_copy, color: Colors.blue),
+                title: const Text("Manage Templates"),
+                subtitle: const Text("Add/Import new phone models"),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (c) => const TemplateManagerScreen()));
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () async {
+              await prefs.setString('public_wallpaper_url', wallpaperController.text.trim());
+              await prefs.setString('target_provisioning_url', targetUrlController.text.trim());
+              
+              if(mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Settings Saved")));
+              }
+            }, 
+            child: const Text("Save")
+          )
+        ],
+      )
+    );
+  }
+
   Future<void> _importCSV() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -56,22 +134,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       List<List<dynamic>> rows = const CsvToListConverter().convert(rawContent, eol: "\n");
       if (rows.isEmpty) throw "Empty file";
 
-      // SMART MAPPING for Telstra / FreePBX
+      // SMART MAPPING
       List<dynamic> headers = rows[0].map((e) => e.toString().toLowerCase().trim()).toList();
       
-      // 1. EXTENSION: "extension", "user", "username" (Telstra: "Device username")
       int extIndex = headers.indexWhere((h) => h.contains('extension') || h == 'ext' || h.contains('user'));
-      
-      // 2. SECRET: "secret", "password", "pass" (Telstra: "DMS password")
       int passIndex = headers.indexWhere((h) => h.contains('secret') || h.contains('pass'));
-      
-      // 3. LABEL: "label", "name", "description" (Telstra: "Name" or "Device Phone Number")
       int nameIndex = headers.indexWhere((h) => h.contains('label') || h.contains('name') || h.contains('description'));
-      
-      // 4. MODEL: "model", "type" (Telstra: "Device type")
       int modelIndex = headers.indexWhere((h) => h.contains('model') || h.contains('type'));
-      
-      // 5. MAC: "mac" (Optional)
       int macIndex = headers.indexWhere((h) => h.contains('mac'));
 
       if (extIndex == -1) throw "Could not find 'Extension' or 'Username' column";
@@ -118,58 +187,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  void _openSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    final controller = TextEditingController(text: prefs.getString('public_wallpaper_url') ?? '');
-
-    if(!mounted) return;
-
-    showDialog(
-      context: context, 
-      builder: (context) => AlertDialog(
-        title: const Text("Global Settings"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text("Public Wallpaper URL", style: TextStyle(fontWeight: FontWeight.bold)),
-            const Text("Use for legacy phones (e.g. VVX1500)", style: TextStyle(fontSize: 12, color: Colors.grey)),
-            const SizedBox(height: 10),
-            TextField(
-              controller: controller,
-              decoration: const InputDecoration(
-                hintText: "https://my-site.com/logo.png",
-                border: OutlineInputBorder()
-              ),
-            ),
-            const Divider(height: 30),
-            ListTile(
-              leading: const Icon(Icons.file_copy, color: Colors.blue),
-              title: const Text("Manage Templates"),
-              subtitle: const Text("Add/Import new phone models"),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (c) => const TemplateManagerScreen()));
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
-          ElevatedButton(
-            onPressed: () async {
-              await prefs.setString('public_wallpaper_url', controller.text.trim());
-              if(mounted) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Settings Saved")));
-              }
-            }, 
-            child: const Text("Save")
-          )
-        ],
-      )
-    );
-  }
-
   Future<void> _toggleServer() async {
     if (_isServerRunning) {
       setState(() {
@@ -197,7 +214,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Pocket Provisioner v0.0.1"),
+        title: const Text("Pocket Provisioner v0.0.3"),
         backgroundColor: Colors.blueAccent,
         foregroundColor: Colors.white,
         actions: [
