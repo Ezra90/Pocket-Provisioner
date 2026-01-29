@@ -41,10 +41,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _checkPermissions() async {
-    await [Permission.camera, Permission.location].request();
+    await [
+      Permission.camera, 
+      Permission.location, // Critical for Android Wi-Fi IP
+    ].request();
   }
 
-  // --- WALLPAPER RESIZER DIALOG (Unchanged) ---
+  // --- WALLPAPER RESIZER DIALOG ---
   void _openWallpaperTools(BuildContext context, Function onSave) {
     String selectedModel = DeviceTemplates.wallpaperSpecs.keys.first;
     
@@ -199,50 +202,115 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // ... (Remainder of class: _importCSV, _toggleServer, build etc. is same as previous) ...
+  // --- SMART CSV IMPORT ---
   Future<void> _importCSV() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['csv', 'txt']);
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['csv', 'txt'],
+    );
+
     if (result == null) return;
+
     try {
       final File file = File(result.files.single.path!);
       final String rawContent = await file.readAsString();
+      
       List<List<dynamic>> rows = const CsvToListConverter().convert(rawContent, eol: "\n");
       if (rows.isEmpty) throw "Empty file";
+
+      // Normalize headers to lowercase
       List<dynamic> headers = rows[0].map((e) => e.toString().toLowerCase().trim()).toList();
-      int extIndex = headers.indexWhere((h) => h.contains('extension') || h == 'ext' || h.contains('user'));
-      int passIndex = headers.indexWhere((h) => h.contains('secret') || h.contains('pass'));
-      int nameIndex = headers.indexWhere((h) => h.contains('label') || h.contains('name') || h.contains('description'));
-      int modelIndex = headers.indexWhere((h) => h.contains('model') || h.contains('type'));
-      int macIndex = headers.indexWhere((h) => h.contains('mac'));
-      if (extIndex == -1) throw "Could not find 'Extension' column";
+      
+      // 1. EXTENSION: "Device username" (Telstra) or "extension" (FreePBX)
+      int extIndex = headers.indexWhere((h) => 
+        h.contains('device username') || h.contains('extension') || h == 'user' || h == 'username');
+      
+      // 2. SECRET: "DMS password" (Telstra) or "secret" (FreePBX)
+      int passIndex = headers.indexWhere((h) => 
+        h.contains('dms password') || h.contains('secret') || h.contains('pass'));
+      
+      // 3. NAME: "Device name" or "Name" or "Label"
+      int nameIndex = headers.indexWhere((h) => 
+        h == 'name' || h.contains('device name') || h.contains('label') || h.contains('description'));
+      
+      // 4. MODEL: "Device type" (Telstra) or "Model"
+      int modelIndex = headers.indexWhere((h) => 
+        h.contains('device type') || h.contains('model'));
+      
+      // 5. PHONE/USER ID: "User ID" (Telstra) or "Phone Number" -> Used for Label
+      int phoneIndex = headers.indexWhere((h) => 
+        h.contains('user id') || h.contains('phone') || h == 'dn');
+
+      int macIndex = headers.indexWhere((h) => h.contains('mac')); // Optional
+
+      if (extIndex == -1) throw "Could not find 'Device Username' or 'Extension' column";
+
       int count = 0;
       for (int i = 1; i < rows.length; i++) {
         var row = rows[i];
-        if (row.length <= extIndex) continue;
-        String extension = row[extIndex].toString();
-        String secret = (passIndex != -1 && row.length > passIndex) ? row[passIndex].toString() : "1234";
-        String label = (nameIndex != -1 && row.length > nameIndex) ? row[nameIndex].toString() : extension;
-        String model = (modelIndex != -1 && row.length > modelIndex) ? row[modelIndex].toString() : "T58G"; 
+        if (row.length <= extIndex) continue; // Skip incomplete rows
+
+        // --- Data Extraction ---
+        String extension = row[extIndex].toString().trim();
+        String secret = (passIndex != -1 && row.length > passIndex) ? row[passIndex].toString().trim() : "1234";
+        String model = (modelIndex != -1 && row.length > modelIndex) ? row[modelIndex].toString().trim() : "T58G"; 
+        
+        // --- Label Generation Logic ---
+        String baseName = (nameIndex != -1 && row.length > nameIndex) ? row[nameIndex].toString().trim() : extension;
+        String phoneNumber = (phoneIndex != -1 && row.length > phoneIndex) ? row[phoneIndex].toString().trim() : "";
+        
+        // Format: "0712345678 - Reception" OR just "Reception"
+        String finalLabel = phoneNumber.isNotEmpty ? "$phoneNumber - $baseName" : baseName;
+
         String? mac = (macIndex != -1 && row.length > macIndex) ? row[macIndex].toString() : null;
-        if (mac != null) { mac = mac.replaceAll(':', '').toUpperCase(); if (mac.length < 10) mac = null; }
-        await DatabaseHelper.instance.insertDevice(Device(model: model, extension: extension, secret: secret, label: label, macAddress: mac, status: mac != null ? 'READY' : 'PENDING'));
+        if (mac != null) {
+          mac = mac.replaceAll(':', '').toUpperCase();
+          if (mac.length < 10) mac = null; 
+        }
+
+        await DatabaseHelper.instance.insertDevice(Device(
+          model: model,
+          extension: extension, // This is the Auth Username (1635...)
+          secret: secret,       // This is the Auth Password
+          label: finalLabel,    // This shows on the screen
+          macAddress: mac,
+          status: mac != null ? 'READY' : 'PENDING'
+        ));
         count++;
       }
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Imported $count devices")));
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Imported $count devices!"))
+        );
+      }
+
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Import Error: $e"), backgroundColor: Colors.red));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Import Failed: $e"), backgroundColor: Colors.red)
+        );
+      }
     }
   }
 
   Future<void> _toggleServer() async {
     if (_isServerRunning) {
       await ProvisioningServer().stop();
-      setState(() { _serverStatus = "OFFLINE"; _isServerRunning = false; _statusColor = Colors.red.shade100; });
+      setState(() {
+        _serverStatus = "OFFLINE";
+        _isServerRunning = false;
+        _statusColor = Colors.red.shade100;
+      });
       WakelockPlus.disable(); 
     } else {
       try {
         String url = await ProvisioningServer().start();
-        setState(() { _serverStatus = "ONLINE: $url"; _isServerRunning = true; _statusColor = Colors.green.shade100; });
+        setState(() {
+          _serverStatus = "ONLINE: $url";
+          _isServerRunning = true;
+          _statusColor = Colors.green.shade100;
+        });
         WakelockPlus.enable(); 
       } catch (e) {
         setState(() => _serverStatus = "ERROR: ${e.toString()}");
@@ -264,39 +332,72 @@ class _DashboardScreenState extends State<DashboardScreen> {
           children: [
             Card(
               color: _statusColor,
+              elevation: 4,
               child: Padding(
                 padding: const EdgeInsets.all(24.0),
                 child: Column(
                   children: [
-                    const Icon(Icons.router, size: 48),
+                    const Icon(Icons.router, size: 48, color: Colors.black54),
                     const SizedBox(height: 10),
                     Text(_serverStatus, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     if (_isServerRunning)
-                      const Text("Set Router Option 66 to this URL", style: TextStyle(fontSize: 12)),
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8.0),
+                        child: Text("Set Router DHCP Option 66 to this URL", style: TextStyle(fontSize: 12)),
+                      ),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 20),
+
             Row(
               children: [
-                Expanded(child: ElevatedButton.icon(onPressed: _importCSV, icon: const Icon(Icons.upload), label: const Text("Import CSV"))),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _importCSV,
+                    icon: const Icon(Icons.file_upload),
+                    label: const Text("Import CSV"),
+                    style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
+                  ),
+                ),
                 const SizedBox(width: 10),
-                Expanded(child: ElevatedButton.icon(
-                  onPressed: _toggleServer, 
-                  icon: Icon(_isServerRunning ? Icons.stop : Icons.play_arrow), 
-                  label: Text(_isServerRunning ? "Stop" : "Start"),
-                  style: ElevatedButton.styleFrom(backgroundColor: _isServerRunning ? Colors.red : Colors.green, foregroundColor: Colors.white)
-                )),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _toggleServer,
+                    icon: Icon(_isServerRunning ? Icons.stop_circle : Icons.play_circle),
+                    label: Text(_isServerRunning ? "Stop Server" : "Start Server"),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.all(16),
+                      backgroundColor: _isServerRunning ? Colors.redAccent : Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
               ],
             ),
+            
             const Spacer(),
+            
             SizedBox(
-              height: 100,
-              child: ElevatedButton.icon(
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const ScannerScreen())),
-                icon: const Icon(Icons.qr_code_scanner, size: 30),
-                label: const Text("START SCANNING", style: TextStyle(fontSize: 18)),
+              height: 120,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (c) => const ScannerScreen()));
+                },
+                child: const Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.qr_code_scanner, size: 40, color: Colors.white),
+                    SizedBox(height: 8),
+                    Text("START SCANNING", style: TextStyle(fontSize: 20, color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text("Auto-Advance Mode", style: TextStyle(color: Colors.white70)),
+                  ],
+                ),
               ),
             ),
           ],
@@ -306,7 +407,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-// ... ScannerScreen (Unchanged) ...
+// ... ScannerScreen class remains unchanged ...
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
   @override
@@ -335,8 +436,22 @@ class _ScannerScreenState extends State<ScannerScreen> {
   Widget build(BuildContext context) {
     if (_target == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text("Complete")),
-        body: const Center(child: Text("All Devices Assigned!", style: TextStyle(fontSize: 24))),
+        appBar: AppBar(title: const Text("Job Complete")),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.check_circle, size: 80, color: Colors.green),
+              const SizedBox(height: 20),
+              const Text("All Devices Assigned!", style: TextStyle(fontSize: 24)),
+              const SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context), 
+                child: const Text("Return to Dashboard")
+              )
+            ],
+          ),
+        ),
       );
     }
 
@@ -346,27 +461,48 @@ class _ScannerScreenState extends State<ScannerScreen> {
         children: [
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            color: Colors.blue,
+            padding: const EdgeInsets.all(24),
+            color: Colors.blueAccent,
             child: Column(
               children: [
-                Text("${_target!.extension} - ${_target!.label}", style: const TextStyle(fontSize: 24, color: Colors.white, fontWeight: FontWeight.bold)),
-                Text(_target!.model, style: const TextStyle(color: Colors.white)),
+                const Text("SCANNING FOR:", style: TextStyle(color: Colors.white70, letterSpacing: 1.5)),
+                const SizedBox(height: 5),
+                Text(
+                  "${_target!.extension}",
+                  style: const TextStyle(fontSize: 16, color: Colors.white70),
+                ),
+                Text(
+                  _target!.label, // NOW SHOWS "0712345678 - Reception"
+                  style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white),
+                  textAlign: TextAlign.center,
+                ),
+                Text("Model: ${_target!.model}", style: const TextStyle(color: Colors.white)),
               ],
             ),
           ),
+          
           Expanded(
             child: MobileScanner(
               onDetect: (capture) async {
                 if (_isProcessing) return;
-                final String? rawMac = capture.barcodes.first.rawValue;
+                final List<Barcode> barcodes = capture.barcodes;
+                if (barcodes.isEmpty) return;
+                final String? rawMac = barcodes.first.rawValue;
                 if (rawMac == null || rawMac.length < 10) return;
 
                 setState(() => _isProcessing = true);
                 String cleanMac = rawMac.replaceAll(':', '').toUpperCase();
                 await DatabaseHelper.instance.assignMac(_target!.id!, cleanMac);
                 
-                if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Matched $cleanMac"), backgroundColor: Colors.green));
+                if(mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("Matched $cleanMac to ${_target!.label}"),
+                      backgroundColor: Colors.green,
+                      duration: const Duration(seconds: 1),
+                    )
+                  );
+                }
                 _loadNextTarget();
               },
             ),
