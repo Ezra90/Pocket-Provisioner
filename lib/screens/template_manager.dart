@@ -1,9 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:share_plus/share_plus.dart'; // Required for Export
-import 'package:path_provider/path_provider.dart'; // Required to create temp file
+import 'package:share_plus/share_plus.dart'; 
+import 'package:path_provider/path_provider.dart';
 import '../data/database_helper.dart';
+import '../data/device_templates.dart'; // Import this to access live templates
 
 class TemplateManagerScreen extends StatefulWidget {
   const TemplateManagerScreen({super.key});
@@ -29,12 +30,10 @@ class _TemplateManagerScreenState extends State<TemplateManagerScreen> {
       setState(() {
         _contentController.text = content;
         
-        // Auto-fill Model Name if empty
         if (_modelController.text.isEmpty) {
           _modelController.text = filename.split('.').first;
         }
         
-        // Auto-detect type
         if (filename.toLowerCase().endsWith('xml')) {
           _selectedType = 'application/xml';
         } else {
@@ -50,7 +49,7 @@ class _TemplateManagerScreenState extends State<TemplateManagerScreen> {
     }
   }
 
-  // --- EXPORT LOGIC (New) ---
+  // --- EXPORT LOGIC ---
   Future<void> _exportFile() async {
     if (_modelController.text.isEmpty || _contentController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -61,17 +60,14 @@ class _TemplateManagerScreenState extends State<TemplateManagerScreen> {
 
     final box = context.findRenderObject() as RenderBox?;
     
-    // Determine extension
     String extension = _selectedType == 'application/xml' ? 'xml' : 'cfg';
     String fileName = "${_modelController.text}.$extension";
 
-    // Write to temp file
     final directory = await getTemporaryDirectory();
     final path = '${directory.path}/$fileName';
     final file = File(path);
     await file.writeAsString(_contentController.text);
 
-    // Share
     await Share.shareXFiles(
       [XFile(path)],
       text: 'Pocket Provisioner Template: ${_modelController.text}',
@@ -94,38 +90,25 @@ class _TemplateManagerScreenState extends State<TemplateManagerScreen> {
     }
   }
 
-  // --- PRESETS ---
-  void _loadPreset(String type) {
+  // --- LOAD LIVE APP DEFAULTS ---
+  void _loadBaseTemplate(String type) {
+    String content = "";
     if (type == 'Yealink') {
-      _modelController.text = "T58W"; 
+      _modelController.text = "T54W_Custom";
       _selectedType = 'text/plain';
-      _contentController.text = '''#!version:1.0.0.1
-## Custom Yealink Template
-account.1.enable = 1
-account.1.label = {{label}}
-account.1.auth_name = {{extension}}
-account.1.user_name = {{extension}}
-account.1.password = {{secret}}
-account.1.sip_server.1.address = {{sip_server_url}}
-phone_setting.backgrounds = {{wallpaper_url}}
-static.auto_provision.server.url = {{target_url}}
-''';
-    } else {
-      _modelController.text = "VVX250";
+      // Pulls the ACTUAL source code template
+      content = DeviceTemplates.fallbackYealinkTemplate;
+    } else if (type == 'Poly') {
+      _modelController.text = "EdgeE450_Custom";
       _selectedType = 'application/xml';
-      _contentController.text = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<PHONE_CONFIG>
-  <REGISTRATION
-    reg.1.displayName="{{label}}"
-    reg.1.address="{{extension}}"
-    reg.1.auth.userId="{{extension}}"
-    reg.1.auth.password="{{secret}}"
-    reg.1.server.1.address="{{sip_server_url}}"
-  />
-  <bg bg.color.bm.1.name="{{wallpaper_url}}" />
-  <DEVICE device.prov.serverName="{{target_url}}" />
-</PHONE_CONFIG>''';
+      content = DeviceTemplates.fallbackPolycomTemplate;
+    } else if (type == 'Cisco') {
+      _modelController.text = "8851_Custom";
+      _selectedType = 'application/xml';
+      content = DeviceTemplates.fallbackCiscoTemplate;
     }
+    
+    _contentController.text = content;
     setState(() {});
   }
 
@@ -135,13 +118,11 @@ static.auto_provision.server.url = {{target_url}}
       appBar: AppBar(
         title: const Text("Template Manager"),
         actions: [
-          // IMPORT
           IconButton(
             icon: const Icon(Icons.upload_file),
             tooltip: "Import File",
             onPressed: _importFile,
           ),
-          // EXPORT (Restored)
           IconButton(
             icon: const Icon(Icons.share),
             tooltip: "Export/Share",
@@ -154,21 +135,23 @@ static.auto_provision.server.url = {{target_url}}
         child: ListView(
           children: [
             const Text(
-              "Import, Edit, or Create handset templates.", 
+              "Load a base template to modify, or import a new one.", 
               style: TextStyle(color: Colors.grey)
             ),
             const SizedBox(height: 20),
             
+            // Model Name Input
             TextField(
               controller: _modelController,
               decoration: const InputDecoration(
                 labelText: "Model Name (e.g. T33G)", 
                 border: OutlineInputBorder(),
-                helperText: "Must match the 'Model' in your CSV."
+                helperText: "Must match the 'Model' column in your CSV exactly."
               ),
             ),
             const SizedBox(height: 15),
 
+            // File Type Selector
             DropdownButtonFormField<String>(
               value: _selectedType,
               decoration: const InputDecoration(labelText: "File Type", border: OutlineInputBorder()),
@@ -180,14 +163,32 @@ static.auto_provision.server.url = {{target_url}}
             ),
             const SizedBox(height: 15),
 
-            Row(
+            // Quick Load Buttons
+            const Text("Load Base Template:", style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 5),
+            Wrap(
+              spacing: 10,
               children: [
-                const Text("Quick Load: "),
-                TextButton(onPressed: () => _loadPreset('Yealink'), child: const Text("Yealink Base")),
-                TextButton(onPressed: () => _loadPreset('Poly'), child: const Text("Poly Base")),
+                ActionChip(
+                  label: const Text("Yealink"),
+                  avatar: const Icon(Icons.phone_android, size: 16),
+                  onPressed: () => _loadBaseTemplate('Yealink'),
+                ),
+                ActionChip(
+                  label: const Text("Poly"),
+                  avatar: const Icon(Icons.phone, size: 16),
+                  onPressed: () => _loadBaseTemplate('Poly'),
+                ),
+                ActionChip(
+                  label: const Text("Cisco"),
+                  avatar: const Icon(Icons.router, size: 16),
+                  onPressed: () => _loadBaseTemplate('Cisco'),
+                ),
               ],
             ),
+            const SizedBox(height: 15),
 
+            // Editor Area
             TextField(
               controller: _contentController,
               maxLines: 15,
@@ -202,6 +203,7 @@ static.auto_provision.server.url = {{target_url}}
             ),
             const SizedBox(height: 20),
 
+            // Save Button
             SizedBox(
               height: 50,
               child: ElevatedButton.icon(
