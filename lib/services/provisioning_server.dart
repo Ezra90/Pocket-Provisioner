@@ -15,10 +15,15 @@ class ProvisioningServer {
     final myIp = await info.getWifiIP() ?? "0.0.0.0";
 
     final prefs = await SharedPreferences.getInstance();
+    
+    // 1. Get Wallpaper URL
     final String? publicBgUrl = prefs.getString('public_wallpaper_url');
     final String finalWallpaperUrl = (publicBgUrl != null && publicBgUrl.isNotEmpty) 
         ? publicBgUrl 
         : "http://$myIp:8080/media/custom_bg.png";
+
+    // 2. Get Target Provisioning URL (The Hop)
+    final String targetUrl = prefs.getString('target_provisioning_url') ?? DeviceTemplates.defaultTarget;
 
     router.get('/<filename>', (Request req, String filename) async {
       
@@ -49,7 +54,7 @@ class ProvisioningServer {
           .replaceAll('{{secret}}', device.secret)
           .replaceAll('{{local_ip}}', myIp)
           .replaceAll('{{wallpaper_url}}', finalWallpaperUrl)
-          .replaceAll('{{target_url}}', DeviceTemplates.telstraTarget);
+          .replaceAll('{{target_url}}', targetUrl); // <--- INJECTED FROM SETTINGS
 
       return Response.ok(config, headers: {'content-type': contentType});
     });
