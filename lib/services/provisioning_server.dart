@@ -10,6 +10,7 @@ import '../data/database_helper.dart';
 import '../data/device_templates.dart';
 import '../models/device.dart';
 import '../services/button_layout_service.dart';
+import '../models/button_key.dart'; // For type reference
 
 class ProvisioningServer {
   Future<String> start() async {
@@ -26,41 +27,37 @@ class ProvisioningServer {
 
     final String targetUrl = prefs.getString('target_provisioning_url') ?? DeviceTemplates.defaultTarget;
 
-    // Load all devices once for label lookup (ext → label map)
+    // Load all devices for efficient ext → label map (used in BLF label fallback)
     final List<Device> allDevices = await DatabaseHelper.instance.getAllDevices();
     final Map<String, String> extToLabel = {
-      for (var d in allDevices) d.extension: d.label,
+      for (var d in allDevices) d.extension: d.label.isNotEmpty ? d.label : d.extension,
     };
 
-    // Main config route — FIXED: Use '/<filename>' to correctly capture MAC.cfg requests
+    // Main route: Serve per-MAC config
     router.get('/<filename>', (Request request, String filename) async {
-      // Clean and normalize the MAC from filename (e.g., 001565123456.cfg → 001565123456)
+      // Normalize MAC
       String cleanMac = filename
           .toUpperCase()
-          .replaceAll(RegExp(r'[:\.\-\s]'), '') // Remove common separators
-          .replaceAll(RegExp(r'\.(cfg|xml|boot)$', caseSensitive: false), ''); // Remove extensions
+          .replaceAll(RegExp(r'[:\.\-\s%3A]'), '')
+          .replaceAll(RegExp(r'\.(cfg|xml|boot)$', caseSensitive: false), '');
 
-      print('LOG: Requested filename: $filename → Parsed MAC: $cleanMac');
+      print('LOG: Request $filename → MAC $cleanMac');
 
-      // Skip generic/common config requests (Yealink common.cfg or 000000000000.cfg)
-      if (cleanMac == '000000000000' || cleanMac.contains('Y0000000000') || cleanMac.isEmpty) {
-        return Response.notFound('Generic config skipped');
+      // Skip generics
+      if (cleanMac.length < 12 || cleanMac == '000000000000' || cleanMac.startsWith('Y000')) {
+        return Response.notFound('Generic request skipped');
       }
 
-      // Fetch the specific device by MAC
       final Device? device = await DatabaseHelper.instance.getDeviceByMac(cleanMac);
-
       if (device == null) {
-        return Response(404, body: 'MAC $cleanMac not found in provisioning list');
+        return Response.notFound('MAC $cleanMac not in list');
       }
 
-      // Get template (DB-stored first, fallback to built-in)
+      // Load template
       String rawTemplate = await DeviceTemplates.getTemplateForModel(device.model);
+      String contentType = await DeviceTemplates.getContentType(device.model);
 
-      // Determine content type (extend for Polycom later)
-      String contentType = rawTemplate.contains('<') ? 'application/xml' : 'text/plain';
-
-      // Basic replacements
+      // Core replacements
       String config = rawTemplate
           .replaceAll('{{label}}', device.label)
           .replaceAll('{{extension}}', device.extension)
@@ -69,7 +66,7 @@ class ProvisioningServer {
           .replaceAll('{{wallpaper_url}}', finalWallpaperUrl)
           .replaceAll('{{target_url}}', targetUrl);
 
-      // NEW: Generate DSS/programmable keys section
+      // DSS/Programmable Keys Generation (Yealink-focused, inspired by standard provisioners)
       final List<ButtonKey> layout = await ButtonLayoutService.getLayoutForModel(device.model);
       String dssSection = '';
 
@@ -77,17 +74,18 @@ class ProvisioningServer {
         if (key.type == 'none' || key.value.isEmpty) continue;
 
         final String typeCode = switch (key.type) {
-          'blf' => '16',        // BLF / Presence
-          'speeddial' => '2',   // Speed Dial
-          'line' => '1',        // Additional Line
-          _ => '0',
+          'blf' => '16',       // BLF/Presence (most common for monitoring)
+          'speeddial' => '2',  // Speed Dial
+          'line' => '1',       // Additional Line/Key
+          _ => '0',            // None/Disabled fallback
         };
 
-        // Use custom label if set, otherwise auto-lookup from another device's label (for BLF)
+        // Label priority: custom → monitored ext's device label → raw value
         final String effectiveLabel = key.label.isNotEmpty
             ? key.label
             : (extToLabel[key.value] ?? key.value);
 
+        // Standard Yealink params (line=1 ties to primary account for calls)
         dssSection += '''
 programmable_key.${key.id}.type = $typeCode
 programmable_key.${key.id}.value = ${key.value}
@@ -97,24 +95,19 @@ programmable_key.${key.id}.line = 1
 ''';
       }
 
-      // Replace the placeholder (trim to avoid extra newlines)
+      // Inject and trim
       config = config.replaceAll('{{dss_keys}}', dssSection.trim());
 
-      return Response.ok(
-        config,
-        headers: {'Content-Type': contentType},
-      );
+      return Response.ok(config, headers: {'Content-Type': contentType});
     });
 
-    // OPTIONAL: Stub for future media serving (e.g., wallpaper image)
-    // For now, returns a placeholder response — replace with actual file serving later
+    // Media stub (expand later for real image serving)
     router.get('/media/<file>', (Request request, String file) async {
-      return Response.ok('Media placeholder: $file (implement file serving here)');
+      return Response.ok('Media file: $file (implement serving here)');
     });
 
-    // Bind and start the server
     final server = await shelf_io.serve(router, '0.0.0.0', 8080);
-    print('Provisioning server running at http://$myIp:${server.port}');
+    print('Server online: http://$myIp:8080');
 
     return 'http://$myIp:8080';
   }
