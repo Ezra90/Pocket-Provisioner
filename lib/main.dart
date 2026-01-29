@@ -43,8 +43,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _checkPermissions() async {
     await [
       Permission.camera, 
-      Permission.location, // Critical for Android Wi-Fi IP
+      Permission.location,
     ].request();
+  }
+
+  // --- HELPER: DMS/EPM EXPLANATION DIALOG ---
+  void _showDmsHelp(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("What is DMS / EPM?"),
+        content: const SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text("Endpoint Manager (EPM)", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text("A comprehensive tool for configuration, security, firmware updates, and deployment. Widely used in VoIP environments (e.g., FreePBX Endpoint Manager) to manage desk phones."),
+              SizedBox(height: 10),
+              Text("DMS (Device Management System)", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text("Similar to EPM, often used by specific carriers (e.g., Telstra) for initial device provisioning."),
+              SizedBox(height: 10),
+              Divider(),
+              Text("The 'Target Server' setting tells the phone where to go after this app applies the initial wallpaper and buttons.", style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Got it"))
+        ],
+      ),
+    );
   }
 
   // --- WALLPAPER RESIZER DIALOG ---
@@ -98,6 +127,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final prefs = await SharedPreferences.getInstance();
     
     final wallpaperController = TextEditingController(text: prefs.getString('public_wallpaper_url') ?? '');
+    // Default to the Telstra example if not set, or leave blank if you prefer users to type it.
+    // Here we read the saved value, and default to the Telstra string if nothing is saved yet.
     final targetUrlController = TextEditingController(text: prefs.getString('target_provisioning_url') ?? DeviceTemplates.defaultTarget);
     final sipServerController = TextEditingController(text: prefs.getString('sip_server_address') ?? '');
 
@@ -118,22 +149,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text("1. Target Provisioning (The Hop)", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const Text("URL where phone goes NEXT (Telstra/3CX).", style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  // 1. DMS / EPM SECTION
+                  Row(
+                    children: [
+                      const Text("1. Target DMS / EPM Server", style: TextStyle(fontWeight: FontWeight.bold)),
+                      IconButton(
+                        icon: const Icon(Icons.help_outline, size: 18, color: Colors.grey),
+                        onPressed: () => _showDmsHelp(context),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                  const Text("URL where phone goes NEXT.", style: TextStyle(fontSize: 11, color: Colors.grey)),
                   TextField(
                     controller: targetUrlController,
-                    decoration: const InputDecoration(hintText: "http://provisioning.server.com"),
+                    decoration: const InputDecoration(
+                      // Explicit Telstra example as hint
+                      hintText: "http://polydms.digitalbusiness.telstra.com/dms/bootstrap",
+                      helperText: "e.g. Telstra DMS URL",
+                      helperStyle: TextStyle(fontSize: 10, color: Colors.grey)
+                    ),
                   ),
                   const SizedBox(height: 15),
 
-                  const Text("2. Primary SIP Server", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const Text("Leave BLANK for Telstra/Hop. Enter IP for Manual/FreePBX.", style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  // 2. SIP SERVER SECTION
+                  const Text("2. Primary SIP Server IP", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text("Leave BLANK for DMS/Cloud. Enter IP for Local PBX.", style: TextStyle(fontSize: 11, color: Colors.grey)),
                   TextField(
                     controller: sipServerController,
                     decoration: const InputDecoration(hintText: "e.g. 192.168.1.10"),
                   ),
                   const SizedBox(height: 15),
                   
+                  // 3. WALLPAPER SECTION
                   const Text("3. Wallpaper Source", style: TextStyle(fontWeight: FontWeight.bold)),
                   const Text("Spec Reference:", style: TextStyle(fontSize: 11, color: Colors.grey)),
                   DropdownButton<String>(
@@ -218,48 +267,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
       List<List<dynamic>> rows = const CsvToListConverter().convert(rawContent, eol: "\n");
       if (rows.isEmpty) throw "Empty file";
 
-      // Normalize headers to lowercase
       List<dynamic> headers = rows[0].map((e) => e.toString().toLowerCase().trim()).toList();
       
-      // 1. EXTENSION: "Device username" (Telstra) or "extension" (FreePBX)
-      int extIndex = headers.indexWhere((h) => 
-        h.contains('device username') || h.contains('extension') || h == 'user' || h == 'username');
-      
-      // 2. SECRET: "DMS password" (Telstra) or "secret" (FreePBX)
-      int passIndex = headers.indexWhere((h) => 
-        h.contains('dms password') || h.contains('secret') || h.contains('pass'));
-      
-      // 3. NAME: "Device name" or "Name" or "Label"
-      int nameIndex = headers.indexWhere((h) => 
-        h == 'name' || h.contains('device name') || h.contains('label') || h.contains('description'));
-      
-      // 4. MODEL: "Device type" (Telstra) or "Model"
-      int modelIndex = headers.indexWhere((h) => 
-        h.contains('device type') || h.contains('model'));
-      
-      // 5. PHONE/USER ID: "User ID" (Telstra) or "Phone Number" -> Used for Label
-      int phoneIndex = headers.indexWhere((h) => 
-        h.contains('user id') || h.contains('phone') || h == 'dn');
-
-      int macIndex = headers.indexWhere((h) => h.contains('mac')); // Optional
+      int extIndex = headers.indexWhere((h) => h.contains('device username') || h.contains('extension') || h == 'user' || h == 'username');
+      int passIndex = headers.indexWhere((h) => h.contains('dms password') || h.contains('secret') || h.contains('pass'));
+      int nameIndex = headers.indexWhere((h) => h == 'name' || h.contains('device name') || h.contains('label') || h.contains('description'));
+      int modelIndex = headers.indexWhere((h) => h.contains('device type') || h.contains('model'));
+      int phoneIndex = headers.indexWhere((h) => h.contains('user id') || h.contains('phone') || h == 'dn');
+      int macIndex = headers.indexWhere((h) => h.contains('mac'));
 
       if (extIndex == -1) throw "Could not find 'Device Username' or 'Extension' column";
 
       int count = 0;
       for (int i = 1; i < rows.length; i++) {
         var row = rows[i];
-        if (row.length <= extIndex) continue; // Skip incomplete rows
+        if (row.length <= extIndex) continue;
 
-        // --- Data Extraction ---
         String extension = row[extIndex].toString().trim();
         String secret = (passIndex != -1 && row.length > passIndex) ? row[passIndex].toString().trim() : "1234";
         String model = (modelIndex != -1 && row.length > modelIndex) ? row[modelIndex].toString().trim() : "T58G"; 
         
-        // --- Label Generation Logic ---
         String baseName = (nameIndex != -1 && row.length > nameIndex) ? row[nameIndex].toString().trim() : extension;
         String phoneNumber = (phoneIndex != -1 && row.length > phoneIndex) ? row[phoneIndex].toString().trim() : "";
-        
-        // Format: "0712345678 - Reception" OR just "Reception"
         String finalLabel = phoneNumber.isNotEmpty ? "$phoneNumber - $baseName" : baseName;
 
         String? mac = (macIndex != -1 && row.length > macIndex) ? row[macIndex].toString() : null;
@@ -270,9 +299,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         await DatabaseHelper.instance.insertDevice(Device(
           model: model,
-          extension: extension, // This is the Auth Username (1635...)
-          secret: secret,       // This is the Auth Password
-          label: finalLabel,    // This shows on the screen
+          extension: extension,
+          secret: secret,
+          label: finalLabel,
           macAddress: mac,
           status: mac != null ? 'READY' : 'PENDING'
         ));
@@ -468,11 +497,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 const Text("SCANNING FOR:", style: TextStyle(color: Colors.white70, letterSpacing: 1.5)),
                 const SizedBox(height: 5),
                 Text(
-                  "${_target!.extension}",
-                  style: const TextStyle(fontSize: 16, color: Colors.white70),
-                ),
-                Text(
-                  _target!.label, // NOW SHOWS "0712345678 - Reception"
+                  _target!.label, 
                   style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white),
                   textAlign: TextAlign.center,
                 ),
