@@ -33,6 +33,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _serverStatus = "OFFLINE";
   bool _isServerRunning = false;
   Color _statusColor = Colors.red.shade100;
+  final String _appVersion = "v0.0.3";
 
   @override
   void initState() {
@@ -43,7 +44,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _checkPermissions() async {
     await [
       Permission.camera, 
-      Permission.location,
+      Permission.location, // Critical for getting Local IP on Android
     ].request();
   }
 
@@ -62,7 +63,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Text("A comprehensive tool for configuration, security, firmware updates, and deployment. Widely used in VoIP environments (e.g., FreePBX Endpoint Manager) to manage desk phones."),
               SizedBox(height: 10),
               Text("DMS (Device Management System)", style: TextStyle(fontWeight: FontWeight.bold)),
-              Text("Similar to EPM, often used by specific carriers (e.g., Telstra) for initial device provisioning."),
+              Text("Similar to EPM, often used by specific carriers for initial device provisioning."),
               SizedBox(height: 10),
               Divider(),
               Text("The 'Target Server' setting tells the phone where to go after this app applies the initial wallpaper and buttons.", style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
@@ -127,8 +128,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final prefs = await SharedPreferences.getInstance();
     
     final wallpaperController = TextEditingController(text: prefs.getString('public_wallpaper_url') ?? '');
-    // Default to the Telstra example if not set, or leave blank if you prefer users to type it.
-    // Here we read the saved value, and default to the Telstra string if nothing is saved yet.
     final targetUrlController = TextEditingController(text: prefs.getString('target_provisioning_url') ?? DeviceTemplates.defaultTarget);
     final sipServerController = TextEditingController(text: prefs.getString('sip_server_address') ?? '');
 
@@ -165,9 +164,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   TextField(
                     controller: targetUrlController,
                     decoration: const InputDecoration(
-                      // Explicit Telstra example as hint
-                      hintText: "http://polydms.digitalbusiness.telstra.com/dms/bootstrap",
-                      helperText: "e.g. Telstra DMS URL",
+                      hintText: "http://polydms.digitalbusiness.telstra.com/dms/bootstrap", // Example kept for clarity
+                      helperText: "e.g. Carrier DMS or EPM URL",
                       helperStyle: TextStyle(fontSize: 10, color: Colors.grey)
                     ),
                   ),
@@ -269,6 +267,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       List<dynamic> headers = rows[0].map((e) => e.toString().toLowerCase().trim()).toList();
       
+      // Smart Header Matching
       int extIndex = headers.indexWhere((h) => h.contains('device username') || h.contains('extension') || h == 'user' || h == 'username');
       int passIndex = headers.indexWhere((h) => h.contains('dms password') || h.contains('secret') || h.contains('pass'));
       int nameIndex = headers.indexWhere((h) => h == 'name' || h.contains('device name') || h.contains('label') || h.contains('description'));
@@ -351,7 +350,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Pocket Provisioner"),
+        title: Text("Pocket Provisioner $_appVersion"),
         actions: [IconButton(icon: const Icon(Icons.settings), onPressed: _openSettings)],
       ),
       body: Padding(
@@ -436,7 +435,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-// ... ScannerScreen class remains unchanged ...
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
   @override
