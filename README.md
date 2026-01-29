@@ -1,36 +1,47 @@
-# Pocket Provisioner v0.0.1
+# Pocket Provisioner v0.0.2
 
-**Pocket Provisioner** is a mobile field utility designed for Telecommunications Technicians. It turns an Android/iOS device into a temporary **Provisioning Server**, allowing for rapid deployment of VoIP handsets (Yealink, Polycom) without needing a laptop or complex on-site server infrastructure.
+**Pocket Provisioner** is a mobile field utility designed for Telecommunications Technicians. It turns an Android/iOS device into a temporary **Provisioning Server**, allowing for rapid deployment of VoIP handsets without needing a laptop or complex on-site server infrastructure.
 
 ## 🚀 Core Features
 
 * **Mobile Web Server:** Hosts configuration files directly from your phone on Port 8080.
+* **The "Server Hop":** Generates config files that apply local settings (Wallpapers, Buttons) and then automatically repoint the handset to the ISP's production DMS (e.g., Telstra, 3CX, FusionPBX).
+* **Multi-Vendor Support:**
+    * **Yealink:** T4x, T5x (Generated `.cfg` with BLF injection).
+    * **Polycom:** VVX, Edge E Series (Generated XML).
+    * **Cisco:** 8851/8865 (3PCC `.cnf.xml` support).
+* **Visual Layout Editor:** Drag-and-drop style editor to configure BLF, Speed Dials, and Line keys for Yealink models.
 * **Auto-Advance Scanning:** Rapidly map MAC addresses to Extensions using the camera.
-* **The "Server Hop":** Generates config files that apply local settings (Wallpapers, Buttons) and then automatically repoint the handset to the ISP's production DMS (e.g., Telstra).
-* **Multi-Vendor Support:** Smart detection for Yealink (`.cfg`) and Polycom (`.xml`) request formats.
-* **Dynamic Template Engine:** Add new handset models on-the-fly by importing text or XML templates directly in the app.
-* **Database Driven:** Uses SQLite to manage deployment lists for 100+ devices.
-* **Smart CSV Import:** Automatically maps Telstra and FreePBX exports to the correct fields.
 
-## 🛠 Usage Workflow
+## 🛠 Supported Hardware & Templates
+
+We provide built-in fallback templates for the following. Wallpaper sizes are noted for your reference when hosting local media:
+
+| Manufacturer | Models | Wallpaper Size |
+| :--- | :--- | :--- |
+| **Yealink** | T54W, T46U | 480 x 272 |
+| **Yealink** | T48G, T57W | 800 x 480 |
+| **Poly** | Edge E450 | 480 x 272 |
+| **Poly** | Edge E350 | 320 x 240 |
+| **Poly** | VVX 1500 | 800 x 480 |
+| **Cisco** | 8851, 8865 | 800 x 480 |
+
+## 📦 Usage Workflow
 
 1.  **Import:** Tap "Import CSV". Load your Telstra or FreePBX export file.
-2.  **Scan:** Walk the site. The app prompts: *"Find the phone for Ext 101"*. Scan the box barcode. The app assigns it and instantly advances to Ext 102.
-3.  **Network Setup:**
-    * Connect your Mobile to the local Voice VLAN (e.g., Unifi UX Express).
-    * Set a Static IP on your Mobile (e.g., `192.168.1.50`).
-    * Configure **DHCP Option 66** on the router to `http://192.168.1.50:8080`.
-4.  **Deploy:** Boot the phones. They will pull the config from your mobile, apply settings, and reboot into the ISP's management ecosystem.
+2.  **Design (Optional):** Go to "Manage Button Layouts". Select your model and define keys 1-10 as BLFs or Speed Dials (Yealink only).
+3.  **Scan:** Walk the site. Scan the box barcode to assign MAC to Extension.
+4.  **Network Setup:**
+    * Connect Mobile to Voice VLAN.
+    * Configure **DHCP Option 66** on the router to `http://<YOUR_IP>:8080`.
+5.  **Deploy:** Boot the phones. They will:
+    1.  Pull the config from your mobile.
+    2.  Apply your custom buttons and wallpaper.
+    3.  **Hop** (Reboot) into the production ISP ecosystem.
 
-## 📦 Tech Stack
+## 📚 References & Credits
 
-* **Framework:** Flutter (Dart)
-* **Server:** `shelf` & `shelf_router`
-* **Database:** `sqflite`
-* **Scanner:** `mobile_scanner`
-* **Background:** `wakelock_plus` (Prevents server sleep on iOS/Android)
-* **File Handling:** `file_picker`, `csv`, `share_plus`
 
 ## 🤝 Contributing
 
-This is an early Alpha (v0.0.1). Pull requests for new Handset Templates are welcome.
+This is an Alpha release. Pull requests for new Handset Templates or improved Regex matching for MAC addresses are welcome.
