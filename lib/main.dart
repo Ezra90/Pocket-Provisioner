@@ -10,7 +10,9 @@ import 'data/database_helper.dart';
 import 'services/provisioning_server.dart';
 import 'models/device.dart';
 import 'screens/template_manager.dart';
+import 'screens/button_layout_editor.dart'; // NEW IMPORT (for visual button editor)
 import 'data/device_templates.dart';
+
 void main() {
   runApp(const MaterialApp(
     title: 'Pocket Provisioner',
@@ -38,7 +40,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _checkPermissions() async {
-    await [Permission.camera, Permission.location].request();
+    await Future.wait([
+      Permission.camera.request(),
+      Permission.location.request(),
+    ]);
   }
 
   // --- SETTINGS DIALOG ---
@@ -95,6 +100,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (c) => const TemplateManagerScreen()));
+                },
+              ),
+
+              // NEW: Button Layout Editor Entry
+              ListTile(
+                leading: const Icon(Icons.phone_android, color: Colors.green),
+                title: const Text("Manage Button Layouts"),
+                subtitle: const Text("Visual editor for DSS/programmable keys"),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (c) => const ButtonLayoutEditorScreen()));
                 },
               ),
             ],
@@ -214,7 +230,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Pocket Provisioner v0.0.3"),
+        title: const Text("Pocket Provisioner v0.0.2"),
         backgroundColor: Colors.blueAccent,
         foregroundColor: Colors.white,
         actions: [
