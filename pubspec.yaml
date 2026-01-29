@@ -1,6 +1,6 @@
 name: pocket_provisioner
 description: A mobile utility for VoIP handset provisioning.
-version: 0.0.1+1
+version: 0.0.2+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -24,6 +24,10 @@ dependencies:
   permission_handler: ^11.0.1
   wakelock_plus: ^1.1.0
   path_provider: ^2.1.1
+  
+  # File Handling
+  file_picker: ^6.1.1
+  share_plus: ^7.2.1
 
   # UI
   cupertino_icons: ^1.0.2
