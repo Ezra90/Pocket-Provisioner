@@ -4,6 +4,8 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import '../data/database_helper.dart';
 import '../data/device_templates.dart';
 import '../models/device.dart';
@@ -11,12 +13,10 @@ import '../services/button_layout_service.dart';
 import '../models/button_key.dart'; 
 
 class ProvisioningServer {
-  // Static instance to control the server across the app
   static HttpServer? _server;
 
   Future<String> start() async {
-    // Ensure any previous instance is killed before starting
-    await stop();
+    await stop(); // Ensure clean start
 
     final router = Router();
     final info = NetworkInfo();
@@ -24,10 +24,12 @@ class ProvisioningServer {
     myIp ??= '0.0.0.0'; 
 
     final prefs = await SharedPreferences.getInstance();
+    
+    // Logic: Use Public URL if set, otherwise point to THIS server's /media route
     final String? publicBgUrl = prefs.getString('public_wallpaper_url');
-    final String finalWallpaperUrl = (publicBgUrl != null && publicBgUrl.isNotEmpty)
+    final String finalWallpaperUrl = (publicBgUrl != null && publicBgUrl.startsWith('http'))
         ? publicBgUrl
-        : "http://$myIp:8080/media/custom_bg.png";
+        : "http://$myIp:8080/media/custom_bg.png"; // Points to local file
 
     final String targetUrl = prefs.getString('target_provisioning_url') ?? DeviceTemplates.defaultTarget;
 
@@ -39,7 +41,6 @@ class ProvisioningServer {
 
     // --- CONFIG HANDLER ---
     router.get('/<filename>', (Request request, String filename) async {
-      // MAC Sanitization
       String cleanMac = filename
           .toUpperCase()
           .replaceAll('SEP', '')
@@ -57,7 +58,6 @@ class ProvisioningServer {
         return Response.notFound('Device not configured in app');
       }
 
-      // Template Processing
       String rawTemplate = await DeviceTemplates.getTemplateForModel(device.model);
       String contentType = await DeviceTemplates.getContentType(device.model);
 
@@ -69,7 +69,7 @@ class ProvisioningServer {
           .replaceAll('{{wallpaper_url}}', finalWallpaperUrl)
           .replaceAll('{{target_url}}', targetUrl);
 
-      // Button/Key Injection
+      // Button Injection Logic...
       final List<ButtonKey> layout = await ButtonLayoutService.getLayoutForModel(device.model);
       final bool isYealink = !device.model.toUpperCase().contains('VVX') && 
                              !device.model.toUpperCase().contains('CISCO') &&
@@ -79,18 +79,10 @@ class ProvisioningServer {
         String dssSection = '';
         for (final key in layout) {
           if (key.type == 'none' || key.value.isEmpty) continue;
-          
           final String typeCode = switch (key.type) {
-            'blf' => '16',       
-            'speeddial' => '13',  
-            'line' => '15',       
-            _ => '0',            
+            'blf' => '16', 'speeddial' => '13', 'line' => '15', _ => '0',            
           };
-
-          final String effectiveLabel = key.label.isNotEmpty
-              ? key.label
-              : (extToLabel[key.value] ?? key.value);
-
+          final String effectiveLabel = key.label.isNotEmpty ? key.label : (extToLabel[key.value] ?? key.value);
           dssSection += '''
 linekey.${key.id}.type = $typeCode
 linekey.${key.id}.value = ${key.value}
@@ -110,15 +102,25 @@ ${key.type == 'blf' ? 'linekey.${key.id}.pickup_value = **' : ''}
       });
     });
 
-    // --- MEDIA HANDLER ---
-    router.get('/media/<file>', (Request request, String file) {
-       // Placeholder: in a real app, serve from getApplicationDocumentsDirectory
-       return Response.ok('Image data');
+    // --- MEDIA HANDLER (SERVES LOCAL FILES) ---
+    router.get('/media/<file>', (Request request, String file) async {
+       final directory = await getApplicationDocumentsDirectory();
+       final filePath = p.join(directory.path, file);
+       final imageFile = File(filePath);
+
+       if (await imageFile.exists()) {
+         final bytes = await imageFile.readAsBytes();
+         // Basic mime type detection
+         final mime = file.endsWith('.png') ? 'image/png' : 'image/jpeg';
+         return Response.ok(bytes, headers: {'Content-Type': mime});
+       } else {
+         return Response.notFound('Image not found');
+       }
     });
 
     try {
       _server = await shelf_io.serve(router, '0.0.0.0', 8080);
-      print('Server running on port 8080');
+      print('Server running: http://$myIp:8080');
       return 'http://$myIp:8080';
     } catch (e) {
       print("Error starting server: $e");
@@ -126,7 +128,6 @@ ${key.type == 'blf' ? 'linekey.${key.id}.pickup_value = **' : ''}
     }
   }
 
-  // Stop method to release the port
   Future<void> stop() async {
     if (_server != null) {
       await _server!.close(force: true);
