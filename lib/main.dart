@@ -8,7 +8,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:csv/csv.dart';
 import 'data/database_helper.dart';
 import 'services/provisioning_server.dart';
-import 'services/wallpaper_service.dart'; // Import New Service
+import 'services/wallpaper_service.dart';
 import 'models/device.dart';
 import 'screens/template_manager.dart';
 import 'screens/button_layout_editor.dart';
@@ -44,7 +44,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await [Permission.camera, Permission.location].request();
   }
 
-  // --- WALLPAPER PICKER DIALOG ---
+  // --- WALLPAPER RESIZER DIALOG (Unchanged) ---
   void _openWallpaperTools(BuildContext context, Function onSave) {
     String selectedModel = DeviceTemplates.wallpaperSpecs.keys.first;
     
@@ -53,78 +53,145 @@ class _DashboardScreenState extends State<DashboardScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (context, setState) {
           final spec = DeviceTemplates.getSpecForModel(selectedModel);
-          
           return AlertDialog(
             title: const Text("Smart Wallpaper Tool"),
             content: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("1. Select Target Model Family:"),
                 DropdownButton<String>(
                   value: selectedModel,
                   isExpanded: true,
-                  items: DeviceTemplates.wallpaperSpecs.keys.map((k) {
-                    return DropdownMenuItem(value: k, child: Text(k));
-                  }).toList(),
+                  items: DeviceTemplates.wallpaperSpecs.keys.map((k) => DropdownMenuItem(value: k, child: Text(k))).toList(),
                   onChanged: (v) => setState(() => selectedModel = v!),
                 ),
-                const SizedBox(height: 15),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text("Required Size: ${spec.width} x ${spec.height} px", style: const TextStyle(fontWeight: FontWeight.bold)),
-                      Text("Type: ${spec.label}", style: const TextStyle(fontSize: 12)),
-                      const Text("Format: PNG (Auto-Converted)", style: TextStyle(fontSize: 12)),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text("2. Upload & Auto-Resize:"),
-                const SizedBox(height: 5),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.image),
-                    label: const Text("Pick Image from Gallery"),
-                    onPressed: () async {
-                      // 1. Pick
-                      FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.image);
-                      if (result == null) return;
-
-                      // 2. Process
-                      try {
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Processing Image...")));
-                        }
-                        
-                        await WallpaperService.processAndSaveWallpaper(result.files.single.path!, spec);
-                        
-                        // 3. Save URL to Settings (Local path marker)
-                        // We set it to empty string or a marker to tell the server "Use Local"
-                        // But strictly, we update the SharedPref so the Main UI reflects it
-                        final prefs = await SharedPreferences.getInstance();
-                        await prefs.setString('public_wallpaper_url', "LOCAL_HOSTED"); 
-                        
-                        if (mounted) {
-                          Navigator.pop(context); // Close Wallpaper Dialog
-                          onSave(); // Refresh Main Settings Dialog
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Wallpaper Resized & Saved!")));
-                        }
-                      } catch (e) {
-                        print(e);
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
-                      }
-                    },
-                  ),
+                const SizedBox(height: 10),
+                Text("Required: ${spec.width}x${spec.height} ${spec.format.toUpperCase()}"),
+                const SizedBox(height: 10),
+                ElevatedButton(
+                  onPressed: () async {
+                    FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.image);
+                    if (result == null) return;
+                    await WallpaperService.processAndSaveWallpaper(result.files.single.path!, spec);
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setString('public_wallpaper_url', "LOCAL_HOSTED"); 
+                    if (mounted) {
+                      Navigator.pop(context);
+                      onSave();
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Wallpaper Processed!")));
+                    }
+                  }, 
+                  child: const Text("Pick & Resize Image")
                 )
               ],
             ),
+          );
+        }
+      )
+    );
+  }
+
+  // --- SETTINGS DIALOG ---
+  void _openSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    final wallpaperController = TextEditingController(text: prefs.getString('public_wallpaper_url') ?? '');
+    final targetUrlController = TextEditingController(text: prefs.getString('target_provisioning_url') ?? DeviceTemplates.defaultTarget);
+    final sipServerController = TextEditingController(text: prefs.getString('sip_server_address') ?? '');
+
+    String refModel = DeviceTemplates.wallpaperSpecs.keys.first;
+
+    if(!mounted) return;
+
+    showDialog(
+      context: context, 
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          final spec = DeviceTemplates.getSpecForModel(refModel);
+          
+          return AlertDialog(
+            title: const Text("Global Settings"),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("1. Target Provisioning (The Hop)", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text("URL where phone goes NEXT (Telstra/3CX).", style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  TextField(
+                    controller: targetUrlController,
+                    decoration: const InputDecoration(hintText: "http://provisioning.server.com"),
+                  ),
+                  const SizedBox(height: 15),
+
+                  const Text("2. Primary SIP Server", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text("Leave BLANK for Telstra/Hop. Enter IP for Manual/FreePBX.", style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  TextField(
+                    controller: sipServerController,
+                    decoration: const InputDecoration(hintText: "e.g. 192.168.1.10"),
+                  ),
+                  const SizedBox(height: 15),
+                  
+                  const Text("3. Wallpaper Source", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text("Spec Reference:", style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  DropdownButton<String>(
+                    value: refModel,
+                    isDense: true,
+                    isExpanded: true,
+                    style: const TextStyle(fontSize: 12, color: Colors.black),
+                    items: DeviceTemplates.wallpaperSpecs.keys.map((k) => DropdownMenuItem(value: k, child: Text(k))).toList(),
+                    onChanged: (v) => setState(() => refModel = v!),
+                  ),
+                  Text("Required: ${spec.width}x${spec.height} ${spec.format.toUpperCase()}", style: const TextStyle(fontSize: 12, color: Colors.blue)),
+                  
+                  const SizedBox(height: 5),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: wallpaperController,
+                          decoration: const InputDecoration(hintText: "URL or LOCAL_HOSTED"),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.auto_fix_high, color: Colors.blue),
+                        onPressed: () => _openWallpaperTools(context, () {
+                          wallpaperController.text = prefs.getString('public_wallpaper_url') ?? '';
+                        }),
+                      )
+                    ],
+                  ),
+                  
+                  const Divider(height: 20),
+                  ListTile(
+                    title: const Text("Manage Templates"),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(context, MaterialPageRoute(builder: (c) => const TemplateManagerScreen()));
+                    },
+                  ),
+                  ListTile(
+                    title: const Text("Button Layouts"),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(context, MaterialPageRoute(builder: (c) => const ButtonLayoutEditorScreen()));
+                    },
+                  ),
+                ],
+              ),
+            ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text("Close"))
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+              ElevatedButton(
+                onPressed: () async {
+                  await prefs.setString('public_wallpaper_url', wallpaperController.text.trim());
+                  await prefs.setString('target_provisioning_url', targetUrlController.text.trim());
+                  await prefs.setString('sip_server_address', sipServerController.text.trim());
+                  if(mounted) Navigator.pop(context);
+                }, 
+                child: const Text("Save")
+              )
             ],
           );
         }
@@ -132,85 +199,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  void _openSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    final wallpaperController = TextEditingController(text: prefs.getString('public_wallpaper_url') ?? '');
-    final targetUrlController = TextEditingController(text: prefs.getString('target_provisioning_url') ?? DeviceTemplates.defaultTarget);
-
-    if(!mounted) return;
-
-    showDialog(
-      context: context, 
-      builder: (context) => AlertDialog(
-        title: const Text("Global Settings"),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text("Target Server (The Hop)", style: TextStyle(fontWeight: FontWeight.bold)),
-              TextField(
-                controller: targetUrlController,
-                decoration: const InputDecoration(hintText: "http://provisioning.server.com"),
-              ),
-              const SizedBox(height: 20),
-              
-              const Text("Wallpaper Source", style: TextStyle(fontWeight: FontWeight.bold)),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: wallpaperController,
-                      decoration: const InputDecoration(hintText: "URL or LOCAL_HOSTED", labelText: "Current Source"),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.auto_fix_high, color: Colors.blue),
-                    tooltip: "Open Smart Resizer",
-                    onPressed: () => _openWallpaperTools(context, () {
-                      // Refresh the text field after tools close
-                      wallpaperController.text = prefs.getString('public_wallpaper_url') ?? '';
-                    }),
-                  )
-                ],
-              ),
-              
-              const Divider(height: 30),
-              ListTile(
-                leading: const Icon(Icons.file_copy, color: Colors.blue),
-                title: const Text("Templates"),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (c) => const TemplateManagerScreen()));
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.grid_on, color: Colors.green),
-                title: const Text("Button Layouts"),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (c) => const ButtonLayoutEditorScreen()));
-                },
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
-          ElevatedButton(
-            onPressed: () async {
-              await prefs.setString('public_wallpaper_url', wallpaperController.text.trim());
-              await prefs.setString('target_provisioning_url', targetUrlController.text.trim());
-              if(mounted) Navigator.pop(context);
-            }, 
-            child: const Text("Save")
-          )
-        ],
-      )
-    );
-  }
-
+  // ... (Remainder of class: _importCSV, _toggleServer, build etc. is same as previous) ...
   Future<void> _importCSV() async {
-    // ... (Import CSV logic remains unchanged from previous, kept brevity) ...
     FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['csv', 'txt']);
     if (result == null) return;
     try {
@@ -316,7 +306,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-// ... ScannerScreen class (Unchanged) ...
+// ... ScannerScreen (Unchanged) ...
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
   @override
