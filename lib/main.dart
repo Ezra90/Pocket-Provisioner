@@ -1,8 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:csv/csv.dart';
 import 'data/database_helper.dart';
 import 'services/provisioning_server.dart';
 import 'models/device.dart';
@@ -38,9 +41,88 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await [Permission.camera, Permission.location].request();
   }
 
+  Future<void> _importCSV() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['csv', 'txt'],
+    );
+
+    if (result == null) return;
+
+    try {
+      final File file = File(result.files.single.path!);
+      final String rawContent = await file.readAsString();
+      
+      List<List<dynamic>> rows = const CsvToListConverter().convert(rawContent, eol: "\n");
+      if (rows.isEmpty) throw "Empty file";
+
+      // SMART MAPPING for Telstra / FreePBX
+      List<dynamic> headers = rows[0].map((e) => e.toString().toLowerCase().trim()).toList();
+      
+      // 1. EXTENSION: "extension", "user", "username" (Telstra: "Device username")
+      int extIndex = headers.indexWhere((h) => h.contains('extension') || h == 'ext' || h.contains('user'));
+      
+      // 2. SECRET: "secret", "password", "pass" (Telstra: "DMS password")
+      int passIndex = headers.indexWhere((h) => h.contains('secret') || h.contains('pass'));
+      
+      // 3. LABEL: "label", "name", "description" (Telstra: "Name" or "Device Phone Number")
+      int nameIndex = headers.indexWhere((h) => h.contains('label') || h.contains('name') || h.contains('description'));
+      
+      // 4. MODEL: "model", "type" (Telstra: "Device type")
+      int modelIndex = headers.indexWhere((h) => h.contains('model') || h.contains('type'));
+      
+      // 5. MAC: "mac" (Optional)
+      int macIndex = headers.indexWhere((h) => h.contains('mac'));
+
+      if (extIndex == -1) throw "Could not find 'Extension' or 'Username' column";
+
+      int count = 0;
+      for (int i = 1; i < rows.length; i++) {
+        var row = rows[i];
+        if (row.length <= extIndex) continue;
+
+        String extension = row[extIndex].toString();
+        String secret = (passIndex != -1 && row.length > passIndex) ? row[passIndex].toString() : "1234";
+        String label = (nameIndex != -1 && row.length > nameIndex) ? row[nameIndex].toString() : extension;
+        String? mac = (macIndex != -1 && row.length > macIndex) ? row[macIndex].toString() : null;
+        String model = (modelIndex != -1 && row.length > modelIndex) ? row[modelIndex].toString() : "T58G"; 
+
+        if (mac != null) {
+          mac = mac.replaceAll(':', '').toUpperCase();
+          if (mac.length < 10) mac = null; 
+        }
+
+        await DatabaseHelper.instance.insertDevice(Device(
+          model: model,
+          extension: extension,
+          secret: secret,
+          label: label,
+          macAddress: mac,
+          status: mac != null ? 'READY' : 'PENDING'
+        ));
+        count++;
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Imported $count devices!"))
+        );
+      }
+
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Import Failed: $e"), backgroundColor: Colors.red)
+        );
+      }
+    }
+  }
+
   void _openSettings() async {
     final prefs = await SharedPreferences.getInstance();
     final controller = TextEditingController(text: prefs.getString('public_wallpaper_url') ?? '');
+
+    if(!mounted) return;
 
     showDialog(
       context: context, 
@@ -76,29 +158,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ElevatedButton(
             onPressed: () async {
               await prefs.setString('public_wallpaper_url', controller.text.trim());
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Settings Saved")));
+              if(mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Settings Saved")));
+              }
             }, 
             child: const Text("Save")
           )
         ],
       )
     );
-  }
-
-  Future<void> _importMockData() async {
-    await DatabaseHelper.instance.clearAll();
-    
-    await DatabaseHelper.instance.insertDevice(Device(
-        model: 'T58G', extension: '101', secret: '928374', label: 'Reception'));
-    await DatabaseHelper.instance.insertDevice(Device(
-        model: 'VVX411', extension: '102', secret: '445566', label: 'Kitchen'));
-        
-    if(mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Success: Imported Mock Devices."))
-      );
-    }
   }
 
   Future<void> _toggleServer() async {
@@ -167,8 +236,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: _importMockData,
-                    icon: const Icon(Icons.file_download),
+                    onPressed: _importCSV,
+                    icon: const Icon(Icons.file_upload),
                     label: const Text("Import CSV"),
                     style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
                   ),
@@ -291,17 +360,13 @@ class _ScannerScreenState extends State<ScannerScreen> {
             child: MobileScanner(
               onDetect: (capture) async {
                 if (_isProcessing) return;
-                
                 final List<Barcode> barcodes = capture.barcodes;
                 if (barcodes.isEmpty) return;
-
                 final String? rawMac = barcodes.first.rawValue;
                 if (rawMac == null || rawMac.length < 10) return;
 
                 setState(() => _isProcessing = true);
-                
                 String cleanMac = rawMac.replaceAll(':', '').toUpperCase();
-                
                 await DatabaseHelper.instance.assignMac(_target!.id!, cleanMac);
                 
                 if(mounted) {
@@ -313,7 +378,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
                     )
                   );
                 }
-                
                 _loadNextTarget();
               },
             ),
