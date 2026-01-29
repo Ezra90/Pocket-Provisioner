@@ -8,6 +8,7 @@
 * **Auto-Advance Scanning:** Rapidly map MAC addresses to Extensions using the camera.
 * **The "Server Hop":** Generates config files that apply local settings (Wallpapers, Buttons) and then automatically repoint the handset to the ISP's production DMS (e.g., Telstra).
 * **Multi-Vendor Support:** Smart detection for Yealink (`.cfg`) and Polycom (`.xml`) request formats.
+* **Dynamic Template Engine:** Add new handset models on-the-fly by importing text or XML templates directly in the app.
 * **Database Driven:** Uses SQLite to manage deployment lists for 100+ devices.
 
 ## 🛠 Usage Workflow
@@ -27,6 +28,7 @@
 * **Database:** `sqflite`
 * **Scanner:** `mobile_scanner`
 * **Background:** `wakelock_plus` (Prevents server sleep on iOS/Android)
+* **File Handling:** `file_picker` & `share_plus`
 
 ## 🤝 Contributing
 
