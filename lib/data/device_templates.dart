@@ -1,16 +1,23 @@
 import '../data/database_helper.dart';
 
 class DeviceTemplates {
-  
-  // Default fallback if nothing is set in App Settings
+  // Default hop target (Telstra PolyDMS example — users override in settings)
   static const String defaultTarget = "http://polydms.digitalbusiness.telstra.com/dms/bootstrap";
 
-  // --- TEMPLATE 1: YEALINK GENERIC ---
-  static const String yealinkGeneric = '''
+  // Fallback built-in template for Yealink phones
+  // This is a solid, real-world starting point:
+  // - Includes initial SIP account (for full/self-hosted mode — omit or comment for minimal DMS mode)
+  // - Wallpaper
+  // - Programmable/DSS keys via placeholder
+  // - Auto-provision hop (with optional user/pass if added later)
+  // - Common best-practice settings (web server enable, etc.)
+  static const String fallbackYealinkTemplate = '''
 #!version:1.0.0.1
-## -- Pocket Provisioner v0.0.2 -- ##
+## Pocket Provisioner Generated Config ##
+## Model: {{model}} | Extension: {{extension}} | Label: {{label}} ##
 
-# 1. ACCOUNT SETTINGS (Initial Setup)
+# ------------------- ACCOUNT 1 (PRIMARY LINE) -------------------
+# Comment out or remove this section in a custom "DMS-Minimal" template
 account.1.enable = 1
 account.1.label = {{label}}
 account.1.display_name = {{label}}
@@ -19,65 +26,83 @@ account.1.user_name = {{extension}}
 account.1.password = {{secret}}
 account.1.sip_server.1.address = {{local_ip}}
 account.1.sip_server.1.port = 5060
-account.1.sip_server.1.transport_type = 1
 
-# 2. LOCAL CUSTOMIZATIONS
+# ------------------- LOCAL CUSTOMIZATIONS -------------------
+# Wallpaper / Background
 phone_setting.backgrounds = {{wallpaper_url}}
 
-# 3. SERVER HOP (The Handover)
-# Points the phone to the final destination (Telstra/3CX/FreePBX)
+# Enable web server (useful for post-provision tweaks)
+webserver.enabled = 1
+webserver.type = 0  # 0 = HTTP + HTTPS, 1 = HTTP only
+
+# Other common locals (add more as needed)
+local_time.time_zone = +10  # Australia/Brisbane (AEST)
+local_time.ntp_server1 = pool.ntp.org
+
+# ------------------- PROGRAMMABLE / DSS KEYS -------------------
+{{dss_keys}}
+
+# ------------------- AUTO-PROVISION HOP -------------------
+# After initial boot, hop to production server
 static.auto_provision.server.url = {{target_url}}
-static.auto_provision.server.username = {{extension}}
-static.auto_provision.server.password = {{secret}}
 static.auto_provision.enable = 1
+static.auto_provision.repeat.enable = 1
 static.auto_provision.power_on = 1
+static.auto_provision.weekly.enable = 0
 
-# Disable Quick Setup to automate the handover
-features.show_quick_setup.enable = 0
+# Optional: Add DMS credentials here if needed (future extension)
+# static.auto_provision.user = your_dms_user
+# static.auto_provision.password = your_dms_pass
+
+# Force update/reboot to trigger hop quickly
+static.auto_provision.update_file_enable = 1
+static.firmware.url =
+
 ''';
 
-  // --- TEMPLATE 2: POLYCOM VVX ---
-  static const String polycomGeneric = '''
-<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<PHONE_CONFIG>
-  <REGISTRATION
-    reg.1.displayName="{{label}}"
-    reg.1.address="{{extension}}"
-    reg.1.auth.userId="{{extension}}"
-    reg.1.auth.password="{{secret}}"
-    reg.1.server.1.address="{{local_ip}}"
-    reg.1.server.1.port="5060"
-    reg.1.server.1.transport="TCPOnly"
-  />
-  
-  <bg bg.color.selection="2,1" bg.color.bm.1.name="{{wallpaper_url}}" />
-
-  <DEVICE 
-    device.prov.serverName="{{target_url}}"
-    device.prov.user="{{extension}}"
-    device.prov.password="{{secret}}"
-    device.prov.serverType="HTTP"
-  />
-</PHONE_CONFIG>
+  // Polycom fallback (minimal — expand later)
+  static const String fallbackPolycomTemplate = '''
+<?xml version="1.0" encoding="UTF-8"?>
+<config>
+  <provisioning>
+    <server>{{target_url}}</server>
+  </provisioning>
+  <wallpaper>{{wallpaper_url}}</wallpaper>
+  <!-- Add Polycom-specific DSS/softkeys here later -->
+</config>
 ''';
 
+  /// Retrieves the template for a given model.
+  /// First checks DB for user-imported template, falls back to built-in.
   static Future<String> getTemplateForModel(String model) async {
-    final custom = await DatabaseHelper.instance.getTemplate(model);
-    if (custom != null) return custom['content'] as String;
+    // Normalize model (e.g., case-insensitive, trim)
+    final normalized = model.trim().toUpperCase();
 
-    if (model.toUpperCase().contains("POLY") || model.toUpperCase().contains("VVX") || model.toUpperCase().contains("EDGE")) {
-      return polycomGeneric;
+    // Check DB first (user can import custom templates per model)
+    final dbTemplate = await DatabaseHelper.instance.getTemplateByModel(normalized);
+    if (dbTemplate != null && dbTemplate.isNotEmpty) {
+      return dbTemplate;
     }
-    return yealinkGeneric;
-  }
-  
-  static Future<String> getContentType(String model) async {
-    final custom = await DatabaseHelper.instance.getTemplate(model);
-    if (custom != null) return custom['content_type'] as String;
 
-    if (model.toUpperCase().contains("POLY") || model.toUpperCase().contains("VVX") || model.toUpperCase().contains("EDGE")) {
+    // Built-in fallbacks
+    if (normalized.contains('T') || normalized.contains('CP') || normalized.contains('VP')) {
+      // Most Yealink models start with T, CP, or VP
+      return fallbackYealinkTemplate.replaceAll('{{model}}', normalized);
+    } else if (normalized.contains('VVX') || normalized.contains('TRIO') || normalized.contains('CCX')) {
+      // Polycom/Poly models
+      return fallbackPolycomTemplate;
+    }
+
+    // Ultimate generic fallback
+    return fallbackYealinkTemplate.replaceAll('{{model}}', normalized);
+  }
+
+  /// Basic content-type detection (extend as needed)
+  static Future<String> getContentType(String model) async {
+    final normalized = model.trim().toUpperCase();
+    if (normalized.contains('VVX') || normalized.contains('TRIO') || normalized.contains('CCX')) {
       return 'application/xml';
     }
-    return 'text/plain';
+    return 'text/plain'; // Yealink .cfg
   }
 }
