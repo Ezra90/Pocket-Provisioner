@@ -10,7 +10,7 @@ import '../data/database_helper.dart';
 import '../data/device_templates.dart';
 import '../models/device.dart';
 import '../services/button_layout_service.dart';
-import '../models/button_key.dart'; // For type reference
+import '../models/button_key.dart'; 
 
 class ProvisioningServer {
   Future<String> start() async {
@@ -21,6 +21,7 @@ class ProvisioningServer {
 
     final prefs = await SharedPreferences.getInstance();
     final String? publicBgUrl = prefs.getString('public_wallpaper_url');
+    // Default to local server if no public URL provided
     final String finalWallpaperUrl = (publicBgUrl != null && publicBgUrl.isNotEmpty)
         ? publicBgUrl
         : "http://$myIp:8080/media/custom_bg.png";
@@ -34,30 +35,39 @@ class ProvisioningServer {
     };
 
     // Main route: Serve per-MAC config
+    // Handles: 
+    // - Yealink: 001565aabbcc.cfg
+    // - Polycom: 0004f2aabbcc.cfg or .xml
+    // - Cisco: SEP001122334455.cnf.xml
     router.get('/<filename>', (Request request, String filename) async {
-      // Normalize MAC
+      
+      // 1. CLEAN MAC ADDRESS
+      // Removes 'SEP' (Cisco), '0000' (Generics), and extensions
       String cleanMac = filename
           .toUpperCase()
+          .replaceAll('SEP', '') // Handle Cisco Prefix
           .replaceAll(RegExp(r'[:\.\-\s%3A]'), '')
-          .replaceAll(RegExp(r'\.(cfg|xml|boot)$', caseSensitive: false), '');
+          .replaceAll(RegExp(r'\.(CFG|XML|BOOT|CNF)$', caseSensitive: false), '');
 
       print('LOG: Request $filename → MAC $cleanMac');
 
-      // Skip generics
+      // Skip generic manufacturer requests
       if (cleanMac.length < 12 || cleanMac == '000000000000' || cleanMac.startsWith('Y000')) {
         return Response.notFound('Generic request skipped');
       }
 
+      // 2. LOOKUP DEVICE
       final Device? device = await DatabaseHelper.instance.getDeviceByMac(cleanMac);
       if (device == null) {
+        print('LOG: Device not found for MAC $cleanMac');
         return Response.notFound('MAC $cleanMac not in list');
       }
 
-      // Load template
+      // 3. LOAD TEMPLATE
       String rawTemplate = await DeviceTemplates.getTemplateForModel(device.model);
       String contentType = await DeviceTemplates.getContentType(device.model);
 
-      // Core replacements
+      // 4. CORE VARIABLE REPLACEMENT
       String config = rawTemplate
           .replaceAll('{{label}}', device.label)
           .replaceAll('{{extension}}', device.extension)
@@ -66,44 +76,54 @@ class ProvisioningServer {
           .replaceAll('{{wallpaper_url}}', finalWallpaperUrl)
           .replaceAll('{{target_url}}', targetUrl);
 
-      // DSS/Programmable Keys Generation (Yealink-focused, inspired by standard provisioners)
+      // 5. BUTTON / DSS KEY GENERATION
       final List<ButtonKey> layout = await ButtonLayoutService.getLayoutForModel(device.model);
-      String dssSection = '';
+      
+      // Detect Manufacturer for specific Key Logic
+      final bool isYealink = !device.model.toUpperCase().contains('VVX') && 
+                             !device.model.toUpperCase().contains('CISCO') &&
+                             !device.model.toUpperCase().contains('EDGE');
 
-      for (final key in layout) {
-        if (key.type == 'none' || key.value.isEmpty) continue;
+      if (isYealink) {
+        String dssSection = '';
+        for (final key in layout) {
+          if (key.type == 'none' || key.value.isEmpty) continue;
 
-        final String typeCode = switch (key.type) {
-          'blf' => '16',       // BLF/Presence (most common for monitoring)
-          'speeddial' => '2',  // Speed Dial
-          'line' => '1',       // Additional Line/Key
-          _ => '0',            // None/Disabled fallback
-        };
+          // Yealink Type Codes:
+          // 16 = BLF, 13 = Speed Dial, 15 = Line Key
+          final String typeCode = switch (key.type) {
+            'blf' => '16',       
+            'speeddial' => '13',  
+            'line' => '15',       
+            _ => '0',            
+          };
 
-        // Label priority: custom → monitored ext's device label → raw value
-        final String effectiveLabel = key.label.isNotEmpty
-            ? key.label
-            : (extToLabel[key.value] ?? key.value);
+          // Label fallback: Custom -> Device Name -> Extension
+          final String effectiveLabel = key.label.isNotEmpty
+              ? key.label
+              : (extToLabel[key.value] ?? key.value);
 
-        // Standard Yealink params (line=1 ties to primary account for calls)
-        dssSection += '''
-programmable_key.${key.id}.type = $typeCode
-programmable_key.${key.id}.value = ${key.value}
-programmable_key.${key.id}.label = $effectiveLabel
-programmable_key.${key.id}.line = 1
-
+          // Generate Line Key Config
+          dssSection += '''
+linekey.${key.id}.type = $typeCode
+linekey.${key.id}.value = ${key.value}
+linekey.${key.id}.label = $effectiveLabel
+linekey.${key.id}.line = 1
+${key.type == 'blf' ? 'linekey.${key.id}.pickup_value = **' : ''} 
 ''';
+        }
+        config = config.replaceAll('{{dss_keys}}', dssSection.trim());
+      } else {
+        // Clear placeholder for non-Yealink devices (Poly/Cisco button mapping is complex)
+        config = config.replaceAll('{{dss_keys}}', '');
       }
-
-      // Inject and trim
-      config = config.replaceAll('{{dss_keys}}', dssSection.trim());
 
       return Response.ok(config, headers: {'Content-Type': contentType});
     });
 
-    // Media stub (expand later for real image serving)
+    // Simple Media Stub for local wallpapers
     router.get('/media/<file>', (Request request, String file) async {
-      return Response.ok('Media file: $file (implement serving here)');
+       return Response.ok('Media file: $file (implement binary serving here if needed)');
     });
 
     final server = await shelf_io.serve(router, '0.0.0.0', 8080);
