@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'data/database_helper.dart';
 import 'services/provisioning_server.dart';
 import 'models/device.dart';
@@ -35,6 +36,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// Ensure we have Camera and Local Network permissions
   Future<void> _checkPermissions() async {
     await [Permission.camera, Permission.location].request();
+  }
+
+  // --- SETTINGS DIALOG ---
+  void _openSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    final controller = TextEditingController(text: prefs.getString('public_wallpaper_url') ?? '');
+
+    showDialog(
+      context: context, 
+      builder: (context) => AlertDialog(
+        title: const Text("Global Settings"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("Public Wallpaper URL (Optional)", style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text("Use this for phones that don't store images locally (e.g. VVX1500).", style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 10),
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                hintText: "https://my-site.com/logo.png",
+                border: OutlineInputBorder()
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () async {
+              await prefs.setString('public_wallpaper_url', controller.text.trim());
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Settings Saved")));
+            }, 
+            child: const Text("Save")
+          )
+        ],
+      )
+    );
   }
 
   /// Generates sample data for demonstration
@@ -88,9 +128,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Pocket Provisioner v0.0.1"),
+        title: const Text("Pocket Provisioner v0.0.2"),
         backgroundColor: Colors.blueAccent,
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(icon: const Icon(Icons.settings), onPressed: _openSettings)
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
