@@ -12,6 +12,7 @@ dependencies:
   # Architecture & Data
   sqflite: ^2.3.0
   path: ^1.8.3
+  shared_preferences: ^2.2.2 
   
   # Networking
   shelf: ^1.4.1
