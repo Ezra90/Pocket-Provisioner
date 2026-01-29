@@ -16,7 +16,7 @@ class ProvisioningServer {
   static HttpServer? _server;
 
   Future<String> start() async {
-    await stop(); // Ensure clean start
+    await stop();
 
     final router = Router();
     final info = NetworkInfo();
@@ -25,15 +25,21 @@ class ProvisioningServer {
 
     final prefs = await SharedPreferences.getInstance();
     
-    // Logic: Use Public URL if set, otherwise point to THIS server's /media route
+    // 1. Wallpaper Logic
     final String? publicBgUrl = prefs.getString('public_wallpaper_url');
     final String finalWallpaperUrl = (publicBgUrl != null && publicBgUrl.startsWith('http'))
         ? publicBgUrl
-        : "http://$myIp:8080/media/custom_bg.png"; // Points to local file
+        : "http://$myIp:8080/media/custom_bg.png";
 
+    // 2. Server Hop Logic
     final String targetUrl = prefs.getString('target_provisioning_url') ?? DeviceTemplates.defaultTarget;
 
-    // Pre-load devices for label mapping
+    // 3. SIP Server Logic (Manual vs Auto)
+    final String? manualSipServer = prefs.getString('sip_server_address');
+    final String finalSipServer = (manualSipServer != null && manualSipServer.isNotEmpty)
+        ? manualSipServer
+        : myIp; // Default to Android IP if blank
+
     final List<Device> allDevices = await DatabaseHelper.instance.getAllDevices();
     final Map<String, String> extToLabel = {
       for (var d in allDevices) d.extension: d.label.isNotEmpty ? d.label : d.extension,
@@ -55,7 +61,7 @@ class ProvisioningServer {
 
       final Device? device = await DatabaseHelper.instance.getDeviceByMac(cleanMac);
       if (device == null) {
-        return Response.notFound('Device not configured in app');
+        return Response.notFound('Device not configured');
       }
 
       String rawTemplate = await DeviceTemplates.getTemplateForModel(device.model);
@@ -66,10 +72,11 @@ class ProvisioningServer {
           .replaceAll('{{extension}}', device.extension)
           .replaceAll('{{secret}}', device.secret)
           .replaceAll('{{local_ip}}', myIp!)
+          .replaceAll('{{sip_server_url}}', finalSipServer) // <--- NEW INJECTION
           .replaceAll('{{wallpaper_url}}', finalWallpaperUrl)
           .replaceAll('{{target_url}}', targetUrl);
 
-      // Button Injection Logic...
+      // Button Logic
       final List<ButtonKey> layout = await ButtonLayoutService.getLayoutForModel(device.model);
       final bool isYealink = !device.model.toUpperCase().contains('VVX') && 
                              !device.model.toUpperCase().contains('CISCO') &&
@@ -102,7 +109,7 @@ ${key.type == 'blf' ? 'linekey.${key.id}.pickup_value = **' : ''}
       });
     });
 
-    // --- MEDIA HANDLER (SERVES LOCAL FILES) ---
+    // --- MEDIA HANDLER ---
     router.get('/media/<file>', (Request request, String file) async {
        final directory = await getApplicationDocumentsDirectory();
        final filePath = p.join(directory.path, file);
@@ -110,7 +117,6 @@ ${key.type == 'blf' ? 'linekey.${key.id}.pickup_value = **' : ''}
 
        if (await imageFile.exists()) {
          final bytes = await imageFile.readAsBytes();
-         // Basic mime type detection
          final mime = file.endsWith('.png') ? 'image/png' : 'image/jpeg';
          return Response.ok(bytes, headers: {'Content-Type': mime});
        } else {
