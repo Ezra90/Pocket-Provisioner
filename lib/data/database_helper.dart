@@ -10,7 +10,7 @@ class DatabaseHelper {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('provisioner_v1.db');
+    _database = await _initDB('provisioner.db');
     return _database!;
   }
 
@@ -18,8 +18,8 @@ class DatabaseHelper {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
-    return await openDatabase(path, version: 1, onCreate: (db, version) {
-      return db.execute('''
+    return await openDatabase(path, version: 2, onCreate: (db, version) async {
+      await db.execute('''
         CREATE TABLE devices (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           model TEXT NOT NULL,
@@ -30,48 +30,66 @@ class DatabaseHelper {
           status TEXT DEFAULT 'PENDING'
         )
       ''');
+
+      await db.execute('''
+        CREATE TABLE templates (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          model_name TEXT UNIQUE NOT NULL,
+          content_type TEXT NOT NULL,
+          content TEXT NOT NULL
+        )
+      ''');
+    }, onUpgrade: (db, oldVersion, newVersion) async {
+      if (oldVersion < 2) {
+        await db.execute('''
+          CREATE TABLE templates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            model_name TEXT UNIQUE NOT NULL,
+            content_type TEXT NOT NULL,
+            content TEXT NOT NULL
+          )
+        ''');
+      }
     });
   }
 
-  /// Insert a single device (from CSV import)
   Future<void> insertDevice(Device device) async {
     final db = await instance.database;
     await db.insert('devices', device.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
-  /// Get the next device in the queue that has NO Mac Address
   Future<Device?> getNextPendingDevice() async {
     final db = await instance.database;
-    final maps = await db.query(
-      'devices',
-      where: 'mac_address IS NULL',
-      orderBy: 'extension ASC',
-      limit: 1,
-    );
+    final maps = await db.query('devices', where: 'mac_address IS NULL', orderBy: 'extension ASC', limit: 1);
     if (maps.isNotEmpty) return Device.fromMap(maps.first);
     return null;
   }
 
-  /// Update the MAC address for a specific ID
   Future<void> assignMac(int id, String mac) async {
     final db = await instance.database;
-    await db.update(
-      'devices',
-      {'mac_address': mac, 'status': 'READY'},
-      where: 'id = ?',
-      whereArgs: [id],
+    await db.update('devices', {'mac_address': mac, 'status': 'READY'}, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<Device?> getDeviceByMac(String mac) async {
+    final db = await instance.database;
+    final maps = await db.query('devices', where: 'mac_address = ?', whereArgs: [mac]);
+    if (maps.isNotEmpty) return Device.fromMap(maps.first);
+    return null;
+  }
+
+  Future<void> saveTemplate(String model, String type, String content) async {
+    final db = await instance.database;
+    await db.insert(
+      'templates', 
+      {'model_name': model, 'content_type': type, 'content': content},
+      conflictAlgorithm: ConflictAlgorithm.replace
     );
   }
 
-  /// Retrieve a device by MAC (used by the Web Server)
-  Future<Device?> getDeviceByMac(String mac) async {
+  Future<Map<String, dynamic>?> getTemplate(String model) async {
     final db = await instance.database;
-    final maps = await db.query(
-      'devices',
-      where: 'mac_address = ?',
-      whereArgs: [mac],
-    );
-    if (maps.isNotEmpty) return Device.fromMap(maps.first);
+    final maps = await db.query('templates', where: 'model_name = ?', whereArgs: [model]);
+    if (maps.isNotEmpty) return maps.first;
     return null;
   }
 
