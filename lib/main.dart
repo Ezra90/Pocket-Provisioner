@@ -453,6 +453,7 @@ class ScannerScreen extends StatefulWidget {
 class _ScannerScreenState extends State<ScannerScreen> {
   Device? _target;
   bool _isProcessing = false;
+  int _pendingCount = 0;
 
   @override
   void initState() {
@@ -462,10 +463,68 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
   Future<void> _loadNextTarget() async {
     final next = await DatabaseHelper.instance.getNextPendingDevice();
+    final count = await DatabaseHelper.instance.getPendingCount();
     setState(() {
       _target = next;
       _isProcessing = false;
+      _pendingCount = count;
     });
+  }
+
+  Future<void> _showConfirmationDialog(String cleanMac) async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Confirm Assignment"),
+        content: Text(
+          "Matched MAC: $cleanMac\nto Extension: ${_target!.extension} (${_target!.label})",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              setState(() => _isProcessing = false);
+            },
+            child: const Text("Rescan / Cancel"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            onPressed: () async {
+              try {
+                await DatabaseHelper.instance.assignMac(_target!.id!, cleanMac);
+                if (mounted) Navigator.pop(ctx);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("SUCCESS — $cleanMac assigned!"),
+                      backgroundColor: Colors.green,
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
+                }
+                _loadNextTarget();
+              } catch (e) {
+                if (mounted) Navigator.pop(ctx);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("Error saving assignment: $e"),
+                      backgroundColor: Colors.red,
+                      duration: const Duration(seconds: 3),
+                    ),
+                  );
+                  setState(() => _isProcessing = false);
+                }
+              }
+            },
+            child: const Text("Confirm & Next"),
+          ),
+        ],
+      ),
+    );
+    // Safety net: ensure scanner is re-enabled if dialog closed unexpectedly
+    if (mounted) setState(() => _isProcessing = false);
   }
 
   @override
@@ -497,6 +556,16 @@ class _ScannerScreenState extends State<ScannerScreen> {
         children: [
           Container(
             width: double.infinity,
+            color: Colors.orange.shade50,
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              "📋 Pending: $_pendingCount devices remaining",
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14),
+            ),
+          ),
+          Container(
+            width: double.infinity,
             padding: const EdgeInsets.all(24),
             color: Colors.blueAccent,
             child: Column(
@@ -523,19 +592,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 if (rawMac == null || rawMac.length < 10) return;
 
                 setState(() => _isProcessing = true);
-                String cleanMac = rawMac.replaceAll(':', '').toUpperCase();
-                await DatabaseHelper.instance.assignMac(_target!.id!, cleanMac);
-                
-                if(mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text("Matched $cleanMac to ${_target!.label}"),
-                      backgroundColor: Colors.green,
-                      duration: const Duration(seconds: 1),
-                    )
-                  );
-                }
-                _loadNextTarget();
+                final String cleanMac = rawMac.replaceAll(':', '').toUpperCase();
+                if (mounted) await _showConfirmationDialog(cleanMac);
               },
             ),
           ),

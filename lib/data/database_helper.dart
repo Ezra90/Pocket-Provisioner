@@ -57,6 +57,12 @@ class DatabaseHelper {
     return null;
   }
 
+  Future<int> getPendingCount() async {
+    final db = await instance.database;
+    final result = await db.rawQuery('SELECT COUNT(*) as count FROM devices WHERE mac_address IS NULL');
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
   Future<void> assignMac(int id, String mac) async {
     final db = await instance.database;
     await db.update('devices', {'mac_address': mac, 'status': 'READY'}, where: 'id = ?', whereArgs: [id]);
