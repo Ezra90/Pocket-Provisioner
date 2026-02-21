@@ -13,14 +13,12 @@ import 'services/provisioning_server.dart';
 import 'services/button_layout_service.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
-import 'services/wallpaper_service.dart';
 import 'models/button_key.dart';
 import 'models/device.dart';
 import 'screens/template_manager.dart';
 import 'screens/button_layout_editor.dart';
 import 'screens/hosted_files_screen.dart';
 import 'screens/media_manager_screen.dart';
-import 'data/device_templates.dart';
 import 'screens/settings_screen.dart';
 
 void main() {

@@ -5,7 +5,6 @@ import 'package:shelf_router/shelf_router.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
-import '../services/mustache_template_service.dart';
 
 class ProvisioningServer {
   static final ProvisioningServer instance = ProvisioningServer._();

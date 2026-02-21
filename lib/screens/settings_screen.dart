@@ -81,6 +81,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    _sipServerController.dispose();
+    _voiceVlanController.dispose();
+    _ntpServerController.dispose();
+    _timezoneController.dispose();
+    _ringtoneController.dispose();
+    _targetUrlController.dispose();
+    _adminPasswordController.dispose();
+    _wallpaperController.dispose();
+    super.dispose();
+  }
+
   void _openWallpaperTools() {
     String selectedModel = _refModel;
     final nameController = TextEditingController();
