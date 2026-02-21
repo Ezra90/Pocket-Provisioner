@@ -18,14 +18,14 @@ class DatabaseHelper {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
-    return await openDatabase(path, version: 2,
+    return await openDatabase(path, version: 3,
       onCreate: (db, version) async {
       // 1. Devices Table
       await db.execute('''
         CREATE TABLE devices (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           model TEXT NOT NULL,
-          extension TEXT NOT NULL,
+          extension TEXT UNIQUE NOT NULL,
           secret TEXT NOT NULL,
           label TEXT NOT NULL,
           mac_address TEXT,
@@ -47,6 +47,26 @@ class DatabaseHelper {
       if (oldVersion < 2) {
         // Future migrations go here
         // Example: await db.execute('ALTER TABLE devices ADD COLUMN firmware_version TEXT');
+      }
+      if (oldVersion < 3) {
+        // Recreate devices table with UNIQUE constraint on extension
+        await db.execute('''
+          CREATE TABLE devices_tmp (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            model TEXT NOT NULL,
+            extension TEXT UNIQUE NOT NULL,
+            secret TEXT NOT NULL,
+            label TEXT NOT NULL,
+            mac_address TEXT,
+            status TEXT DEFAULT 'PENDING'
+          )
+        ''');
+        await db.execute('''
+          INSERT OR REPLACE INTO devices_tmp (id, model, extension, secret, label, mac_address, status)
+          SELECT id, model, extension, secret, label, mac_address, status FROM devices
+        ''');
+        await db.execute('DROP TABLE devices');
+        await db.execute('ALTER TABLE devices_tmp RENAME TO devices');
       }
     },
     );
