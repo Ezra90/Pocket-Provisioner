@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/mustache_template_service.dart';
+import '../services/provisioning_server.dart';
 
 class TemplateManagerScreen extends StatefulWidget {
   const TemplateManagerScreen({super.key});
@@ -142,32 +143,49 @@ class _TemplateManagerScreenState extends State<TemplateManagerScreen> {
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
-                    ...snapshot.data!.map((t) => ListTile(
-                          dense: true,
-                          leading: Icon(
-                            t.source == TemplateSource.bundled
-                                ? Icons.article_outlined
-                                : Icons.edit_document,
-                            size: 20,
-                            color: t.source == TemplateSource.bundled
-                                ? Colors.grey
-                                : Colors.blue,
-                          ),
-                          title: Text(t.displayName),
-                          subtitle: Text(
-                            _sourceLabel(t.source),
-                            style: const TextStyle(fontSize: 11),
-                          ),
-                          trailing: t.source != TemplateSource.bundled
-                              ? IconButton(
-                                  icon: const Icon(Icons.restore,
-                                      size: 18, color: Colors.red),
-                                  tooltip: 'Delete custom (restore bundled)',
-                                  onPressed: () => _deleteCustom(t.key),
-                                )
-                              : null,
-                          onTap: () => _loadTemplate(t.key),
-                        )),
+                    ...snapshot.data!.map((t) {
+                          final serverUrl = ProvisioningServer.serverUrl;
+                          final templateUrl = serverUrl != null
+                              ? '$serverUrl/templates/${t.key}.mustache'
+                              : null;
+                          return ListTile(
+                            dense: true,
+                            leading: Icon(
+                              t.source == TemplateSource.bundled
+                                  ? Icons.article_outlined
+                                  : Icons.edit_document,
+                              size: 20,
+                              color: t.source == TemplateSource.bundled
+                                  ? Colors.grey
+                                  : Colors.blue,
+                            ),
+                            title: Text(t.displayName),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _sourceLabel(t.source),
+                                  style: const TextStyle(fontSize: 11),
+                                ),
+                                if (templateUrl != null)
+                                  Text(
+                                    templateUrl,
+                                    style: const TextStyle(
+                                        fontSize: 10, color: Colors.blueGrey),
+                                  ),
+                              ],
+                            ),
+                            trailing: t.source != TemplateSource.bundled
+                                ? IconButton(
+                                    icon: const Icon(Icons.restore,
+                                        size: 18, color: Colors.red),
+                                    tooltip: 'Delete custom (restore bundled)',
+                                    onPressed: () => _deleteCustom(t.key),
+                                  )
+                                : null,
+                            onTap: () => _loadTemplate(t.key),
+                          );
+                        }),
                     const Divider(height: 24),
                   ],
                 );
