@@ -3,6 +3,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../data/database_helper.dart';
 import '../services/button_layout_service.dart';
 import '../models/device.dart';
+import 'device_list_screen.dart';
 
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
@@ -16,11 +17,31 @@ class _ScannerScreenState extends State<ScannerScreen> {
   int _pendingCount = 0;
   bool _carryOverLayout = false;
 
+  late final MobileScannerController _scannerController;
+  final TextEditingController _manualMacController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
+    _scannerController = MobileScannerController(
+      detectionSpeed: DetectionSpeed.noDuplicates,
+      facing: CameraFacing.back,
+      formats: const [
+        BarcodeFormat.code128,
+        BarcodeFormat.ean13,
+        BarcodeFormat.qrCode,
+        BarcodeFormat.dataMatrix,
+      ],
+    );
     _loadNextTarget();
     _loadCarryOverSettings();
+  }
+
+  @override
+  void dispose() {
+    _scannerController.dispose();
+    _manualMacController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadCarryOverSettings() async {
@@ -36,6 +57,55 @@ class _ScannerScreenState extends State<ScannerScreen> {
       _isProcessing = false;
       _pendingCount = count;
     });
+  }
+
+  /// Opens the device picker and uses the returned device as the new target.
+  Future<void> _openDevicePicker() async {
+    final selected = await Navigator.push<Device>(
+      context,
+      MaterialPageRoute(builder: (c) => const DeviceListScreen()),
+    );
+    if (!mounted) return;
+    if (selected != null) {
+      final count = await DatabaseHelper.instance.getPendingCount();
+      setState(() {
+        _target = selected;
+        _isProcessing = false;
+        _pendingCount = count;
+      });
+    } else {
+      // User pressed back without picking — fall through to auto-load
+      _loadNextTarget();
+    }
+  }
+
+  /// After a successful assignment, let the user choose what to do next.
+  Future<void> _showAdvanceOrPickDialog() async {
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Assignment Complete'),
+        content: const Text('What would you like to do next?'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _loadNextTarget();
+            },
+            child: const Text('Next Device'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _openDevicePicker();
+            },
+            child: const Text('Pick a Device'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Shows a streamlined dialog to customise per-handset button labels when
@@ -174,7 +244,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 if (_carryOverLayout && mounted) {
                   await _showCustomiseLabelsDialog(cleanMac, _target!.model);
                 }
-                _loadNextTarget();
+                await _showAdvanceOrPickDialog();
               } catch (e) {
                 if (mounted) Navigator.pop(ctx);
                 if (mounted) {
@@ -189,13 +259,29 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 }
               }
             },
-            child: const Text("Confirm & Next"),
+            child: const Text("Confirm"),
           ),
         ],
       ),
     );
     // Safety net: ensure scanner is re-enabled if dialog closed unexpectedly
     if (mounted) setState(() => _isProcessing = false);
+  }
+
+  Future<void> _submitManualMac() async {
+    if (_isProcessing) return;
+    final raw = _manualMacController.text.trim();
+    if (raw.isEmpty) return;
+    final clean = raw.replaceAll(RegExp(r'[:\-\s]'), '').toUpperCase();
+    if (clean.length < 12) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('MAC address too short — enter at least 12 hex chars')),
+      );
+      return;
+    }
+    setState(() => _isProcessing = true);
+    _manualMacController.clear();
+    if (mounted) await _showConfirmationDialog(clean);
   }
 
   @override
@@ -222,7 +308,16 @@ class _ScannerScreenState extends State<ScannerScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Scan Barcode")),
+      appBar: AppBar(
+        title: const Text("Scan Barcode"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.list_alt),
+            tooltip: 'Pick a Device',
+            onPressed: _isProcessing ? null : _openDevicePicker,
+          ),
+        ],
+      ),
       body: Column(
         children: [
           Container(
@@ -254,35 +349,92 @@ class _ScannerScreenState extends State<ScannerScreen> {
             ),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(16),
             color: Colors.blueAccent,
-            child: Column(
+            child: Row(
               children: [
-                const Text("SCANNING FOR:", style: TextStyle(color: Colors.white70, letterSpacing: 1.5)),
-                const SizedBox(height: 5),
-                Text(
-                  _target!.label, 
-                  style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white),
-                  textAlign: TextAlign.center,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text("SCANNING FOR:", style: TextStyle(color: Colors.white70, letterSpacing: 1.5, fontSize: 12)),
+                      const SizedBox(height: 4),
+                      Text(
+                        _target!.label, 
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                      Text("Model: ${_target!.model}", style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                    ],
+                  ),
                 ),
-                Text("Model: ${_target!.model}", style: const TextStyle(color: Colors.white)),
+                TextButton.icon(
+                  onPressed: _isProcessing ? null : _openDevicePicker,
+                  icon: const Icon(Icons.swap_horiz, color: Colors.white70),
+                  label: const Text("Switch", style: TextStyle(color: Colors.white70)),
+                ),
               ],
             ),
           ),
           
           Expanded(
-            child: MobileScanner(
-              onDetect: (capture) async {
-                if (_isProcessing) return;
-                final List<Barcode> barcodes = capture.barcodes;
-                if (barcodes.isEmpty) return;
-                final String? rawMac = barcodes.first.rawValue;
-                if (rawMac == null || rawMac.length < 10) return;
+            child: Stack(
+              children: [
+                MobileScanner(
+                  controller: _scannerController,
+                  onDetect: (capture) async {
+                    if (_isProcessing) return;
+                    final List<Barcode> barcodes = capture.barcodes;
+                    if (barcodes.isEmpty) return;
+                    final String? rawMac = barcodes.first.rawValue;
+                    if (rawMac == null) return;
+                    final String cleanMac = rawMac.replaceAll(':', '').toUpperCase();
+                    if (cleanMac.length < 12) return;
 
-                setState(() => _isProcessing = true);
-                final String cleanMac = rawMac.replaceAll(':', '').toUpperCase();
-                if (mounted) await _showConfirmationDialog(cleanMac);
-              },
+                    setState(() => _isProcessing = true);
+                    if (mounted) await _showConfirmationDialog(cleanMac);
+                  },
+                ),
+                // Scanning viewfinder overlay
+                Positioned.fill(
+                  child: Center(
+                    child: Container(
+                      width: 220,
+                      height: 220,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.greenAccent, width: 3),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Manual MAC entry fallback
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _manualMacController,
+                    decoration: const InputDecoration(
+                      labelText: 'Enter MAC manually',
+                      hintText: 'e.g. AABBCCDDEEFF',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    textCapitalization: TextCapitalization.characters,
+                    onSubmitted: (_) => _submitManualMac(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: _submitManualMac,
+                  child: const Text('Submit'),
+                ),
+              ],
             ),
           ),
         ],
@@ -290,3 +442,4 @@ class _ScannerScreenState extends State<ScannerScreen> {
     );
   }
 }
+
