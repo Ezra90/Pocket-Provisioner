@@ -5,6 +5,7 @@ import '../models/button_key.dart';
 
 class ButtonLayoutService {
   static const String _prefsKey = 'button_layouts'; // Key for the entire map in SharedPreferences
+  static const String _labelOverridesKey = 'label_overrides'; // Per-device label overrides
 
   /// Loads the layout for a specific model.
   /// Returns an empty list if no layout saved for that model.
@@ -55,5 +56,62 @@ class ButtonLayoutService {
   static Future<void> clearAllLayouts() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_prefsKey);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Carry-Over Settings
+  // ---------------------------------------------------------------------------
+
+  /// Reads which settings are flagged for carry-over across handsets.
+  /// Returns a map with keys: 'button_layout', 'wallpaper', 'ringtone', 'volume'.
+  static Future<Map<String, bool>> getCarryOverSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    return {
+      'button_layout': prefs.getBool('carry_over_button_layout') ?? false,
+      'wallpaper': prefs.getBool('carry_over_wallpaper') ?? false,
+      'ringtone': prefs.getBool('carry_over_ringtone') ?? false,
+      'volume': prefs.getBool('carry_over_volume') ?? false,
+    };
+  }
+
+  /// Persists carry-over preferences.
+  static Future<void> saveCarryOverSettings(Map<String, bool> settings) async {
+    final prefs = await SharedPreferences.getInstance();
+    for (final entry in settings.entries) {
+      await prefs.setBool('carry_over_${entry.key}', entry.value);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Per-device label overrides (used when button layout is carried over)
+  // ---------------------------------------------------------------------------
+
+  /// Returns the label overrides for a specific MAC address.
+  /// Map key is the button key id (as String), value is the custom label.
+  static Future<Map<String, String>> getLabelOverrides(String mac) async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? allOverridesJson = prefs.getString(_labelOverridesKey);
+    if (allOverridesJson == null) return {};
+    try {
+      final Map<String, dynamic> all =
+          json.decode(allOverridesJson) as Map<String, dynamic>;
+      final raw = all[mac.toUpperCase()] as Map<String, dynamic>?;
+      if (raw == null) return {};
+      return raw.map((k, v) => MapEntry(k, v as String));
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Persists label overrides for a specific MAC address.
+  static Future<void> saveLabelOverrides(
+      String mac, Map<String, String> overrides) async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? allOverridesJson = prefs.getString(_labelOverridesKey);
+    Map<String, dynamic> all = allOverridesJson != null
+        ? json.decode(allOverridesJson) as Map<String, dynamic>
+        : {};
+    all[mac.toUpperCase()] = overrides;
+    await prefs.setString(_labelOverridesKey, json.encode(all));
   }
 }

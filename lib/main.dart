@@ -10,9 +10,11 @@ import 'data/database_helper.dart';
 import 'services/mustache_renderer.dart';
 import 'services/mustache_template_service.dart';
 import 'services/provisioning_server.dart';
+import 'services/button_layout_service.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'services/wallpaper_service.dart';
+import 'models/button_key.dart';
 import 'models/device.dart';
 import 'screens/template_manager.dart';
 import 'screens/button_layout_editor.dart';
@@ -38,7 +40,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _serverStatus = "OFFLINE";
   bool _isServerRunning = false;
   Color _statusColor = Colors.red.shade100;
-  final String _appVersion = "v0.0.3";
+  final String _appVersion = "v0.0.4";
 
   @override
   void initState() {
@@ -144,6 +146,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     String refModel = DeviceTemplates.wallpaperSpecs.keys.first;
 
+    // Load carry-over preferences before opening the dialog
+    final carryOver = await ButtonLayoutService.getCarryOverSettings();
+    bool carryOverLayout = carryOver['button_layout'] ?? false;
+    bool carryOverWallpaper = carryOver['wallpaper'] ?? false;
+    bool carryOverRingtone = carryOver['ringtone'] ?? false;
+    bool carryOverVolume = carryOver['volume'] ?? false;
+
     if(!mounted) return;
 
     showDialog(
@@ -221,7 +230,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       )
                     ],
                   ),
-                  
+
+                  const Divider(height: 24),
+
+                  // 4. CARRY-OVER SETTINGS
+                  const Text("4. Carry-Over Settings", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text(
+                    "Tick settings to reuse across all handsets in a batch. "
+                    "Per-device data (extension, secret, MAC, label) is never carried over.",
+                    style: TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 4),
+                  SwitchListTile(
+                    dense: true,
+                    title: const Text("Button Layout"),
+                    subtitle: const Text("Reuse the same key layout for every handset"),
+                    value: carryOverLayout,
+                    onChanged: (v) => setState(() => carryOverLayout = v),
+                  ),
+                  SwitchListTile(
+                    dense: true,
+                    title: const Text("Wallpaper"),
+                    subtitle: const Text("Apply the same wallpaper to every handset"),
+                    value: carryOverWallpaper,
+                    onChanged: (v) => setState(() => carryOverWallpaper = v),
+                  ),
+                  SwitchListTile(
+                    dense: true,
+                    title: const Text("Ringtone"),
+                    subtitle: const Text("Apply the same ringtone to every handset"),
+                    value: carryOverRingtone,
+                    onChanged: (v) => setState(() => carryOverRingtone = v),
+                  ),
+                  SwitchListTile(
+                    dense: true,
+                    title: const Text("Volume"),
+                    subtitle: const Text("Apply the same volume settings to every handset"),
+                    value: carryOverVolume,
+                    onChanged: (v) => setState(() => carryOverVolume = v),
+                  ),
+
                   const Divider(height: 20),
                   ListTile(
                     title: const Text("Manage Templates"),
@@ -257,6 +305,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   await prefs.setString('public_wallpaper_url', wallpaperController.text.trim());
                   await prefs.setString('target_provisioning_url', targetUrlController.text.trim());
                   await prefs.setString('sip_server_address', sipServerController.text.trim());
+                  await ButtonLayoutService.saveCarryOverSettings({
+                    'button_layout': carryOverLayout,
+                    'wallpaper': carryOverWallpaper,
+                    'ringtone': carryOverRingtone,
+                    'volume': carryOverVolume,
+                  });
                   if(mounted) Navigator.pop(context);
                 }, 
                 child: const Text("Save")
@@ -351,6 +405,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final provisioningUrl = prefs.getString('target_provisioning_url') ?? '';
       final wallpaperUrl = prefs.getString('public_wallpaper_url') ?? '';
 
+      final carryOver = await ButtonLayoutService.getCarryOverSettings();
+      final carryOverLayout = carryOver['button_layout'] ?? false;
+
       final devices = await DatabaseHelper.instance.getReadyDevices();
 
       if (devices.isEmpty) {
@@ -368,8 +425,41 @@ class _DashboardScreenState extends State<DashboardScreen> {
         await outputDir.create(recursive: true);
       }
 
+      // Build a carry-over layout cache keyed by model (only when flag is on)
+      final Map<String, List<ButtonKey>> layoutCache = {};
+
+      int generated = 0;
+      final List<String> carriedOverModels = [];
+
       for (final device in devices) {
         if (device.macAddress == null || device.macAddress!.isEmpty) continue;
+
+        List<ButtonKey>? lineKeys;
+        if (carryOverLayout) {
+          // Load layout once per model and cache it
+          if (!layoutCache.containsKey(device.model)) {
+            layoutCache[device.model] =
+                await ButtonLayoutService.getLayoutForModel(device.model);
+          }
+          final baseLayout = layoutCache[device.model]!;
+          if (baseLayout.isNotEmpty) {
+            // Deep-copy keys so per-device overrides don't mutate the cache
+            lineKeys = baseLayout.map((k) => k.clone()).toList();
+
+            // Apply per-device label overrides saved during scanning
+            final overrides = await ButtonLayoutService.getLabelOverrides(device.macAddress!);
+            if (overrides.isNotEmpty) {
+              for (final key in lineKeys) {
+                final override = overrides[key.id.toString()];
+                if (override != null) key.label = override;
+              }
+            }
+            if (!carriedOverModels.contains(device.model)) {
+              carriedOverModels.add(device.model);
+            }
+          }
+        }
+
         final templateKey = MustacheRenderer.resolveTemplateKey(device.model);
         final variables = MustacheRenderer.buildVariables(
           macAddress: device.macAddress!,
@@ -380,6 +470,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           sipServer: sipServer,
           provisioningUrl: provisioningUrl,
           wallpaperUrl: wallpaperUrl,
+          lineKeys: lineKeys,
         );
         final rendered = await MustacheRenderer.render(templateKey, variables);
         final contentType = MustacheTemplateService.contentTypes[templateKey] ?? 'text/plain';
@@ -387,11 +478,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final mac = device.macAddress!.replaceAll(':', '').toUpperCase();
         final file = File(p.join(outputDir.path, '$mac.$ext'));
         await file.writeAsString(rendered);
+        generated++;
       }
 
       if (mounted) {
+        final carryMsg = carryOverLayout && carriedOverModels.isNotEmpty
+            ? " (layout carried over: ${carriedOverModels.join(', ')})"
+            : "";
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Generated configs for ${devices.length} devices!")),
+          SnackBar(content: Text("Generated configs for $generated devices!$carryMsg")),
         );
       }
     } catch (e) {
@@ -540,11 +635,18 @@ class _ScannerScreenState extends State<ScannerScreen> {
   Device? _target;
   bool _isProcessing = false;
   int _pendingCount = 0;
+  bool _carryOverLayout = false;
 
   @override
   void initState() {
     super.initState();
     _loadNextTarget();
+    _loadCarryOverSettings();
+  }
+
+  Future<void> _loadCarryOverSettings() async {
+    final settings = await ButtonLayoutService.getCarryOverSettings();
+    if (mounted) setState(() => _carryOverLayout = settings['button_layout'] ?? false);
   }
 
   Future<void> _loadNextTarget() async {
@@ -557,14 +659,114 @@ class _ScannerScreenState extends State<ScannerScreen> {
     });
   }
 
+  /// Shows a streamlined dialog to customise per-handset button labels when
+  /// the button layout is being carried over.
+  Future<void> _showCustomiseLabelsDialog(String mac, String model) async {
+    final layout = await ButtonLayoutService.getLayoutForModel(model);
+    final activeKeys = layout.where((k) => k.type != 'none' && k.value.isNotEmpty).toList();
+    if (activeKeys.isEmpty) return;
+
+    // Load any existing overrides for this MAC
+    final existingOverrides = await ButtonLayoutService.getLabelOverrides(mac);
+    final Map<int, TextEditingController> controllers = {
+      for (final k in activeKeys)
+        k.id: TextEditingController(
+          text: existingOverrides[k.id.toString()] ?? k.label,
+        ),
+    };
+
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Customise Labels"),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "The button layout is being carried over. "
+                "Edit any labels for this handset, or tap Skip to keep defaults.",
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 12),
+              ...activeKeys.map((k) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: TextField(
+                      controller: controllers[k.id],
+                      decoration: InputDecoration(
+                        labelText: "Key ${k.id} — ${k.type.toUpperCase()} ${k.value}",
+                        isDense: true,
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                  )),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Skip (use defaults)"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final overrides = <String, String>{
+                for (final k in activeKeys)
+                  k.id.toString(): controllers[k.id]!.text.trim(),
+              };
+              await ButtonLayoutService.saveLabelOverrides(mac, overrides);
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: const Text("Save Labels"),
+          ),
+        ],
+      ),
+    );
+
+    for (final c in controllers.values) {
+      c.dispose();
+    }
+  }
+
   Future<void> _showConfirmationDialog(String cleanMac) async {
     await showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: const Text("Confirm Assignment"),
-        content: Text(
-          "Matched MAC: $cleanMac\nto Extension: ${_target!.extension} (${_target!.label})",
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Matched MAC: $cleanMac\nto Extension: ${_target!.extension} (${_target!.label})",
+            ),
+            if (_carryOverLayout) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.content_copy, size: 14, color: Colors.orange),
+                    SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        "Button layout carry-over is ON — you'll be able to customise labels after confirming.",
+                        style: TextStyle(fontSize: 11, color: Colors.orange),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
         ),
         actions: [
           TextButton(
@@ -588,6 +790,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
                       duration: const Duration(seconds: 1),
                     ),
                   );
+                }
+                // Show label customisation if carry-over layout is active
+                if (_carryOverLayout && mounted) {
+                  await _showCustomiseLabelsDialog(cleanMac, _target!.model);
                 }
                 _loadNextTarget();
               } catch (e) {
@@ -650,6 +856,23 @@ class _ScannerScreenState extends State<ScannerScreen> {
               style: const TextStyle(fontSize: 14),
             ),
           ),
+          if (_carryOverLayout)
+            Container(
+              width: double.infinity,
+              color: Colors.orange.shade100,
+              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.content_copy, size: 14, color: Colors.deepOrange),
+                  SizedBox(width: 6),
+                  Text(
+                    "Button layout carry-over is ON",
+                    style: TextStyle(fontSize: 12, color: Colors.deepOrange, fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+            ),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(24),
