@@ -287,7 +287,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           )
         ],
       ),
-      body: Padding(
+      body: SafeArea(
+        top: false,
+        child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -399,6 +401,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
