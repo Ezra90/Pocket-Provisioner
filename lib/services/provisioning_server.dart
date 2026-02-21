@@ -13,6 +13,8 @@ import '../services/button_layout_service.dart';
 import '../models/button_key.dart'; 
 
 class ProvisioningServer {
+  static final ProvisioningServer instance = ProvisioningServer._();
+  ProvisioningServer._();
   static HttpServer? _server;
 
   Future<String> start() async {
@@ -40,11 +42,6 @@ class ProvisioningServer {
         ? manualSipServer
         : myIp; // Default to Android IP if blank
 
-    final List<Device> allDevices = await DatabaseHelper.instance.getAllDevices();
-    final Map<String, String> extToLabel = {
-      for (var d in allDevices) d.extension: d.label.isNotEmpty ? d.label : d.extension,
-    };
-
     // --- CONFIG HANDLER ---
     router.get('/<filename>', (Request request, String filename) async {
       String cleanMac = filename
@@ -64,8 +61,13 @@ class ProvisioningServer {
         return Response.notFound('Device not configured');
       }
 
-      String rawTemplate = await DeviceTemplates.getTemplateForModel(device.model);
-      String contentType = await DeviceTemplates.getContentType(device.model);
+      final (rawTemplate, contentType) = await DeviceTemplates.getTemplateAndContentType(device.model);
+
+      // Build extToLabel fresh on each request so CSV imports are reflected immediately
+      final List<Device> allDevices = await DatabaseHelper.instance.getAllDevices();
+      final Map<String, String> extToLabel = {
+        for (var d in allDevices) d.extension: d.label.isNotEmpty ? d.label : d.extension,
+      };
 
       String config = rawTemplate
           .replaceAll('{{label}}', device.label)
@@ -130,7 +132,7 @@ ${key.type == 'blf' ? 'linekey.${key.id}.pickup_value = **' : ''}
       return 'http://$myIp:8080';
     } catch (e) {
       print("Error starting server: $e");
-      throw e;
+      rethrow;
     }
   }
 

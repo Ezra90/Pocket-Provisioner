@@ -42,10 +42,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _checkPermissions() async {
-    await [
+    final statuses = await [
       Permission.camera, 
       Permission.location, // Critical for getting Local IP on Android
     ].request();
+    final denied = statuses.values.any((s) => s.isDenied || s.isPermanentlyDenied);
+    if (denied && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Camera and location permissions are required for full functionality.")),
+      );
+    }
   }
 
   // --- HELPER: DMS/EPM EXPLANATION DIALOG ---
@@ -278,6 +284,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (extIndex == -1) throw "Could not find 'Device Username' or 'Extension' column";
 
       int count = 0;
+      final List<Device> devicesToInsert = [];
       for (int i = 1; i < rows.length; i++) {
         var row = rows[i];
         if (row.length <= extIndex) continue;
@@ -296,7 +303,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           if (mac.length < 10) mac = null; 
         }
 
-        await DatabaseHelper.instance.insertDevice(Device(
+        devicesToInsert.add(Device(
           model: model,
           extension: extension,
           secret: secret,
@@ -306,6 +313,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ));
         count++;
       }
+
+      await DatabaseHelper.instance.insertDevices(devicesToInsert);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -324,7 +333,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _toggleServer() async {
     if (_isServerRunning) {
-      await ProvisioningServer().stop();
+      await ProvisioningServer.instance.stop();
       setState(() {
         _serverStatus = "OFFLINE";
         _isServerRunning = false;
@@ -333,7 +342,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       WakelockPlus.disable(); 
     } else {
       try {
-        String url = await ProvisioningServer().start();
+        String url = await ProvisioningServer.instance.start();
         setState(() {
           _serverStatus = "ONLINE: $url";
           _isServerRunning = true;

@@ -119,28 +119,28 @@ features.show_quick_setup.enable = 0
 ''';
 
   static Future<String> getTemplateForModel(String model) async {
-    final normalized = model.trim().toUpperCase();
-    
-    // Check Database
-    final custom = await DatabaseHelper.instance.getTemplate(normalized);
-    if (custom != null) return custom['content'] as String;
-
-    if (normalized.contains('CISCO') || normalized.contains('88') || normalized.contains('78')) {
-      return ciscoGeneric;
-    } else if (normalized.contains('POLY') || normalized.contains('VVX') || normalized.contains('EDGE')) {
-      return polycomGeneric;
-    }
-    return yealinkGeneric;
+    final result = await getTemplateAndContentType(model);
+    return result.$1;
   }
   
   static Future<String> getContentType(String model) async {
+    final result = await getTemplateAndContentType(model);
+    return result.$2;
+  }
+
+  /// Returns (templateContent, contentType) from a single database query.
+  static Future<(String, String)> getTemplateAndContentType(String model) async {
     final normalized = model.trim().toUpperCase();
     final custom = await DatabaseHelper.instance.getTemplate(normalized);
-    if (custom != null) return custom['content_type'] as String;
-
-    if (normalized.contains('POLY') || normalized.contains('VVX') || normalized.contains('CISCO') || normalized.contains('EDGE')) {
-      return 'application/xml';
+    if (custom != null) {
+      return (custom['content'] as String, custom['content_type'] as String);
     }
-    return 'text/plain';
+
+    if (normalized.contains('CISCO') || normalized.contains('88') || normalized.contains('78')) {
+      return (ciscoGeneric, 'application/xml');
+    } else if (normalized.contains('POLY') || normalized.contains('VVX') || normalized.contains('EDGE')) {
+      return (polycomGeneric, 'application/xml');
+    }
+    return (yealinkGeneric, 'text/plain');
   }
 }

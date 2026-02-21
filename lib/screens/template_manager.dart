@@ -18,6 +18,13 @@ class _TemplateManagerScreenState extends State<TemplateManagerScreen> {
   final _contentController = TextEditingController();
   String _selectedType = 'text/plain';
 
+  @override
+  void dispose() {
+    _modelController.dispose();
+    _contentController.dispose();
+    super.dispose();
+  }
+
   // --- IMPORT LOGIC ---
   Future<void> _importFile() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles();
@@ -71,7 +78,7 @@ class _TemplateManagerScreenState extends State<TemplateManagerScreen> {
     await Share.shareXFiles(
       [XFile(path)],
       text: 'Pocket Provisioner Template: ${_modelController.text}',
-      sharePositionOrigin: box!.localToGlobal(Offset.zero) & box.size,
+      sharePositionOrigin: box != null ? box.localToGlobal(Offset.zero) & box.size : null,
     );
   }
 
@@ -97,15 +104,15 @@ class _TemplateManagerScreenState extends State<TemplateManagerScreen> {
       _modelController.text = "T54W_Custom";
       _selectedType = 'text/plain';
       // Pulls the ACTUAL source code template
-      content = DeviceTemplates.fallbackYealinkTemplate;
+      content = DeviceTemplates.yealinkGeneric;
     } else if (type == 'Poly') {
       _modelController.text = "EdgeE450_Custom";
       _selectedType = 'application/xml';
-      content = DeviceTemplates.fallbackPolycomTemplate;
+      content = DeviceTemplates.polycomGeneric;
     } else if (type == 'Cisco') {
       _modelController.text = "8851_Custom";
       _selectedType = 'application/xml';
-      content = DeviceTemplates.fallbackCiscoTemplate;
+      content = DeviceTemplates.ciscoGeneric;
     }
     
     _contentController.text = content;
