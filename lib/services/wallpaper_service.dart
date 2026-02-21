@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
@@ -52,7 +53,7 @@ class WallpaperService {
   static Future<String> processAndSaveWallpaper(
       String sourcePath, WallpaperSpec spec, String customName) async {
     final File originalFile = File(sourcePath);
-    final List<int> bytes = await originalFile.readAsBytes();
+    final Uint8List bytes = await originalFile.readAsBytes();
 
     // Decode image (supports jpg, png, gif, etc.)
     img.Image? image = img.decodeImage(bytes);
