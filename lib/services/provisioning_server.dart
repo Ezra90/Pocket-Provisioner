@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
@@ -5,6 +6,8 @@ import 'package:shelf_router/shelf_router.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import '../data/database_helper.dart';
+import '../models/access_log_entry.dart';
 
 class ProvisioningServer {
   static final ProvisioningServer instance = ProvisioningServer._();
@@ -12,7 +15,125 @@ class ProvisioningServer {
   static HttpServer? _server;
   static String? _serverUrl;
 
+  // --- Access Log State ---
+  // The broadcast StreamController is intentionally kept open for the lifetime
+  // of the app so that UI listeners survive server restarts without needing to
+  // re-subscribe.  The log list and maps are cleared in stop() to give each
+  // server session a clean slate.
+  static final _logController = StreamController<AccessLogEntry>.broadcast();
+  static final List<AccessLogEntry> _accessLog = [];
+  static final Map<String, Set<String>> _deviceAccessMap = {};
+  /// IP → MAC lookup built as devices fetch their named config files.
+  static final Map<String, String> _ipMacMap = {};
+
+  static Stream<AccessLogEntry> get accessLogStream => _logController.stream;
+  static List<AccessLogEntry> get accessLog => List.unmodifiable(_accessLog);
+  static Map<String, Set<String>> get deviceAccessMap =>
+      Map.unmodifiable(_deviceAccessMap);
+
   static String? get serverUrl => _serverUrl;
+
+  // ---------------------------------------------------------------------------
+  // Classify the requested path into a resource type string.
+  // ---------------------------------------------------------------------------
+  static String _classifyResource(String path) {
+    if (path.startsWith('/media/original/')) return 'original_media';
+    if (path.startsWith('/media/')) return 'wallpaper';
+    if (path.startsWith('/templates/')) return 'template';
+    return 'config';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Extract a 12-hex-char MAC from a filename in the path, e.g. /AABBCCDDEEFF.cfg
+  // ---------------------------------------------------------------------------
+  static String? _extractMacFromPath(String path) {
+    final match =
+        RegExp(r'([0-9A-Fa-f]{12})\.(cfg|xml)$').firstMatch(path);
+    return match?.group(1)?.toUpperCase();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Try to extract MAC address from User-Agent header.
+  // Many Yealink/Poly/Cisco phones include their MAC in UA strings, e.g.:
+  //   Yealink SIP-T54W 96.86.0.100 AA:BB:CC:DD:EE:FF
+  // ---------------------------------------------------------------------------
+  static String? _extractMacFromUserAgent(String? ua) {
+    if (ua == null) return null;
+    // Colon-separated (AA:BB:CC:DD:EE:FF)
+    final colonMatch =
+        RegExp(r'([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5})').firstMatch(ua);
+    if (colonMatch != null) {
+      return colonMatch.group(1)!.replaceAll(':', '').toUpperCase();
+    }
+    // Bare 12-hex (AABBCCDDEEFF)
+    final bareMatch =
+        RegExp(r'\b([0-9A-Fa-f]{12})\b').firstMatch(ua);
+    return bareMatch?.group(1)?.toUpperCase();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Custom access-logging middleware.
+  // ---------------------------------------------------------------------------
+  static Middleware _accessLogMiddleware() {
+    return (Handler inner) {
+      return (Request request) async {
+        final response = await inner(request);
+
+        // --- Resolve client IP ---
+        final connInfo = request.context['shelf.io.connection_info'];
+        final String clientIp = (connInfo is HttpConnectionInfo)
+            ? connInfo.remoteAddress.address
+            : 'unknown';
+
+        final path = '/${request.url.path}';
+        final resourceType = _classifyResource(path);
+
+        // --- Resolve MAC ---
+        String? mac = _extractMacFromPath(path);
+        if (mac != null) {
+          // Record the IP → MAC mapping for subsequent requests from same device
+          _ipMacMap[clientIp] = mac;
+        } else {
+          // Fallback: IP map, then User-Agent
+          mac = _ipMacMap[clientIp] ??
+              _extractMacFromUserAgent(request.headers['user-agent']);
+        }
+
+        // --- Look up device label ---
+        String? deviceLabel;
+        if (mac != null) {
+          try {
+            final device = await DatabaseHelper.instance.getDeviceByMac(mac);
+            if (device != null) {
+              deviceLabel = 'Ext ${device.extension} - ${device.label}';
+            }
+          } catch (_) {
+            // Non-fatal: label lookup failure should not break request handling
+          }
+
+          // Track resource types accessed per MAC
+          _deviceAccessMap.putIfAbsent(mac, () => <String>{}).add(resourceType);
+        }
+
+        final entry = AccessLogEntry(
+          clientIp: clientIp,
+          requestedPath: path,
+          resolvedMac: mac,
+          deviceLabel: deviceLabel,
+          resourceType: resourceType,
+          statusCode: response.statusCode,
+          timestamp: DateTime.now(),
+        );
+
+        _accessLog.add(entry);
+        if (!_logController.isClosed) {
+          _logController.add(entry);
+        }
+
+        return response;
+      };
+    };
+  }
 
   Future<String> start([int port = 8080]) async {
     await stop();
@@ -126,7 +247,7 @@ class ProvisioningServer {
 
     try {
       final handler = const Pipeline()
-          .addMiddleware(logRequests())
+          .addMiddleware(_accessLogMiddleware())
           .addHandler(router.call);
       _server = await shelf_io.serve(handler, '0.0.0.0', port);
       _serverUrl = 'http://$myIp:$port';
@@ -143,6 +264,9 @@ class ProvisioningServer {
       await _server!.close(force: true);
       _server = null;
       _serverUrl = null;
+      _accessLog.clear();
+      _deviceAccessMap.clear();
+      _ipMacMap.clear();
       print('Server stopped');
     }
   }

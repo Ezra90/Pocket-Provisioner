@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../services/provisioning_server.dart';
+import 'access_log_screen.dart';
 import 'file_editor_screen.dart';
 
 class HostedFilesScreen extends StatefulWidget {
@@ -65,6 +66,15 @@ class _HostedFilesScreenState extends State<HostedFilesScreen> {
       appBar: AppBar(
         title: const Text('Hosted Files'),
         actions: [
+          if (serverUrl != null)
+            IconButton(
+              icon: const Icon(Icons.monitor_heart),
+              tooltip: 'Access Log',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (c) => const AccessLogScreen()),
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',
