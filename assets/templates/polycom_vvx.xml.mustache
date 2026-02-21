@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<PHONE_CONFIG>
+  <REGISTRATION
+{{#lines}}
+    reg.{{line_index}}.label="{{label}}"
+    reg.{{line_index}}.displayName="{{display_name}}"
+    reg.{{line_index}}.address="{{user_name}}"
+    reg.{{line_index}}.auth.userId="{{auth_name}}"
+    reg.{{line_index}}.auth.password="{{password}}"
+    reg.{{line_index}}.server.1.address="{{sip_server}}"
+    reg.{{line_index}}.server.1.port="{{sip_port}}"
+    reg.{{line_index}}.server.1.expires="{{expires}}"
+{{#has_voicemail}}
+    msg.mwi.{{line_index}}.subscribe="{{user_name}}"
+    msg.mwi.{{line_index}}.callBackMode="contact"
+    msg.mwi.{{line_index}}.callBack="{{voicemail_number}}"
+{{/has_voicemail}}
+{{/lines}}
+  />
+{{#has_outbound_proxy}}
+  <voIpProt
+    voIpProt.SIP.outboundProxy.address="{{outbound_proxy_host}}"
+    voIpProt.SIP.outboundProxy.port="{{outbound_proxy_port}}"
+  />
+{{/has_outbound_proxy}}
+  <feature
+    feature.presence.enabled="1"
+    feature.directedCallPickup.enabled="1"
+    feature.enhancedFeatureKeys.enabled="1"
+  />
+{{#attendant_keys}}
+  <attendant
+    attendant.resourceList.{{position}}.address="sip:{{key_value}}@{{sip_server}}"
+    attendant.resourceList.{{position}}.label="{{key_label}}"
+    attendant.resourceList.{{position}}.callAddress="sip:{{key_value}}@{{sip_server}}"
+  />
+{{/attendant_keys}}
+  <qos
+    qos.ethernet.callControl.user_priority="5"
+    qos.ip.callControl.dscp="46"
+  />
+  <bg>
+    <bg.color>
+      <bg.color.bm bg.color.bm.1.name="{{wallpaper_url}}" />
+    </bg.color>
+  </bg>
+  <tcpIpApp
+    tcpIpApp.sntp.address="{{ntp_server}}"
+    tcpIpApp.sntp.gmtOffset="{{gmt_offset}}"
+  />
+  <DEVICE
+    device.prov.serverName="{{provisioning_url}}"
+    device.prov.serverType="HTTP"
+    device.prov.user="{{provision_user}}"
+    device.prov.password="{{provision_pass}}"
+  />
+</PHONE_CONFIG>
