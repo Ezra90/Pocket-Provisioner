@@ -26,6 +26,13 @@ class _ButtonLayoutEditorScreenState extends State<ButtonLayoutEditorScreen> {
     _loadLayout();
   }
 
+  @override
+  void dispose() {
+    _modelController.dispose();
+    _jsonController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadLayout() async {
     _layout = await ButtonLayoutService.getLayoutForModel(_currentModel);
     if (_layout.isEmpty) {
@@ -105,56 +112,58 @@ class _ButtonLayoutEditorScreenState extends State<ButtonLayoutEditorScreen> {
     showDialog(
       context: context,
       builder: (context) {
-        final typeController = TextEditingController(text: key.type);
+        String selectedType = key.type;
         final valueController = TextEditingController(text: key.value);
         final labelController = TextEditingController(text: key.label);
 
-        return AlertDialog(
-          title: Text("Edit Key ${key.id}"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<String>(
-                value: key.type,
-                decoration: const InputDecoration(labelText: "Type"),
-                items: const [
-                  DropdownMenuItem(value: 'none', child: Text("None")),
-                  DropdownMenuItem(value: 'blf', child: Text("BLF (Monitor Extension)")),
-                  DropdownMenuItem(value: 'speeddial', child: Text("Speed Dial")),
-                  DropdownMenuItem(value: 'line', child: Text("Line (Additional Account)")),
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text("Edit Key ${key.id}"),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    value: selectedType,
+                    decoration: const InputDecoration(labelText: "Type"),
+                    items: const [
+                      DropdownMenuItem(value: 'none', child: Text("None")),
+                      DropdownMenuItem(value: 'blf', child: Text("BLF (Monitor Extension)")),
+                      DropdownMenuItem(value: 'speeddial', child: Text("Speed Dial")),
+                      DropdownMenuItem(value: 'line', child: Text("Line (Additional Account)")),
+                    ],
+                    onChanged: (v) => setDialogState(() => selectedType = v ?? 'none'),
+                  ),
+                  const SizedBox(height: 10),
+                  if (selectedType != 'none') ...[
+                    TextField(
+                      controller: valueController,
+                      decoration: const InputDecoration(labelText: "Value (Extension / Number)"),
+                    ),
+                    TextField(
+                      controller: labelController,
+                      decoration: const InputDecoration(labelText: "Custom Label (optional — auto-uses device label for BLF)"),
+                    ),
+                  ],
                 ],
-                onChanged: (v) => key.type = v ?? 'none',
               ),
-              const SizedBox(height: 10),
-              if (key.type != 'none') ...[
-                TextField(
-                  controller: valueController,
-                  decoration: const InputDecoration(labelText: "Value (Extension / Number)"),
-                  onChanged: (v) => key.value = v,
-                ),
-                TextField(
-                  controller: labelController,
-                  decoration: const InputDecoration(labelText: "Custom Label (optional — auto-uses device label for BLF)"),
-                  onChanged: (v) => key.label = v,
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+                ElevatedButton(
+                  onPressed: () {
+                    key
+                      ..type = selectedType
+                      ..value = valueController.text
+                      ..label = labelController.text;
+                    _updateJsonField();
+                    setState(() {});
+                    Navigator.pop(context);
+                  },
+                  child: const Text("Save"),
                 ),
               ],
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
-            ElevatedButton(
-              onPressed: () {
-                key
-                  ..type = typeController.text
-                  ..value = valueController.text
-                  ..label = labelController.text;
-                _updateJsonField();
-                setState(() {});
-                Navigator.pop(context);
-              },
-              child: const Text("Save"),
-            ),
-          ],
+            );
+          },
         );
       },
     );

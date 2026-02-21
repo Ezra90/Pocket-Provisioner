@@ -90,12 +90,21 @@ class DatabaseHelper {
     final db = await instance.database;
     await db.delete('devices');
   }
-/// NEW METHOD: Retrieve all devices (for label lookup and auto-sequential BLF)
-Future<List<Device>> getAllDevices() async {
-  final db = await database;
-  final List<Map<String, dynamic>> maps = await db.query('devices');
-  
-  return List.generate(maps.length, (i) {
-    return Device.fromMap(maps[i]);
-  });
+
+  /// Retrieve all devices (for label lookup and auto-sequential BLF)
+  Future<List<Device>> getAllDevices() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('devices');
+    return List.generate(maps.length, (i) => Device.fromMap(maps[i]));
+  }
+
+  /// Batch insert devices using a single transaction for performance
+  Future<void> insertDevices(List<Device> devices) async {
+    final db = await instance.database;
+    final batch = db.batch();
+    for (final device in devices) {
+      batch.insert('devices', device.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+    await batch.commit(noResult: true);
+  }
 }
