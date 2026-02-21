@@ -14,17 +14,20 @@
 
 ## 🛠 Usage Workflow
 
-### 1. The Setup (Global Settings)
-Tap the **Gear Icon [⚙]** to configure your job environment.
+### 1. Categorized Settings
+Tap the **Gear Icon [⚙]** to configure your job environment using the new categorized layout:
 
-* **Target DMS / EPM Server:**
-    * Enter the URL where the phone should go *after* initial setup.
-    * *Example:* `http://dms.example.com/bootstrap`
-* **Primary SIP Server:**
-    * **Leave Blank** for Cloud/DMS jobs. It will default to the local Android IP temporarily.
-    * **Enter IP** (e.g., `192.168.1.10`) for manual On-Premise PBX jobs.
-* **Wallpaper Source:**
-    * Use the **Smart Tool [🪄]** to pick an image. It will save as `LOCAL_HOSTED`.
+* **Network & SIP:**
+    * **Primary SIP Server:** Leave Blank for Cloud/DMS jobs. Enter IP (e.g., `192.168.1.10`) for manual On-Premise PBX jobs.
+    * **Voice VLAN ID:** Configure the network VLAN for voice traffic.
+* **Preferences:**
+    * Configure **NTP Server**, **Timezone Offset**, and **Default Ringtone**.
+    * **Wallpaper Source:** Use the **Smart Tool [🪄]** to pick an image. It auto-resizes for your models.
+    * **Carry-Over Settings:** Enable global toggles to reuse Wallpaper, Button Layouts, Ringtone, and Volume across an entire deployment batch.
+* **Management:**
+    * **Target DMS / EPM Server:** Enter the URL where the phone should go *after* initial setup.
+    * **Local Admin Password:** Set a global administrative password for the phones.
+    * Use links here to manage Device Templates, Line Keys, and Hosted Files.
 
 ### 2. Import Data (CSV)
 Tap **Import CSV**. The app supports two main formats:
