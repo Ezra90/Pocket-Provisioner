@@ -18,7 +18,8 @@ class DatabaseHelper {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
-    return await openDatabase(path, version: 1, onCreate: (db, version) async {
+    return await openDatabase(path, version: 2,
+      onCreate: (db, version) async {
       // 1. Devices Table
       await db.execute('''
         CREATE TABLE devices (
@@ -41,7 +42,14 @@ class DatabaseHelper {
           content TEXT NOT NULL
         )
       ''');
-    });
+    },
+    onUpgrade: (db, oldVersion, newVersion) async {
+      if (oldVersion < 2) {
+        // Future migrations go here
+        // Example: await db.execute('ALTER TABLE devices ADD COLUMN firmware_version TEXT');
+      }
+    },
+    );
   }
 
   // --- Device Methods ---
@@ -92,9 +100,15 @@ class DatabaseHelper {
     return null;
   }
 
-  Future<void> clearAll() async {
+  Future<void> clearDevices() async {
     final db = await instance.database;
     await db.delete('devices');
+  }
+
+  Future<void> clearAllData() async {
+    final db = await instance.database;
+    await db.delete('devices');
+    await db.delete('templates');
   }
 
   Future<List<Device>> getReadyDevices() async {
