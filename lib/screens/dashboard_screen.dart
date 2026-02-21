@@ -17,6 +17,7 @@ import '../models/button_key.dart';
 import '../models/device.dart';
 import 'settings_screen.dart';
 import 'scanner_screen.dart';
+import 'access_log_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -338,6 +339,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(
         title: Text("Pocket Provisioner $_appVersion"),
         actions: [
+          if (_isServerRunning)
+            IconButton(
+              icon: const Icon(Icons.monitor_heart),
+              tooltip: 'Access Log',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (c) => const AccessLogScreen()),
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.settings), 
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SettingsScreen())),
