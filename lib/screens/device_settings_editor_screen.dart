@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../data/device_templates.dart';
+import '../models/button_key.dart';
 import '../models/device_settings.dart';
 import '../services/wallpaper_service.dart';
+import 'per_extension_button_editor.dart';
 
 /// Info about another extension, used in the Clone From... dialog.
 typedef ExtensionCloneInfo = ({
@@ -25,6 +27,7 @@ class DeviceSettingsResult {
 class DeviceSettingsEditorScreen extends StatefulWidget {
   final String extension;
   final String label;
+  final String model;
   final DeviceSettings? initialSettings;
   final String? initialWallpaper;
   final List<WallpaperInfo> wallpapers;
@@ -34,6 +37,7 @@ class DeviceSettingsEditorScreen extends StatefulWidget {
     super.key,
     required this.extension,
     required this.label,
+    required this.model,
     this.initialSettings,
     this.initialWallpaper,
     this.wallpapers = const [],
@@ -88,6 +92,9 @@ class _DeviceSettingsEditorScreenState
   late final TextEditingController _ntpServerCtrl;
   late final TextEditingController _timezoneCtrl;
 
+  // Button Layout
+  List<ButtonKey>? _buttonLayout;
+
   @override
   void initState() {
     super.initState();
@@ -124,6 +131,7 @@ class _DeviceSettingsEditorScreenState
         TextEditingController(text: s?.provisioningUrl ?? '');
     _ntpServerCtrl = TextEditingController(text: s?.ntpServer ?? '');
     _timezoneCtrl = TextEditingController(text: s?.timezone ?? '');
+    _buttonLayout = s?.buttonLayout?.map((k) => k.clone()).toList();
   }
 
   @override
@@ -179,6 +187,10 @@ class _DeviceSettingsEditorScreenState
         provisioningUrl: _nonEmpty(_provisioningUrlCtrl.text),
         ntpServer: _nonEmpty(_ntpServerCtrl.text),
         timezone: _nonEmpty(_timezoneCtrl.text),
+        buttonLayout: (_buttonLayout != null &&
+                _buttonLayout!.any((k) => k.type != 'none'))
+            ? _buttonLayout
+            : null,
       );
 
   void _applyClone(DeviceSettings s) {
@@ -209,6 +221,7 @@ class _DeviceSettingsEditorScreenState
       _provisioningUrlCtrl.text = s.provisioningUrl ?? '';
       _ntpServerCtrl.text = s.ntpServer ?? '';
       _timezoneCtrl.text = s.timezone ?? '';
+      _buttonLayout = s.buttonLayout?.map((k) => k.clone()).toList();
     });
   }
 
@@ -729,7 +742,56 @@ class _DeviceSettingsEditorScreenState
               ),
             ],
           ),
+
+          // ── Button Layout ────────────────────────────────────────────────
+          _buildButtonLayoutTile(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildButtonLayoutTile() {
+    final programmed = _buttonLayout
+            ?.where((k) => k.type != 'none')
+            .length ??
+        0;
+    final total = _buttonLayout?.length ?? 0;
+    final subtitle = total > 0
+        ? '$programmed / $total buttons programmed'
+        : 'Using model default';
+
+    return Card(
+      margin: const EdgeInsets.only(top: 4, bottom: 4),
+      child: ListTile(
+        leading: const Text('🎹',
+            style: TextStyle(fontSize: 24)),
+        title: const Text('Button Layout'),
+        subtitle: Text(subtitle,
+            style: const TextStyle(fontSize: 12)),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+        onTap: () async {
+          final batchExts = widget.otherExtensions
+              .map((e) =>
+                  (extension: e.extension, label: e.label))
+              .toList();
+
+          final result =
+              await Navigator.push<List<ButtonKey>>(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PerExtensionButtonEditorScreen(
+                extension: widget.extension,
+                label: widget.label,
+                model: widget.model,
+                initialLayout: _buttonLayout,
+                batchExtensions: batchExts,
+              ),
+            ),
+          );
+          if (result != null) {
+            setState(() => _buttonLayout = result);
+          }
+        },
       ),
     );
   }

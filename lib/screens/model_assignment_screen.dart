@@ -205,6 +205,7 @@ class _ModelAssignmentScreenState extends State<ModelAssignmentScreen> {
         builder: (_) => DeviceSettingsEditorScreen(
           extension: '(multiple)',
           label: '${selected.length} extensions',
+          model: first.model,
           initialSettings: first.deviceSettings,
           initialWallpaper: first.wallpaper,
           wallpapers: _wallpapers,
@@ -246,6 +247,7 @@ class _ModelAssignmentScreenState extends State<ModelAssignmentScreen> {
         builder: (_) => DeviceSettingsEditorScreen(
           extension: row.device.extension,
           label: row.device.label,
+          model: row.model,
           initialSettings: row.deviceSettings,
           initialWallpaper: row.wallpaper,
           wallpapers: _wallpapers,

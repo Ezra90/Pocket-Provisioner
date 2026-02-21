@@ -125,7 +125,7 @@ class _ButtonLayoutEditorScreenState extends State<ButtonLayoutEditorScreen> {
 
     await showDialog(
       context: context,
-      builder: (context) => _KeyEditDialog(
+      builder: (context) => KeyEditDialog(
         key_: key,
         csvDevices: csvDevices,
         onSave: (updatedKey) {
@@ -239,22 +239,22 @@ class _ButtonLayoutEditorScreenState extends State<ButtonLayoutEditorScreen> {
 // Key Edit Dialog — CSV picker + manual entry + short dial
 // ---------------------------------------------------------------------------
 
-class _KeyEditDialog extends StatefulWidget {
+class KeyEditDialog extends StatefulWidget {
   final ButtonKey key_;
   final List<Device> csvDevices;
   final void Function(ButtonKey) onSave;
 
-  const _KeyEditDialog({
+  const KeyEditDialog({
     required this.key_,
     required this.csvDevices,
     required this.onSave,
   });
 
   @override
-  State<_KeyEditDialog> createState() => _KeyEditDialogState();
+  State<KeyEditDialog> createState() => KeyEditDialogState();
 }
 
-class _KeyEditDialogState extends State<_KeyEditDialog> {
+class KeyEditDialogState extends State<KeyEditDialog> {
   late String _selectedType;
   late TextEditingController _fullValueController;
   late TextEditingController _labelController;

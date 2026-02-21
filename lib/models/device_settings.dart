@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'button_key.dart';
 
 /// Per-device override settings for provisioning configuration.
 /// All fields default to null meaning "inherited / use global default".
@@ -41,6 +42,9 @@ class DeviceSettings {
   String? ntpServer;
   String? timezone;
 
+  /// Per-device button layout.  null = use model-default from ButtonLayoutService.
+  List<ButtonKey>? buttonLayout;
+
   DeviceSettings({
     this.sipServer,
     this.sipPort,
@@ -68,6 +72,7 @@ class DeviceSettings {
     this.provisioningUrl,
     this.ntpServer,
     this.timezone,
+    this.buttonLayout,
   });
 
   /// True if any field has been set (i.e. not all inherited).
@@ -97,7 +102,8 @@ class DeviceSettings {
       voicemailNumber != null ||
       provisioningUrl != null ||
       ntpServer != null ||
-      timezone != null;
+      timezone != null ||
+      (buttonLayout != null && buttonLayout!.any((k) => k.type != 'none'));
 
   /// Deep-copies this object.
   DeviceSettings clone() => DeviceSettings(
@@ -127,6 +133,7 @@ class DeviceSettings {
         provisioningUrl: provisioningUrl,
         ntpServer: ntpServer,
         timezone: timezone,
+        buttonLayout: buttonLayout?.map((k) => k.clone()).toList(),
       );
 
   Map<String, dynamic> toJson() => {
@@ -156,6 +163,8 @@ class DeviceSettings {
         if (provisioningUrl != null) 'provisioning_url': provisioningUrl,
         if (ntpServer != null) 'ntp_server': ntpServer,
         if (timezone != null) 'timezone': timezone,
+        if (buttonLayout != null && buttonLayout!.isNotEmpty)
+          'button_layout': buttonLayout!.map((k) => k.toJson()).toList(),
       };
 
   factory DeviceSettings.fromJson(Map<String, dynamic> m) => DeviceSettings(
@@ -185,6 +194,11 @@ class DeviceSettings {
         provisioningUrl: m['provisioning_url'] as String?,
         ntpServer: m['ntp_server'] as String?,
         timezone: m['timezone'] as String?,
+        buttonLayout: m['button_layout'] != null
+            ? (m['button_layout'] as List<dynamic>)
+                .map((e) => ButtonKey.fromJson(e as Map<String, dynamic>))
+                .toList()
+            : null,
       );
 
   /// Encode to JSON string for DB storage.
