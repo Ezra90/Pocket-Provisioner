@@ -1,4 +1,4 @@
-# Pocket Provisioner v0.0.3
+# Pocket Provisioner v0.0.4
 
 **Pocket Provisioner** is a mobile field utility for Telecommunications Technicians. It turns an Android/iOS device into a temporary **Provisioning Server**, allowing for rapid deployment of VoIP handsets (Yealink, Polycom, Cisco) without needing a laptop or complex on-site infrastructure.
 
@@ -78,3 +78,68 @@ Missing a model?
 * **Database:** `sqflite`
 * **Scanner:** `mobile_scanner`
 * **Image Processing:** `image`
+
+---
+
+## 🏗 Getting Started / Building from Source
+
+### Prerequisites
+
+* **Flutter SDK** `>=3.0.0 <4.0.0` — [Install Flutter](https://docs.flutter.dev/get-started/install)
+* **Android Studio** (for Android builds) or **Xcode 14+** (for iOS builds, macOS only)
+* **Git**
+
+### Clone the Repository
+
+```bash
+git clone https://github.com/Ezra90/Pocket-Provisioner.git
+cd Pocket-Provisioner
+```
+
+### Install Dependencies
+
+```bash
+flutter pub get
+```
+
+### Run on Device / Emulator
+
+```bash
+flutter run
+```
+
+### Build Release APK (Android)
+
+```bash
+flutter build apk --release
+```
+
+### Build App Bundle (Android)
+
+```bash
+flutter build appbundle --release
+```
+
+### Build Release IPA (iOS)
+
+> Requires Xcode and an Apple Developer account.
+
+```bash
+flutter build ipa --release
+```
+
+### Required Permissions
+
+| Permission | Purpose |
+|---|---|
+| `CAMERA` | Barcode / MAC-address scanning |
+| `ACCESS_FINE_LOCATION` | Detecting the device's Wi-Fi IP address (Android) |
+| `INTERNET` | Hosting the local provisioning server |
+
+### Minimum SDK Versions
+
+| Platform | Version |
+|---|---|
+| Android `minSdkVersion` | 23 (Android 6.0+) |
+| Android `targetSdkVersion` | 34 |
+| iOS `MinimumOSVersion` | 12.0 |
