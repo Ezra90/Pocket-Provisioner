@@ -21,6 +21,7 @@ import 'screens/button_layout_editor.dart';
 import 'screens/hosted_files_screen.dart';
 import 'screens/media_manager_screen.dart';
 import 'data/device_templates.dart';
+import 'screens/settings_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -61,293 +62,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SnackBar(content: Text("Camera and location permissions are required for full functionality.")),
       );
     }
-  }
-
-  // --- HELPER: DMS/EPM EXPLANATION DIALOG ---
-  void _showDmsHelp(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("What is DMS / EPM?"),
-        content: const SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text("Endpoint Manager (EPM)", style: TextStyle(fontWeight: FontWeight.bold)),
-              Text("A comprehensive tool for configuration, security, firmware updates, and deployment. Widely used in VoIP environments (e.g., FreePBX Endpoint Manager) to manage desk phones."),
-              SizedBox(height: 10),
-              Text("DMS (Device Management System)", style: TextStyle(fontWeight: FontWeight.bold)),
-              Text("Similar to EPM, often used by specific carriers for initial device provisioning."),
-              SizedBox(height: 10),
-              Divider(),
-              Text("The 'Target Server' setting tells the phone where to go after this app applies the initial wallpaper and buttons.", style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Got it"))
-        ],
-      ),
-    );
-  }
-
-  // --- WALLPAPER RESIZER DIALOG ---
-  void _openWallpaperTools(BuildContext context, Function onSave) {
-    String selectedModel = DeviceTemplates.wallpaperSpecs.keys.first;
-    final nameController = TextEditingController();
-    
-    showDialog(
-      context: context, 
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setState) {
-          final spec = DeviceTemplates.getSpecForModel(selectedModel);
-          return AlertDialog(
-            title: const Text("Smart Wallpaper Tool"),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Custom Name (required)',
-                    hintText: 'e.g. BunningsT4X',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                DropdownButton<String>(
-                  value: selectedModel,
-                  isExpanded: true,
-                  items: DeviceTemplates.wallpaperSpecs.keys.map((k) => DropdownMenuItem(value: k, child: Text(k))).toList(),
-                  onChanged: (v) => setState(() => selectedModel = v!),
-                ),
-                const SizedBox(height: 10),
-                Text("Required: ${spec.width}x${spec.height} ${spec.format.toUpperCase()}"),
-                const SizedBox(height: 10),
-                ElevatedButton(
-                  onPressed: () async {
-                    final customName = nameController.text.trim();
-                    if (customName.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Please enter a custom name first")));
-                      return;
-                    }
-                    FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.image);
-                    if (result == null) return;
-                    final resizedFilename = await WallpaperService.processAndSaveWallpaper(
-                        result.files.single.path!, spec, customName);
-                    final prefs = await SharedPreferences.getInstance();
-                    await prefs.setString('public_wallpaper_url', 'LOCAL:$resizedFilename');
-                    if (mounted) {
-                      Navigator.pop(context);
-                      onSave();
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Wallpaper Processed!")));
-                    }
-                  }, 
-                  child: const Text("Pick & Resize Image")
-                )
-              ],
-            ),
-          );
-        }
-      )
-    );
-  }
-
-  // --- SETTINGS DIALOG ---
-  void _openSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    
-    final wallpaperController = TextEditingController(text: prefs.getString('public_wallpaper_url') ?? '');
-    final targetUrlController = TextEditingController(text: prefs.getString('target_provisioning_url') ?? DeviceTemplates.defaultTarget);
-    final sipServerController = TextEditingController(text: prefs.getString('sip_server_address') ?? '');
-
-    String refModel = DeviceTemplates.wallpaperSpecs.keys.first;
-
-    // Load carry-over preferences before opening the dialog
-    final carryOver = await ButtonLayoutService.getCarryOverSettings();
-    bool carryOverLayout = carryOver['button_layout'] ?? false;
-    bool carryOverWallpaper = carryOver['wallpaper'] ?? false;
-    bool carryOverRingtone = carryOver['ringtone'] ?? false;
-    bool carryOverVolume = carryOver['volume'] ?? false;
-
-    if(!mounted) return;
-
-    showDialog(
-      context: context, 
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) {
-          final spec = DeviceTemplates.getSpecForModel(refModel);
-          
-          return AlertDialog(
-            title: const Text("Global Settings"),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 1. DMS / EPM SECTION
-                  Row(
-                    children: [
-                      const Text("1. Target DMS / EPM Server", style: TextStyle(fontWeight: FontWeight.bold)),
-                      IconButton(
-                        icon: const Icon(Icons.help_outline, size: 18, color: Colors.grey),
-                        onPressed: () => _showDmsHelp(context),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                    ],
-                  ),
-                  const Text("URL where phone goes NEXT.", style: TextStyle(fontSize: 11, color: Colors.grey)),
-                  TextField(
-                    controller: targetUrlController,
-                    decoration: const InputDecoration(
-                      hintText: "http://polydms.digitalbusiness.telstra.com/dms/bootstrap", // Example kept for clarity
-                      helperText: "e.g. Carrier DMS or EPM URL",
-                      helperStyle: TextStyle(fontSize: 10, color: Colors.grey)
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-
-                  // 2. SIP SERVER SECTION
-                  const Text("2. Primary SIP Server IP", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const Text("Leave BLANK for DMS/Cloud. Enter IP for Local PBX.", style: TextStyle(fontSize: 11, color: Colors.grey)),
-                  TextField(
-                    controller: sipServerController,
-                    decoration: const InputDecoration(hintText: "e.g. 192.168.1.10"),
-                  ),
-                  const SizedBox(height: 15),
-                  
-                  // 3. WALLPAPER SECTION
-                  const Text("3. Wallpaper Source", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const Text("Spec Reference:", style: TextStyle(fontSize: 11, color: Colors.grey)),
-                  DropdownButton<String>(
-                    value: refModel,
-                    isDense: true,
-                    isExpanded: true,
-                    style: const TextStyle(fontSize: 12, color: Colors.black),
-                    items: DeviceTemplates.wallpaperSpecs.keys.map((k) => DropdownMenuItem(value: k, child: Text(k))).toList(),
-                    onChanged: (v) => setState(() => refModel = v!),
-                  ),
-                  Text("Required: ${spec.width}x${spec.height} ${spec.format.toUpperCase()}", style: const TextStyle(fontSize: 12, color: Colors.blue)),
-                  
-                  const SizedBox(height: 5),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: wallpaperController,
-                          decoration: const InputDecoration(hintText: "URL or LOCAL_HOSTED"),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.auto_fix_high, color: Colors.blue),
-                        onPressed: () => _openWallpaperTools(context, () {
-                          wallpaperController.text = prefs.getString('public_wallpaper_url') ?? '';
-                        }),
-                      )
-                    ],
-                  ),
-
-                  const Divider(height: 24),
-
-                  // 4. CARRY-OVER SETTINGS
-                  const Text("4. Carry-Over Settings", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const Text(
-                    "Tick settings to reuse across all handsets in a batch. "
-                    "Per-device data (extension, secret, MAC, label) is never carried over.",
-                    style: TextStyle(fontSize: 11, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 4),
-                  SwitchListTile(
-                    dense: true,
-                    title: const Text("Button Layout"),
-                    subtitle: const Text("Reuse the same key layout for every handset"),
-                    value: carryOverLayout,
-                    onChanged: (v) => setState(() => carryOverLayout = v),
-                  ),
-                  SwitchListTile(
-                    dense: true,
-                    title: const Text("Wallpaper"),
-                    subtitle: const Text("Apply the same wallpaper to every handset"),
-                    value: carryOverWallpaper,
-                    onChanged: (v) => setState(() => carryOverWallpaper = v),
-                  ),
-                  SwitchListTile(
-                    dense: true,
-                    title: const Text("Ringtone"),
-                    subtitle: const Text("Apply the same ringtone to every handset"),
-                    value: carryOverRingtone,
-                    onChanged: (v) => setState(() => carryOverRingtone = v),
-                  ),
-                  SwitchListTile(
-                    dense: true,
-                    title: const Text("Volume"),
-                    subtitle: const Text("Apply the same volume settings to every handset"),
-                    value: carryOverVolume,
-                    onChanged: (v) => setState(() => carryOverVolume = v),
-                  ),
-
-                  const Divider(height: 20),
-                  ListTile(
-                    title: const Text("Manage Templates"),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(context, MaterialPageRoute(builder: (c) => const TemplateManagerScreen()));
-                    },
-                  ),
-                  ListTile(
-                    title: const Text("Button Layouts"),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(context, MaterialPageRoute(builder: (c) => const ButtonLayoutEditorScreen()));
-                    },
-                  ),
-                  ListTile(
-                    title: const Text("Hosted Files"),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(context, MaterialPageRoute(builder: (c) => const HostedFilesScreen()));
-                    },
-                  ),
-                  ListTile(
-                    title: const Text("Media Manager"),
-                    subtitle: const Text("Manage wallpapers"),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(context, MaterialPageRoute(builder: (c) => const MediaManagerScreen()));
-                    },
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
-              ElevatedButton(
-                onPressed: () async {
-                  await prefs.setString('public_wallpaper_url', wallpaperController.text.trim());
-                  await prefs.setString('target_provisioning_url', targetUrlController.text.trim());
-                  await prefs.setString('sip_server_address', sipServerController.text.trim());
-                  await ButtonLayoutService.saveCarryOverSettings({
-                    'button_layout': carryOverLayout,
-                    'wallpaper': carryOverWallpaper,
-                    'ringtone': carryOverRingtone,
-                    'volume': carryOverVolume,
-                  });
-                  if(mounted) Navigator.pop(context);
-                }, 
-                child: const Text("Save")
-              )
-            ],
-          );
-        }
-      )
-    );
   }
 
   // --- SMART CSV IMPORT ---
@@ -432,6 +146,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final sipServer = prefs.getString('sip_server_address') ?? '';
       final provisioningUrl = prefs.getString('target_provisioning_url') ?? '';
       final wallpaperUrl = prefs.getString('public_wallpaper_url') ?? '';
+      
+      final ntpServer = prefs.getString('ntp_server') ?? '';
+      final timezone = prefs.getString('timezone_offset') ?? '';
+      final adminPassword = prefs.getString('admin_password') ?? '';
+      final voiceVlanId = prefs.getString('voice_vlan_id') ?? '';
 
       // Resolve local wallpaper references to actual server URLs
       String resolvedWallpaperUrl = wallpaperUrl;
@@ -440,10 +159,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (serverUrl != null) {
           if (wallpaperUrl.startsWith('LOCAL:')) {
             final filename = wallpaperUrl.substring('LOCAL:'.length); // strip "LOCAL:"
-            resolvedWallpaperUrl = '$serverUrl/media/$filename';
+            resolvedWallpaperUrl = '\$serverUrl/media/\$filename';
           } else {
             // Legacy LOCAL_HOSTED — try to find any wallpaper in the media dir
-            resolvedWallpaperUrl = '$serverUrl/media/custom_bg.png';
+            resolvedWallpaperUrl = '\$serverUrl/media/custom_bg.png';
           }
         }
       }
@@ -514,28 +233,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
           provisioningUrl: provisioningUrl,
           wallpaperUrl: resolvedWallpaperUrl,
           lineKeys: lineKeys,
+          ntpServer: ntpServer.isNotEmpty ? ntpServer : null,
+          timezone: timezone.isNotEmpty ? timezone : null,
+          adminPassword: adminPassword.isNotEmpty ? adminPassword : null,
+          voiceVlanId: voiceVlanId.isNotEmpty ? voiceVlanId : null,
         );
         final rendered = await MustacheRenderer.render(templateKey, variables);
         final contentType = MustacheTemplateService.contentTypes[templateKey] ?? 'text/plain';
         final ext = contentType == 'application/xml' ? 'xml' : 'cfg';
         final mac = device.macAddress!.replaceAll(':', '').toUpperCase();
-        final file = File(p.join(outputDir.path, '$mac.$ext'));
+        final file = File(p.join(outputDir.path, '\$mac.\$ext'));
         await file.writeAsString(rendered);
         generated++;
       }
 
       if (mounted) {
         final carryMsg = carryOverLayout && carriedOverModels.isNotEmpty
-            ? " (layout carried over: ${carriedOverModels.join(', ')})"
+            ? " (layout carried over: \\$carriedOverModels.join(', ')\")"
             : "";
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Generated configs for $generated devices!$carryMsg")),
+          SnackBar(content: Text("Generated configs for \\$generated devices!$carryMsg")),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error generating configs: $e"), backgroundColor: Colors.red),
+          SnackBar(content: Text("Error generating configs: \\$e"), backgroundColor: Colors.red),
         );
       }
     }
@@ -554,13 +277,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       try {
         String url = await ProvisioningServer.instance.start();
         setState(() {
-          _serverStatus = "ONLINE: $url";
+          _serverStatus = "ONLINE: \\$url";
           _isServerRunning = true;
           _statusColor = Colors.green.shade100;
         });
         WakelockPlus.enable(); 
       } catch (e) {
-        setState(() => _serverStatus = "ERROR: ${e.toString()}");
+        setState(() => _serverStatus = "ERROR: \\$e.toString()");
       }
     }
   }
@@ -569,8 +292,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Pocket Provisioner $_appVersion"),
-        actions: [IconButton(icon: const Icon(Icons.settings), onPressed: _openSettings)],
+        title: Text("Pocket Provisioner \\$appVersion"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings), 
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SettingsScreen())),
+          )
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -588,9 +316,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     const SizedBox(height: 10),
                     Text(_serverStatus, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     if (_isServerRunning)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 8.0),
-                        child: Text("Set Router DHCP Option 66 to this URL", style: TextStyle(fontSize: 12)),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text("Set Router DHCP Option 66 to this URL", style: TextStyle(fontSize: 12)),
+                            const SizedBox(width: 4),
+                            InkWell(
+                              onTap: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    title: const Text("Router Configuration Info"),
+                                    content: const Text("Don't forget to configure Option 66 on your local router to point to this URL. Also, ensure the handset is factory reset so it pulls the configuration on boot."),
+                                    actions: [
+                                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Got it"))
+                                    ],
+                                  )
+                                );
+                              },
+                              child: const Icon(Icons.info_outline, size: 16, color: Colors.blue),
+                            )
+                          ],
+                        ),
                       ),
                   ],
                 ),
@@ -740,7 +489,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                     child: TextField(
                       controller: controllers[k.id],
                       decoration: InputDecoration(
-                        labelText: "Key ${k.id} — ${k.type.toUpperCase()} ${k.value}",
+                        labelText: "Key "+k.id.toString()+" — "+k.type.toUpperCase()+" "+k.value,
                         isDense: true,
                         border: const OutlineInputBorder(),
                       ),
@@ -785,7 +534,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "Matched MAC: $cleanMac\nto Extension: ${_target!.extension} (${_target!.label})",
+              "Matched MAC: \\$cleanMac\to Extension: \\$target!.extension (${_target!.label})",
             ),
             if (_carryOverLayout) ...[
               const SizedBox(height: 8),
@@ -894,7 +643,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
             color: Colors.orange.shade50,
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Text(
-              "📋 Pending: $_pendingCount devices remaining",
+              "📋 Pending: \\$pendingCount devices remaining",
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 14),
             ),
@@ -929,7 +678,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                   style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white),
                   textAlign: TextAlign.center,
                 ),
-                Text("Model: ${_target!.model}", style: const TextStyle(color: Colors.white)),
+                Text("Model: __\\$target!.model__", style: const TextStyle(color: Colors.white)),
               ],
             ),
           ),
