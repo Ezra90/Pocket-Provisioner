@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/button_key.dart';
+import '../models/device.dart';
 import '../services/button_layout_service.dart';
 import '../data/database_helper.dart';
 
@@ -99,7 +100,9 @@ class _ButtonLayoutEditorScreenState extends State<ButtonLayoutEditorScreen> {
       final dev = devices[i];
       _layout[i]
         ..type = 'blf'
+        ..fullValue = dev.extension
         ..value = dev.extension
+        ..shortDialMode = 'full'
         ..label = dev.label.isNotEmpty ? dev.label : dev.extension;
     }
 
@@ -108,64 +111,28 @@ class _ButtonLayoutEditorScreenState extends State<ButtonLayoutEditorScreen> {
     _saveLayout();
   }
 
-  void _editKey(ButtonKey key) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        String selectedType = key.type;
-        final valueController = TextEditingController(text: key.value);
-        final labelController = TextEditingController(text: key.label);
+  /// Opens the key editor dialog.
+  /// Loads CSV devices first so the picker is immediately available.
+  Future<void> _editKey(ButtonKey key) async {
+    final List<Device> csvDevices = await DatabaseHelper.instance.getAllDevices();
+    csvDevices.sort((a, b) {
+      final aNum = int.tryParse(a.extension) ?? 0;
+      final bNum = int.tryParse(b.extension) ?? 0;
+      return aNum.compareTo(bNum);
+    });
 
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: Text("Edit Key ${key.id}"),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DropdownButtonFormField<String>(
-                    value: selectedType,
-                    decoration: const InputDecoration(labelText: "Type"),
-                    items: const [
-                      DropdownMenuItem(value: 'none', child: Text("None")),
-                      DropdownMenuItem(value: 'blf', child: Text("BLF (Monitor Extension)")),
-                      DropdownMenuItem(value: 'speeddial', child: Text("Speed Dial")),
-                      DropdownMenuItem(value: 'line', child: Text("Line (Additional Account)")),
-                    ],
-                    onChanged: (v) => setDialogState(() => selectedType = v ?? 'none'),
-                  ),
-                  const SizedBox(height: 10),
-                  if (selectedType != 'none') ...[
-                    TextField(
-                      controller: valueController,
-                      decoration: const InputDecoration(labelText: "Value (Extension / Number)"),
-                    ),
-                    TextField(
-                      controller: labelController,
-                      decoration: const InputDecoration(labelText: "Custom Label (optional — auto-uses device label for BLF)"),
-                    ),
-                  ],
-                ],
-              ),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
-                ElevatedButton(
-                  onPressed: () {
-                    key
-                      ..type = selectedType
-                      ..value = valueController.text
-                      ..label = labelController.text;
-                    _updateJsonField();
-                    setState(() {});
-                    Navigator.pop(context);
-                  },
-                  child: const Text("Save"),
-                ),
-              ],
-            );
-          },
-        );
-      },
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      builder: (context) => _KeyEditDialog(
+        key_: key,
+        csvDevices: csvDevices,
+        onSave: (updatedKey) {
+          _updateJsonField();
+          setState(() {});
+        },
+      ),
     );
   }
 
@@ -227,7 +194,7 @@ class _ButtonLayoutEditorScreenState extends State<ButtonLayoutEditorScreen> {
                 itemBuilder: (context, index) {
                   final key = _layout[index];
                   return GestureDetector(
-                    onTap: () => _editKey(key),
+                    onTap: () async => _editKey(key),
                     child: Card(
                       color: key.type == 'none' ? Colors.grey[300] : Colors.blue[100],
                       elevation: 3,
@@ -240,7 +207,7 @@ class _ButtonLayoutEditorScreenState extends State<ButtonLayoutEditorScreen> {
                               Text("${key.id}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                               Text(key.type.toUpperCase(), style: const TextStyle(fontSize: 12)),
                               if (key.value.isNotEmpty) Text(key.value, style: const TextStyle(fontSize: 11)),
-                              if (key.label.isNotEmpty) Text(key.label, style: const TextStyle(fontSize: 10)),
+                              if (key.label.isNotEmpty) Text(key.label, style: const TextStyle(fontSize: 10, color: Colors.black54)),
                             ],
                           ),
                         ),
@@ -264,6 +231,300 @@ class _ButtonLayoutEditorScreenState extends State<ButtonLayoutEditorScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Key Edit Dialog — CSV picker + manual entry + short dial
+// ---------------------------------------------------------------------------
+
+class _KeyEditDialog extends StatefulWidget {
+  final ButtonKey key_;
+  final List<Device> csvDevices;
+  final void Function(ButtonKey) onSave;
+
+  const _KeyEditDialog({
+    required this.key_,
+    required this.csvDevices,
+    required this.onSave,
+  });
+
+  @override
+  State<_KeyEditDialog> createState() => _KeyEditDialogState();
+}
+
+class _KeyEditDialogState extends State<_KeyEditDialog> {
+  late String _selectedType;
+  late TextEditingController _fullValueController;
+  late TextEditingController _labelController;
+  late TextEditingController _searchController;
+  late TextEditingController _customDigitsController;
+  late String _shortDialMode;
+  late int _customDigits;
+
+  List<Device> _filteredDevices = [];
+  bool _showCsvPicker = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedType = widget.key_.type;
+    // Prefer fullValue as the editable source; fall back to value for legacy keys
+    final initialFull = widget.key_.fullValue.isNotEmpty
+        ? widget.key_.fullValue
+        : widget.key_.value;
+    _fullValueController = TextEditingController(text: initialFull);
+    _labelController = TextEditingController(text: widget.key_.label);
+    _searchController = TextEditingController();
+    _shortDialMode = widget.key_.shortDialMode;
+    _customDigits = widget.key_.customDigits;
+    _customDigitsController =
+        TextEditingController(text: _customDigits.toString());
+    _filteredDevices = widget.csvDevices;
+    _searchController.addListener(_filterDevices);
+  }
+
+  @override
+  void dispose() {
+    _fullValueController.dispose();
+    _labelController.dispose();
+    _searchController.dispose();
+    _customDigitsController.dispose();
+    super.dispose();
+  }
+
+  void _filterDevices() {
+    final q = _searchController.text.toLowerCase();
+    setState(() {
+      _filteredDevices = q.isEmpty
+          ? widget.csvDevices
+          : widget.csvDevices
+              .where((d) =>
+                  d.extension.contains(q) ||
+                  d.label.toLowerCase().contains(q))
+              .toList();
+    });
+  }
+
+  /// Computes the effective (shortened) dial value from [full] and [mode].
+  String _computeShortDial(String full, String mode, int customDigits) {
+    if (full.isEmpty) return '';
+    final int digits = switch (mode) {
+      '3digit' => 3,
+      '4digit' => 4,
+      '5digit' => 5,
+      'custom' => customDigits,
+      _ => 0,
+    };
+    if (digits == 0) return full;
+    return full.length > digits ? full.substring(full.length - digits) : full;
+  }
+
+  String get _effectiveValue => _computeShortDial(
+        _fullValueController.text,
+        _shortDialMode,
+        _customDigits,
+      );
+
+  bool get _hasCsvDevices => widget.csvDevices.isNotEmpty;
+  bool get _showPicker =>
+      _showCsvPicker && (_selectedType == 'blf' || _selectedType == 'speeddial');
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text("Edit Key ${widget.key_.id}"),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── Type selector ──────────────────────────────────────────────
+            DropdownButtonFormField<String>(
+              value: _selectedType,
+              decoration: const InputDecoration(labelText: "Type"),
+              items: const [
+                DropdownMenuItem(value: 'none', child: Text("None")),
+                DropdownMenuItem(value: 'blf', child: Text("BLF (Monitor Extension)")),
+                DropdownMenuItem(value: 'speeddial', child: Text("Speed Dial")),
+                DropdownMenuItem(value: 'line', child: Text("Line (Additional Account)")),
+              ],
+              onChanged: (v) => setState(() {
+                _selectedType = v ?? 'none';
+                if (_selectedType == 'none') _showCsvPicker = false;
+              }),
+            ),
+
+            if (_selectedType != 'none') ...[
+              const SizedBox(height: 12),
+
+              // ── CSV Picker toggle (BLF / Speed Dial only) ─────────────
+              if (_hasCsvDevices &&
+                  (_selectedType == 'blf' || _selectedType == 'speeddial'))
+                OutlinedButton.icon(
+                  icon: Icon(_showCsvPicker
+                      ? Icons.keyboard_hide
+                      : Icons.list_alt),
+                  label: Text(_showCsvPicker
+                      ? "Hide CSV list — type manually below"
+                      : "Pick from imported CSV list"),
+                  onPressed: () =>
+                      setState(() => _showCsvPicker = !_showCsvPicker),
+                ),
+
+              // ── CSV searchable list ────────────────────────────────────
+              if (_showPicker) ...[
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _searchController,
+                  decoration: const InputDecoration(
+                    hintText: "Search extension or name…",
+                    prefixIcon: Icon(Icons.search),
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                SizedBox(
+                  height: 160,
+                  child: _filteredDevices.isEmpty
+                      ? const Center(child: Text("No matches"))
+                      : ListView.builder(
+                          itemCount: _filteredDevices.length,
+                          itemBuilder: (ctx, i) {
+                            final dev = _filteredDevices[i];
+                            final display =
+                                "${dev.extension}  —  ${dev.label}";
+                            return ListTile(
+                              dense: true,
+                              title: Text(display,
+                                  style: const TextStyle(fontSize: 13)),
+                              onTap: () {
+                                setState(() {
+                                  _fullValueController.text = dev.extension;
+                                  _labelController.text = dev.label;
+                                  _showCsvPicker = false;
+                                });
+                              },
+                            );
+                          },
+                        ),
+                ),
+                const Divider(),
+              ],
+
+              // ── Manual / custom entry ──────────────────────────────────
+              TextField(
+                controller: _fullValueController,
+                decoration: InputDecoration(
+                  labelText: _hasCsvDevices &&
+                          (_selectedType == 'blf' ||
+                              _selectedType == 'speeddial')
+                      ? "Extension / Number (full — or type custom)"
+                      : "Value (Extension / Number)",
+                  helperText: _shortDialMode != 'full'
+                      ? "Short dial: $_effectiveValue"
+                      : null,
+                  helperStyle: const TextStyle(color: Colors.blue),
+                ),
+                onChanged: (_) => setState(() {}), // refresh preview
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _labelController,
+                decoration: const InputDecoration(
+                  labelText:
+                      "Label (optional — auto-uses device label for BLF)",
+                ),
+              ),
+
+              // ── Short Dial ─────────────────────────────────────────────
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: _shortDialMode,
+                decoration: const InputDecoration(
+                  labelText: "Short Dial Mode",
+                  helperText:
+                      "Shorten the dialled number in the generated config",
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'full', child: Text("Full — use complete number")),
+                  DropdownMenuItem(value: '3digit', child: Text("3-digit — last 3 digits")),
+                  DropdownMenuItem(value: '4digit', child: Text("4-digit — last 4 digits")),
+                  DropdownMenuItem(value: '5digit', child: Text("5-digit — last 5 digits")),
+                  DropdownMenuItem(value: 'custom', child: Text("Custom — specify digits")),
+                ],
+                onChanged: (v) =>
+                    setState(() => _shortDialMode = v ?? 'full'),
+              ),
+              if (_shortDialMode == 'custom') ...[
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _customDigitsController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                      labelText: "Number of trailing digits to keep"),
+                  onChanged: (v) {
+                    final n = int.tryParse(v);
+                    if (n != null && n > 0) setState(() => _customDigits = n);
+                  },
+                ),
+              ],
+
+              // ── Preview ────────────────────────────────────────────────
+              if (_fullValueController.text.isNotEmpty &&
+                  _shortDialMode != 'full') ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.preview, size: 16,
+                          color: Colors.blueGrey),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "Full: ${_fullValueController.text}   →   Dialled: $_effectiveValue",
+                          style: const TextStyle(
+                              fontSize: 12, color: Colors.blueGrey),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel")),
+        ElevatedButton(
+          onPressed: () {
+            final full = _fullValueController.text.trim();
+            widget.key_
+              ..type = _selectedType
+              ..fullValue = full
+              ..shortDialMode = _shortDialMode
+              ..customDigits = _customDigits
+              ..label = _labelController.text.trim();
+            widget.key_.applyShortDial();
+            // If fullValue is empty, use value directly (pure custom entry)
+            if (full.isEmpty) widget.key_.value = '';
+            widget.onSave(widget.key_);
+            Navigator.pop(context);
+          },
+          child: const Text("Save"),
+        ),
+      ],
     );
   }
 }
