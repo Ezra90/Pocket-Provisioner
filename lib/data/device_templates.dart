@@ -9,7 +9,7 @@ class WallpaperSpec {
 
 class DeviceTemplates {
   
-  static const String defaultTarget = "http://polydms.digitalbusiness.telstra.com/dms/bootstrap";
+  static const String defaultTarget = "";
 
   // --- WALLPAPER DATABASE ---
   static const Map<String, WallpaperSpec> wallpaperSpecs = {

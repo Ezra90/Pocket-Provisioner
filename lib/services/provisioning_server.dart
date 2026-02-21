@@ -14,7 +14,7 @@ class ProvisioningServer {
 
   static String? get serverUrl => _serverUrl;
 
-  Future<String> start() async {
+  Future<String> start([int port = 8080]) async {
     await stop();
 
     final router = Router();
@@ -116,15 +116,20 @@ class ProvisioningServer {
       }
 
       final content = await match.readAsString();
+      final ext = p.extension(match.path).toLowerCase();
+      final contentType = ext == '.xml' ? 'application/xml' : 'text/plain';
       return Response.ok(content, headers: {
-        'Content-Type': 'text/plain',
+        'Content-Type': contentType,
         'Access-Control-Allow-Origin': '*',
       });
     });
 
     try {
-      _server = await shelf_io.serve(router, '0.0.0.0', 8080);
-      _serverUrl = 'http://$myIp:8080';
+      final handler = const Pipeline()
+          .addMiddleware(logRequests())
+          .addHandler(router.call);
+      _server = await shelf_io.serve(handler, '0.0.0.0', port);
+      _serverUrl = 'http://$myIp:$port';
       print('Server running: $_serverUrl');
       return _serverUrl!;
     } catch (e) {

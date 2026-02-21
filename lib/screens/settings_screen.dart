@@ -18,6 +18,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final TextEditingController _sipServerController = TextEditingController();
+  final TextEditingController _portController = TextEditingController();
   final TextEditingController _voiceVlanController = TextEditingController();
   final TextEditingController _ntpServerController = TextEditingController();
   final TextEditingController _timezoneController = TextEditingController();
@@ -44,6 +45,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _sipServerController.text = prefs.getString('sip_server_address') ?? '';
+      _portController.text = prefs.getString('server_port') ?? '8080';
       _voiceVlanController.text = prefs.getString('voice_vlan_id') ?? '';
       _ntpServerController.text = prefs.getString('ntp_server') ?? '';
       _timezoneController.text = prefs.getString('timezone_offset') ?? '';
@@ -65,6 +67,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _saveSettings() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('sip_server_address', _sipServerController.text.trim());
+    await prefs.setString('server_port', _portController.text.trim());
     await prefs.setString('voice_vlan_id', _voiceVlanController.text.trim());
     await prefs.setString('ntp_server', _ntpServerController.text.trim());
     await prefs.setString('timezone_offset', _timezoneController.text.trim());
@@ -84,6 +87,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void dispose() {
     _sipServerController.dispose();
+    _portController.dispose();
     _voiceVlanController.dispose();
     _ntpServerController.dispose();
     _timezoneController.dispose();
@@ -228,6 +232,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   decoration: const InputDecoration(hintText: "e.g. 192.168.1.10"),
                 ),
                 const SizedBox(height: 20),
+                const Text("Provisioning Server Port", style: TextStyle(fontWeight: FontWeight.bold)),
+                const Text("Port the HTTP provisioning server listens on.", style: TextStyle(fontSize: 11, color: Colors.grey)),
+                TextField(
+                  controller: _portController,
+                  decoration: const InputDecoration(hintText: "8080"),
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                ),
+                const SizedBox(height: 20),
                 const Text("Voice VLAN ID", style: TextStyle(fontWeight: FontWeight.bold)),
                 TextField(
                   controller: _voiceVlanController,
@@ -343,7 +356,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 TextField(
                   controller: _targetUrlController,
                   decoration: const InputDecoration(
-                    hintText: "http://polydms.digitalbusiness.telstra.com/dms/bootstrap",
+                    hintText: "https://your-pbx.example.com/provision",
                     helperText: "e.g. Carrier DMS or EPM URL",
                     helperStyle: TextStyle(fontSize: 10, color: Colors.grey)
                   ),
