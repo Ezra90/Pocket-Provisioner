@@ -172,6 +172,23 @@ class DatabaseHelper {
     return List.generate(maps.length, (i) => Device.fromMap(maps[i]));
   }
 
+  /// Retrieve all PENDING devices (no MAC assigned) ordered by extension.
+  Future<List<Device>> getPendingDevices() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'devices',
+      where: 'mac_address IS NULL',
+      orderBy: 'extension ASC',
+    );
+    return List.generate(maps.length, (i) => Device.fromMap(maps[i]));
+  }
+
+  /// Update the model for a single device.
+  Future<void> updateDeviceModel(int id, String model) async {
+    final db = await instance.database;
+    await db.update('devices', {'model': model}, where: 'id = ?', whereArgs: [id]);
+  }
+
   /// Batch insert devices using a single transaction for performance
   Future<void> insertDevices(List<Device> devices) async {
     final db = await instance.database;

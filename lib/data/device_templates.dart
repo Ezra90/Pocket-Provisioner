@@ -11,6 +11,13 @@ class DeviceTemplates {
   
   static const String defaultTarget = "";
 
+  /// Comprehensive list of supported handset models shown in pickers.
+  static const List<String> supportedModels = [
+    'T54W', 'T46U', 'T48G', 'T57W', 'T58W', 'T58G',
+    'VVX350', 'VVX450', 'Edge E350', 'Edge E450',
+    'Cisco 8851', 'Cisco 8865',
+  ];
+
   // --- WALLPAPER DATABASE ---
   static const Map<String, WallpaperSpec> wallpaperSpecs = {
     'Yealink T54W / T46U': WallpaperSpec(480, 272, 'Standard Color Screen'),

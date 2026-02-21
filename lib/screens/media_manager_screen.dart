@@ -65,7 +65,7 @@ class _MediaManagerScreenState extends State<MediaManagerScreen> {
                   controller: nameController,
                   decoration: const InputDecoration(
                     labelText: 'Custom Name (required)',
-                    hintText: 'e.g. BunningsT4X',
+                    hintText: 'e.g. LobbyT54W',
                     border: OutlineInputBorder(),
                   ),
                 ),
