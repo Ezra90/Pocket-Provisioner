@@ -61,19 +61,39 @@ class ProvisioningServer {
       return Response.notFound('Template not found');
     });
 
+    // --- MEDIA HANDLER (original files) ---
+    router.get('/media/original/<file>', (Request request, String file) async {
+      final directory = await getApplicationDocumentsDirectory();
+      final filePath = p.join(directory.path, 'media', 'original', file);
+      final imageFile = File(filePath);
+
+      if (await imageFile.exists()) {
+        final bytes = await imageFile.readAsBytes();
+        final ext = p.extension(file).toLowerCase();
+        final mime = ext == '.png' ? 'image/png' : 'image/jpeg';
+        return Response.ok(bytes, headers: {
+          'Content-Type': mime,
+          'Access-Control-Allow-Origin': '*',
+        });
+      }
+      return Response.notFound('Original media file not found');
+    });
+
     // --- MEDIA HANDLER ---
     router.get('/media/<file>', (Request request, String file) async {
-       final directory = await getApplicationDocumentsDirectory();
-       final filePath = p.join(directory.path, file);
-       final imageFile = File(filePath);
+      final directory = await getApplicationDocumentsDirectory();
+      final filePath = p.join(directory.path, 'media', file);
+      final imageFile = File(filePath);
 
-       if (await imageFile.exists()) {
-         final bytes = await imageFile.readAsBytes();
-         final mime = file.endsWith('.png') ? 'image/png' : 'image/jpeg';
-         return Response.ok(bytes, headers: {'Content-Type': mime});
-       } else {
-         return Response.notFound('Image not found');
-       }
+      if (await imageFile.exists()) {
+        final bytes = await imageFile.readAsBytes();
+        final mime = file.endsWith('.png') ? 'image/png' : 'image/jpeg';
+        return Response.ok(bytes, headers: {
+          'Content-Type': mime,
+          'Access-Control-Allow-Origin': '*',
+        });
+      }
+      return Response.notFound('Media file not found');
     });
 
     // --- CONFIG HANDLER (static files) ---

@@ -19,9 +19,11 @@ import 'models/device.dart';
 import 'screens/template_manager.dart';
 import 'screens/button_layout_editor.dart';
 import 'screens/hosted_files_screen.dart';
+import 'screens/media_manager_screen.dart';
 import 'data/device_templates.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MaterialApp(
     title: 'Pocket Provisioner',
     debugShowCheckedModeBanner: false,
@@ -93,6 +95,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // --- WALLPAPER RESIZER DIALOG ---
   void _openWallpaperTools(BuildContext context, Function onSave) {
     String selectedModel = DeviceTemplates.wallpaperSpecs.keys.first;
+    final nameController = TextEditingController();
     
     showDialog(
       context: context, 
@@ -104,6 +107,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Custom Name (required)',
+                    hintText: 'e.g. BunningsT4X',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 10),
                 DropdownButton<String>(
                   value: selectedModel,
                   isExpanded: true,
@@ -115,11 +127,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(height: 10),
                 ElevatedButton(
                   onPressed: () async {
+                    final customName = nameController.text.trim();
+                    if (customName.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Please enter a custom name first")));
+                      return;
+                    }
                     FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.image);
                     if (result == null) return;
-                    await WallpaperService.processAndSaveWallpaper(result.files.single.path!, spec);
+                    final resizedFilename = await WallpaperService.processAndSaveWallpaper(
+                        result.files.single.path!, spec, customName);
                     final prefs = await SharedPreferences.getInstance();
-                    await prefs.setString('public_wallpaper_url', "LOCAL_HOSTED"); 
+                    await prefs.setString('public_wallpaper_url', 'LOCAL:$resizedFilename');
                     if (mounted) {
                       Navigator.pop(context);
                       onSave();
@@ -295,6 +314,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Navigator.push(context, MaterialPageRoute(builder: (c) => const HostedFilesScreen()));
                     },
                   ),
+                  ListTile(
+                    title: const Text("Media Manager"),
+                    subtitle: const Text("Manage wallpapers"),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(context, MaterialPageRoute(builder: (c) => const MediaManagerScreen()));
+                    },
+                  ),
                 ],
               ),
             ),
@@ -405,6 +433,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final provisioningUrl = prefs.getString('target_provisioning_url') ?? '';
       final wallpaperUrl = prefs.getString('public_wallpaper_url') ?? '';
 
+      // Resolve local wallpaper references to actual server URLs
+      String resolvedWallpaperUrl = wallpaperUrl;
+      if (wallpaperUrl == 'LOCAL_HOSTED' || wallpaperUrl.startsWith('LOCAL:')) {
+        final serverUrl = ProvisioningServer.serverUrl;
+        if (serverUrl != null) {
+          if (wallpaperUrl.startsWith('LOCAL:')) {
+            final filename = wallpaperUrl.substring('LOCAL:'.length); // strip "LOCAL:"
+            resolvedWallpaperUrl = '$serverUrl/media/$filename';
+          } else {
+            // Legacy LOCAL_HOSTED — try to find any wallpaper in the media dir
+            resolvedWallpaperUrl = '$serverUrl/media/custom_bg.png';
+          }
+        }
+      }
+
       final carryOver = await ButtonLayoutService.getCarryOverSettings();
       final carryOverLayout = carryOver['button_layout'] ?? false;
 
@@ -469,7 +512,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           model: device.model,
           sipServer: sipServer,
           provisioningUrl: provisioningUrl,
-          wallpaperUrl: wallpaperUrl,
+          wallpaperUrl: resolvedWallpaperUrl,
           lineKeys: lineKeys,
         );
         final rendered = await MustacheRenderer.render(templateKey, variables);

@@ -31,9 +31,9 @@ class MustacheRenderer {
   /// Maps a device model string to the canonical template key.
   static String resolveTemplateKey(String model) {
     final upper = model.toUpperCase();
+    // Check for Cisco explicitly or Cisco model numbers with word boundaries
     if (upper.contains('CISCO') ||
-        upper.contains('88') ||
-        upper.contains('78')) {
+        RegExp(r'(?:^|[^0-9])(?:78|88)\d{2}(?:[^0-9]|$)').hasMatch(upper)) {
       return 'cisco_88xx';
     }
     if (upper.contains('POLY') ||
@@ -52,6 +52,17 @@ class MustacheRenderer {
       'line' => 15,
       'dtmf' => 34,
       'park' => 10,
+      _ => 0,
+    };
+  }
+
+  /// Maps a transport protocol string to Yealink transport_type code.
+  static int _transportToCode(String transport) {
+    return switch (transport.toUpperCase()) {
+      'UDP' => 0,
+      'TCP' => 1,
+      'TLS' => 2,
+      'DNS-SRV' || 'DNSSRV' => 3,
       _ => 0,
     };
   }
@@ -96,13 +107,14 @@ class MustacheRenderer {
     final keys = lineKeys ?? <ButtonKey>[];
     final labels = extToLabel ?? <String, String>{};
 
+    final int lineCount = 1; // Currently single-line, but future-proof
     final List<Map<String, dynamic>> lineKeysList = keys
         .where((k) => k.type != 'none' && k.value.isNotEmpty)
         .map((k) {
           final effectiveLabel =
               k.label.isNotEmpty ? k.label : (labels[k.value] ?? k.value);
           return {
-            'position': k.id,
+            'position': k.id + lineCount, // Offset past SIP lines
             'type_code': buttonTypeToCode(k.type),
             'key_line': 1,
             'key_value': k.value,
@@ -119,7 +131,7 @@ class MustacheRenderer {
           final effectiveLabel =
               k.label.isNotEmpty ? k.label : (labels[k.value] ?? k.value);
           return {
-            'position': k.id,
+            'position': k.id + lineCount,
             'key_value': k.value,
             'key_label': effectiveLabel,
             'sip_server': sipServer,
@@ -162,6 +174,7 @@ class MustacheRenderer {
           'sip_server': sipServer,
           'sip_port': sipPort ?? '5060',
           'transport': transport ?? 'UDP',
+          'transport_code': _transportToCode(transport ?? 'UDP'),
           'expires': regExpires ?? '3600',
           'has_outbound_proxy': hasOutboundProxy,
           'outbound_proxy_host': outboundProxyHost ?? '',
