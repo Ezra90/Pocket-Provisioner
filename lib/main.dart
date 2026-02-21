@@ -16,6 +16,7 @@ import 'services/wallpaper_service.dart';
 import 'models/device.dart';
 import 'screens/template_manager.dart';
 import 'screens/button_layout_editor.dart';
+import 'screens/hosted_files_screen.dart';
 import 'data/device_templates.dart';
 
 void main() {
@@ -236,6 +237,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.push(context, MaterialPageRoute(builder: (c) => const ButtonLayoutEditorScreen()));
+                    },
+                  ),
+                  ListTile(
+                    title: const Text("Hosted Files"),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(context, MaterialPageRoute(builder: (c) => const HostedFilesScreen()));
                     },
                   ),
                 ],
