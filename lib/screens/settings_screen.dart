@@ -220,7 +220,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ),
         ),
-        body: TabBarView(
+        body: SafeArea(
+          top: false,
+          child: TabBarView(
           children: [
             // --- TAB 1: NETWORK & SIP ---
             ListView(
@@ -403,6 +405,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ],
+          ),
         ),
       ),
     );
