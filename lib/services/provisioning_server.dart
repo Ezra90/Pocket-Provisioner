@@ -10,7 +10,9 @@ import '../data/database_helper.dart';
 import '../data/device_templates.dart';
 import '../models/device.dart';
 import '../services/button_layout_service.dart';
-import '../models/button_key.dart'; 
+import '../models/button_key.dart';
+import '../services/mustache_renderer.dart';
+import '../services/mustache_template_service.dart';
 
 class ProvisioningServer {
   static final ProvisioningServer instance = ProvisioningServer._();
@@ -61,49 +63,28 @@ class ProvisioningServer {
         return Response.notFound('Device not configured');
       }
 
-      final (rawTemplate, contentType) = await DeviceTemplates.getTemplateAndContentType(device.model);
-
       // Build extToLabel fresh on each request so CSV imports are reflected immediately
       final List<Device> allDevices = await DatabaseHelper.instance.getAllDevices();
       final Map<String, String> extToLabel = {
         for (var d in allDevices) d.extension: d.label.isNotEmpty ? d.label : d.extension,
       };
 
-      String config = rawTemplate
-          .replaceAll('{{label}}', device.label)
-          .replaceAll('{{extension}}', device.extension)
-          .replaceAll('{{secret}}', device.secret)
-          .replaceAll('{{local_ip}}', myIp!)
-          .replaceAll('{{sip_server_url}}', finalSipServer) // <--- NEW INJECTION
-          .replaceAll('{{wallpaper_url}}', finalWallpaperUrl)
-          .replaceAll('{{target_url}}', targetUrl);
-
-      // Button Logic
       final List<ButtonKey> layout = await ButtonLayoutService.getLayoutForModel(device.model);
-      final bool isYealink = !device.model.toUpperCase().contains('VVX') && 
-                             !device.model.toUpperCase().contains('CISCO') &&
-                             !device.model.toUpperCase().contains('EDGE');
-
-      if (isYealink) {
-        String dssSection = '';
-        for (final key in layout) {
-          if (key.type == 'none' || key.value.isEmpty) continue;
-          final String typeCode = switch (key.type) {
-            'blf' => '16', 'speeddial' => '13', 'line' => '15', _ => '0',            
-          };
-          final String effectiveLabel = key.label.isNotEmpty ? key.label : (extToLabel[key.value] ?? key.value);
-          dssSection += '''
-linekey.${key.id}.type = $typeCode
-linekey.${key.id}.value = ${key.value}
-linekey.${key.id}.label = $effectiveLabel
-linekey.${key.id}.line = 1
-${key.type == 'blf' ? 'linekey.${key.id}.pickup_value = **' : ''}
-''';
-        }
-        config = config.replaceAll('{{dss_keys}}', dssSection.trim());
-      } else {
-        config = config.replaceAll('{{dss_keys}}', '');
-      }
+      final String templateKey = MustacheRenderer.resolveTemplateKey(device.model);
+      final Map<String, dynamic> variables = MustacheRenderer.buildVariables(
+        macAddress: device.macAddress ?? '',
+        extension: device.extension,
+        displayName: device.label,
+        secret: device.secret,
+        model: device.model,
+        sipServer: finalSipServer,
+        provisioningUrl: targetUrl,
+        wallpaperUrl: finalWallpaperUrl,
+        lineKeys: layout,
+        extToLabel: extToLabel,
+      );
+      final String config = await MustacheRenderer.render(templateKey, variables);
+      final String contentType = MustacheTemplateService.instance.getContentType(templateKey);
 
       return Response.ok(config, headers: {
         'Content-Type': contentType,

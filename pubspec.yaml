@@ -1,6 +1,6 @@
 name: pocket_provisioner
 description: A mobile utility for VoIP handset provisioning.
-version: 0.0.3+1
+version: 0.0.4+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -33,6 +33,9 @@ dependencies:
   # Image Processing
   image: ^4.1.3
 
+  # Templating
+  mustache_template: ^2.0.0
+
   # UI
   cupertino_icons: ^1.0.2
 
@@ -43,3 +46,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/templates/
