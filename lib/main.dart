@@ -7,7 +7,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:csv/csv.dart';
 import 'data/database_helper.dart';
+import 'services/mustache_renderer.dart';
+import 'services/mustache_template_service.dart';
 import 'services/provisioning_server.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import 'services/wallpaper_service.dart';
 import 'models/device.dart';
 import 'screens/template_manager.dart';
@@ -331,6 +335,65 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  Future<void> _generateAllConfigs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final sipServer = prefs.getString('sip_server_address') ?? '';
+      final provisioningUrl = prefs.getString('target_provisioning_url') ?? '';
+      final wallpaperUrl = prefs.getString('public_wallpaper_url') ?? '';
+
+      final devices = await DatabaseHelper.instance.getReadyDevices();
+
+      if (devices.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("No READY devices found. Import a CSV and scan barcodes first.")),
+          );
+        }
+        return;
+      }
+
+      final appDir = await getApplicationDocumentsDirectory();
+      final outputDir = Directory(p.join(appDir.path, 'generated_configs'));
+      if (!await outputDir.exists()) {
+        await outputDir.create(recursive: true);
+      }
+
+      for (final device in devices) {
+        if (device.macAddress == null || device.macAddress!.isEmpty) continue;
+        final templateKey = MustacheRenderer.resolveTemplateKey(device.model);
+        final variables = MustacheRenderer.buildVariables(
+          macAddress: device.macAddress!,
+          extension: device.extension,
+          displayName: device.label,
+          secret: device.secret,
+          model: device.model,
+          sipServer: sipServer,
+          provisioningUrl: provisioningUrl,
+          wallpaperUrl: wallpaperUrl,
+        );
+        final rendered = await MustacheRenderer.render(templateKey, variables);
+        final contentType = MustacheTemplateService.contentTypes[templateKey] ?? 'text/plain';
+        final ext = contentType == 'application/xml' ? 'xml' : 'cfg';
+        final mac = device.macAddress!.replaceAll(':', '').toUpperCase();
+        final file = File(p.join(outputDir.path, '$mac.$ext'));
+        await file.writeAsString(rendered);
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Generated configs for ${devices.length} devices!")),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error generating configs: $e"), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   Future<void> _toggleServer() async {
     if (_isServerRunning) {
       await ProvisioningServer.instance.stop();
@@ -412,6 +475,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _generateAllConfigs,
+                icon: const Icon(Icons.build_circle),
+                label: const Text("Generate All Configs"),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.all(16),
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                ),
+              ),
             ),
             
             const Spacer(),

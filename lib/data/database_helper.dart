@@ -97,6 +97,16 @@ class DatabaseHelper {
     await db.delete('devices');
   }
 
+  Future<List<Device>> getReadyDevices() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'devices',
+      where: 'status = ? AND mac_address IS NOT NULL',
+      whereArgs: ['READY'],
+    );
+    return List.generate(maps.length, (i) => Device.fromMap(maps[i]));
+  }
+
   /// Retrieve all devices (for label lookup and auto-sequential BLF)
   Future<List<Device>> getAllDevices() async {
     final db = await database;
