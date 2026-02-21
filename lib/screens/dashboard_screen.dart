@@ -260,7 +260,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       WakelockPlus.disable(); 
     } else {
       try {
-        String url = await ProvisioningServer.instance.start();
+        final prefs = await SharedPreferences.getInstance();
+        final port = (int.tryParse(prefs.getString('server_port') ?? '8080') ?? 8080).clamp(1, 65535);
+        String url = await ProvisioningServer.instance.start(port);
         setState(() {
           _serverStatus = "ONLINE: $url";
           _isServerRunning = true;
