@@ -80,7 +80,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       if (extIndex == -1) throw "Could not find 'Device Username' or 'Extension' column";
 
-      final String defaultModel = DeviceTemplates.supportedModels.first;
+      final prefs = await SharedPreferences.getInstance();
+      final lastModel = prefs.getString('last_used_model');
+      final String defaultModel =
+          (lastModel != null && DeviceTemplates.supportedModels.contains(lastModel))
+              ? lastModel
+              : DeviceTemplates.supportedModels.first;
 
       final List<Device> parsedDevices = [];
       for (int i = 1; i < rows.length; i++) {
