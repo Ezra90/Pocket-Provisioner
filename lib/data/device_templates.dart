@@ -14,7 +14,8 @@ class DeviceTemplates {
   /// Comprehensive list of supported handset models shown in pickers.
   static const List<String> supportedModels = [
     'T54W', 'T46U', 'T48G', 'T57W', 'T58W', 'T58G',
-    'VVX350', 'VVX450', 'Edge E350', 'Edge E450',
+    'VVX150', 'VVX250', 'VVX350', 'VVX450', 'VVX1500',
+    'Edge E350', 'Edge E450',
     'Cisco 8851', 'Cisco 8865',
   ];
 

@@ -7,6 +7,7 @@ class Device {
   final String label;      // Screen Name (e.g. "Reception")
   final String? macAddress;// The scanned physical address
   final String status;     // PENDING, READY, PROVISIONED
+  final String? wallpaper; // Per-device wallpaper filename (e.g. LOCAL:file.png), null = global default
 
   Device({
     this.id,
@@ -16,6 +17,7 @@ class Device {
     required this.label,
     this.macAddress,
     this.status = 'PENDING',
+    this.wallpaper,
   });
 
   // Convert Device object to Map for SQL
@@ -28,6 +30,7 @@ class Device {
       'label': label,
       'mac_address': macAddress,
       'status': status,
+      'wallpaper': wallpaper,
     };
   }
 
@@ -41,6 +44,7 @@ class Device {
       label: map['label'],
       macAddress: map['mac_address'],
       status: map['status'],
+      wallpaper: map['wallpaper'],
     );
   }
 }
