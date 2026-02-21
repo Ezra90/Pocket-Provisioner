@@ -72,36 +72,34 @@ class DatabaseHelper {
     );
   }
 
-  /// Raw SQL UPSERT statement used by both insertDevice and insertDevices.
-  /// On an extension conflict it:
-  ///  - always takes the new model, secret, and label
-  ///  - keeps the existing mac_address when one is already stored
-  ///  - keeps the existing status   when a mac_address is already stored
-  static const String _upsertDeviceSql = '''
-    INSERT INTO devices (model, extension, secret, label, mac_address, status)
-    VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT(extension) DO UPDATE SET
-      model     = excluded.model,
-      secret    = excluded.secret,
-      label     = excluded.label,
-      mac_address = COALESCE(devices.mac_address, excluded.mac_address),
-      status    = CASE
-                    WHEN devices.mac_address IS NOT NULL THEN devices.status
-                    ELSE excluded.status
-                  END
-  ''';
-
   // --- Device Methods ---
   Future<void> insertDevice(Device device) async {
     final db = await instance.database;
-    await db.rawInsert(_upsertDeviceSql, [
-      device.model,
-      device.extension,
-      device.secret,
-      device.label,
-      device.macAddress,
-      device.status,
-    ]);
+    await db.transaction((txn) async {
+      final List<Map<String, dynamic>> existing = await txn.query(
+        'devices',
+        where: 'extension = ?',
+        whereArgs: [device.extension],
+      );
+
+      if (existing.isNotEmpty) {
+        final existingDevice = Device.fromMap(existing.first);
+        await txn.update(
+          'devices',
+          {
+            'model': device.model,
+            'secret': device.secret,
+            'label': device.label,
+            'mac_address': existingDevice.macAddress ?? device.macAddress,
+            'status': existingDevice.macAddress != null ? existingDevice.status : device.status,
+          },
+          where: 'extension = ?',
+          whereArgs: [device.extension],
+        );
+      } else {
+        await txn.insert('devices', device.toMap());
+      }
+    });
   }
 
   Future<Device?> getNextPendingDevice() async {
@@ -177,17 +175,32 @@ class DatabaseHelper {
   /// Batch insert devices using a single transaction for performance
   Future<void> insertDevices(List<Device> devices) async {
     final db = await instance.database;
-    final batch = db.batch();
-    for (final device in devices) {
-      batch.rawInsert(_upsertDeviceSql, [
-        device.model,
-        device.extension,
-        device.secret,
-        device.label,
-        device.macAddress,
-        device.status,
-      ]);
-    }
-    await batch.commit(noResult: true);
+    await db.transaction((txn) async {
+      for (final device in devices) {
+        final List<Map<String, dynamic>> existing = await txn.query(
+          'devices',
+          where: 'extension = ?',
+          whereArgs: [device.extension],
+        );
+
+        if (existing.isNotEmpty) {
+          final existingDevice = Device.fromMap(existing.first);
+          await txn.update(
+            'devices',
+            {
+              'model': device.model,
+              'secret': device.secret,
+              'label': device.label,
+              'mac_address': existingDevice.macAddress ?? device.macAddress,
+              'status': existingDevice.macAddress != null ? existingDevice.status : device.status,
+            },
+            where: 'extension = ?',
+            whereArgs: [device.extension],
+          );
+        } else {
+          await txn.insert('devices', device.toMap());
+        }
+      }
+    });
   }
 }
