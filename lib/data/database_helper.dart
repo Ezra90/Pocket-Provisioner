@@ -72,10 +72,36 @@ class DatabaseHelper {
     );
   }
 
+  /// Raw SQL UPSERT statement used by both insertDevice and insertDevices.
+  /// On an extension conflict it:
+  ///  - always takes the new model, secret, and label
+  ///  - keeps the existing mac_address when one is already stored
+  ///  - keeps the existing status   when a mac_address is already stored
+  static const String _upsertDeviceSql = '''
+    INSERT INTO devices (model, extension, secret, label, mac_address, status)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(extension) DO UPDATE SET
+      model     = excluded.model,
+      secret    = excluded.secret,
+      label     = excluded.label,
+      mac_address = COALESCE(devices.mac_address, excluded.mac_address),
+      status    = CASE
+                    WHEN devices.mac_address IS NOT NULL THEN devices.status
+                    ELSE excluded.status
+                  END
+  ''';
+
   // --- Device Methods ---
   Future<void> insertDevice(Device device) async {
     final db = await instance.database;
-    await db.insert('devices', device.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.rawInsert(_upsertDeviceSql, [
+      device.model,
+      device.extension,
+      device.secret,
+      device.label,
+      device.macAddress,
+      device.status,
+    ]);
   }
 
   Future<Device?> getNextPendingDevice() async {
@@ -153,7 +179,14 @@ class DatabaseHelper {
     final db = await instance.database;
     final batch = db.batch();
     for (final device in devices) {
-      batch.insert('devices', device.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+      batch.rawInsert(_upsertDeviceSql, [
+        device.model,
+        device.extension,
+        device.secret,
+        device.label,
+        device.macAddress,
+        device.status,
+      ]);
     }
     await batch.commit(noResult: true);
   }
