@@ -17,7 +17,7 @@
         </sipProxies>
         <sipLines>
 {{#lines}}
-            <line button="{{line_index}}">
+            <line button="{{line_index}}" lineIndex="{{line_index}}">
                 <featureID>9</featureID>
                 <proxy>{{sip_server}}</proxy>
                 <port>{{sip_port}}</port>
@@ -26,30 +26,32 @@
                 <displayName>{{display_name}}</displayName>
                 <authName>{{auth_name}}</authName>
                 <authPassword>{{password}}</authPassword>
+{{#has_voicemail}}
                 <messagesNumber>{{voicemail_number}}</messagesNumber>
+{{/has_voicemail}}
             </line>
 {{/lines}}
+{{#line_keys}}
+            <line button="{{position}}" lineIndex="{{position}}">
+                <featureID>2</featureID>
+                <featureLabel>{{key_label}}</featureLabel>
+                <speedDialNumber>{{key_value}}</speedDialNumber>
+{{#is_blf}}
+                <featureOptionMask>1</featureOptionMask>
+{{/is_blf}}
+            </line>
+{{/line_keys}}
         </sipLines>
     </sipProfile>
-{{#has_line_keys}}
-    <speedDialBLFList>
-{{#line_keys}}
-        <speedDialBLF button="{{position}}">
-            <blfAddress>{{key_value}}</blfAddress>
-            <blfLabel>{{key_label}}</blfLabel>
-        </speedDialBLF>
-{{/line_keys}}
-    </speedDialBLFList>
-{{/has_line_keys}}
     <commonProfile>
         <preferredCodec>g711ulaw</preferredCodec>
         <phonePassword>{{admin_password}}</phonePassword>
     </commonProfile>
 {{#vlan_enabled}}
-    <networkConfig>
-        <voiceVlanId>{{voice_vlan_id}}</voiceVlanId>
-        <dataVlanId>{{data_vlan_id}}</dataVlanId>
-    </networkConfig>
+    <vendorConfig>
+        <!-- Cisco MPP only exposes voice VLAN via vendorConfig; data VLAN is the native/untagged VLAN -->
+        <voiceVlanAccess>{{voice_vlan_id}}</voiceVlanAccess>
+    </vendorConfig>
 {{/vlan_enabled}}
     <userLocale>
         <backgroundFile>{{wallpaper_url}}</backgroundFile>

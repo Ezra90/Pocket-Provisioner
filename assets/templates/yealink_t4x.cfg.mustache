@@ -11,13 +11,13 @@ account.{{line_index}}.user_name = {{user_name}}
 account.{{line_index}}.password = {{password}}
 account.{{line_index}}.sip_server.1.address = {{sip_server}}
 account.{{line_index}}.sip_server.1.port = {{sip_port}}
-account.{{line_index}}.sip_server.1.transport = 0
-# transport: 0=UDP 1=TCP 2=TLS 3=DNS-SRV
+account.{{line_index}}.sip_server.1.transport_type = 0
+# transport_type: 0=UDP 1=TCP 2=TLS 3=DNS-SRV
 account.{{line_index}}.sip_server.1.expires = {{expires}}
 {{#has_outbound_proxy}}
 account.{{line_index}}.outbound_proxy_enable = 1
-account.{{line_index}}.outbound_proxy_server.1.address = {{outbound_proxy_host}}
-account.{{line_index}}.outbound_proxy_server.1.port = {{outbound_proxy_port}}
+account.{{line_index}}.outbound_proxy.1.address = {{outbound_proxy_host}}
+account.{{line_index}}.outbound_proxy.1.port = {{outbound_proxy_port}}
 {{/has_outbound_proxy}}
 {{#has_backup_server}}
 account.{{line_index}}.sip_server.2.address = {{backup_server}}
@@ -31,10 +31,10 @@ phone_setting.ring_type = {{ring_type}}
 
 {{#vlan_enabled}}
 # VLAN
-network.vlan.internet_port_enable = 1
-network.vlan.internet_port_vid = {{voice_vlan_id}}
-network.vlan.pc_port_enable = 1
-network.vlan.pc_port_vid = {{data_vlan_id}}
+static.network.vlan.internet_port_enable = 1
+static.network.vlan.internet_port_vid = {{voice_vlan_id}}
+static.network.vlan.pc_port_enable = 1
+static.network.vlan.pc_port_vid = {{data_vlan_id}}
 {{/vlan_enabled}}
 
 {{#line_keys}}
@@ -73,4 +73,6 @@ static.auto_provision.reboot_force.enable = 1
 features.show_quick_setup.enable = 0
 
 # SECURITY
-static.security.admin_password = {{admin_password}}
+# Format: static.security.user_password = <current_password>:<new_password>
+# Use "admin:" prefix to set new password when current is default "admin"
+static.security.user_password = admin:{{admin_password}}

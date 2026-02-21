@@ -174,7 +174,6 @@ class MustacheRenderer {
         },
       ],
       'line_keys': lineKeysList,
-      'has_line_keys': lineKeysList.isNotEmpty,
       'attendant_keys': attendantKeysList,
       'expansion_keys': <Map<String, dynamic>>[],
       'remote_phonebooks': <Map<String, dynamic>>[],
