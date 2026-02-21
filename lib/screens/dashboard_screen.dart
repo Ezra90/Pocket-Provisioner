@@ -18,6 +18,7 @@ import '../models/device.dart';
 import 'settings_screen.dart';
 import 'scanner_screen.dart';
 import 'access_log_screen.dart';
+import 'model_assignment_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -79,71 +80,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       if (extIndex == -1) throw "Could not find 'Device Username' or 'Extension' column";
 
-      // If no model column was found, ask the user to pick a default before importing.
-      String defaultModel = DeviceTemplates.supportedModels.first;
-      if (modelIndex == -1) {
-        if (!mounted) return;
-        String dialogSelected = defaultModel;
-        final picked = await showDialog<String>(
-          context: context,
-          barrierDismissible: false,
-          builder: (ctx) => StatefulBuilder(
-            builder: (context, setDialogState) => AlertDialog(
-              title: const Text('No Model Column Detected'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'This CSV does not have a "Device Type" or "Model" column. '
-                    'Select a default model for all imported devices.',
-                    style: TextStyle(fontSize: 13),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    value: dialogSelected,
-                    decoration: const InputDecoration(
-                      labelText: 'Default Model',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: DeviceTemplates.supportedModels
-                        .map((m) => DropdownMenuItem(value: m, child: Text(m)))
-                        .toList(),
-                    onChanged: (v) => setDialogState(() => dialogSelected = v!),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'You can change individual device models later from the device list.',
-                    style: TextStyle(fontSize: 11, color: Colors.grey),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, null),
-                  child: const Text('Cancel Import'),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(ctx, dialogSelected),
-                  child: const Text('Use This Model'),
-                ),
-              ],
-            ),
-          ),
-        );
-        if (picked == null) return; // User cancelled the import
-        defaultModel = picked;
-      }
+      final String defaultModel = DeviceTemplates.supportedModels.first;
 
-      int count = 0;
-      final List<Device> devicesToInsert = [];
+      final List<Device> parsedDevices = [];
       for (int i = 1; i < rows.length; i++) {
         var row = rows[i];
         if (row.length <= extIndex) continue;
 
         String extension = row[extIndex].toString().trim();
         String secret = (passIndex != -1 && row.length > passIndex) ? row[passIndex].toString().trim() : "1234";
-        String model = (modelIndex != -1 && row.length > modelIndex) ? row[modelIndex].toString().trim() : defaultModel; 
+        
+        // Use CSV model if available and recognised, otherwise fall back to default
+        String rawModel = (modelIndex != -1 && row.length > modelIndex) ? row[modelIndex].toString().trim() : '';
+        String model = DeviceTemplates.supportedModels.contains(rawModel) ? rawModel : defaultModel;
         
         String baseName = (nameIndex != -1 && row.length > nameIndex) ? row[nameIndex].toString().trim() : extension;
         String phoneNumber = (phoneIndex != -1 && row.length > phoneIndex) ? row[phoneIndex].toString().trim() : "";
@@ -155,22 +104,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
           if (mac.length < 10) mac = null; 
         }
 
-        devicesToInsert.add(Device(
+        parsedDevices.add(Device(
           model: model,
           extension: extension,
           secret: secret,
           label: finalLabel,
           macAddress: mac,
-          status: mac != null ? 'READY' : 'PENDING'
+          status: mac != null ? 'READY' : 'PENDING',
         ));
-        count++;
       }
 
-      await DatabaseHelper.instance.insertDevices(devicesToInsert);
+      if (parsedDevices.isEmpty) throw "No valid rows found in CSV";
 
-      if (mounted) {
+      if (!mounted) return;
+      final imported = await Navigator.push<int>(
+        context,
+        MaterialPageRoute(
+          builder: (c) => ModelAssignmentScreen(devices: parsedDevices),
+        ),
+      );
+
+      if (imported != null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Imported $count devices!"))
+          SnackBar(content: Text("Imported $imported devices!"))
         );
       }
 
@@ -266,6 +222,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
 
         final templateKey = MustacheRenderer.resolveTemplateKey(device.model);
+
+        // Per-device wallpaper overrides global setting; null/empty falls back to global.
+        String deviceWallpaperUrl = resolvedWallpaperUrl;
+        final deviceWallpaper = device.wallpaper;
+        if (deviceWallpaper != null && deviceWallpaper.isNotEmpty) {
+          final serverUrl = ProvisioningServer.serverUrl;
+          if (deviceWallpaper.startsWith('LOCAL:') && serverUrl != null) {
+            final filename = deviceWallpaper.substring('LOCAL:'.length);
+            deviceWallpaperUrl = '$serverUrl/media/$filename';
+          } else {
+            deviceWallpaperUrl = deviceWallpaper;
+          }
+        }
+
         final variables = MustacheRenderer.buildVariables(
           macAddress: device.macAddress!,
           extension: device.extension,
@@ -274,7 +244,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           model: device.model,
           sipServer: sipServer,
           provisioningUrl: provisioningUrl,
-          wallpaperUrl: resolvedWallpaperUrl,
+          wallpaperUrl: deviceWallpaperUrl,
           lineKeys: lineKeys,
           ntpServer: ntpServer.isNotEmpty ? ntpServer : null,
           timezone: timezone.isNotEmpty ? timezone : null,

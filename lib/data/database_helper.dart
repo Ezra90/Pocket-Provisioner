@@ -18,7 +18,7 @@ class DatabaseHelper {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
-    return await openDatabase(path, version: 3,
+    return await openDatabase(path, version: 4,
       onCreate: (db, version) async {
       // 1. Devices Table
       await db.execute('''
@@ -29,7 +29,8 @@ class DatabaseHelper {
           secret TEXT NOT NULL,
           label TEXT NOT NULL,
           mac_address TEXT,
-          status TEXT DEFAULT 'PENDING'
+          status TEXT DEFAULT 'PENDING',
+          wallpaper TEXT
         )
       ''');
 
@@ -67,6 +68,9 @@ class DatabaseHelper {
         ''');
         await db.execute('DROP TABLE devices');
         await db.execute('ALTER TABLE devices_tmp RENAME TO devices');
+      }
+      if (oldVersion < 4) {
+        await db.execute('ALTER TABLE devices ADD COLUMN wallpaper TEXT');
       }
     },
     );
@@ -210,6 +214,7 @@ class DatabaseHelper {
               'label': device.label,
               'mac_address': existingDevice.macAddress ?? device.macAddress,
               'status': existingDevice.macAddress != null ? existingDevice.status : device.status,
+              'wallpaper': device.wallpaper,
             },
             where: 'extension = ?',
             whereArgs: [device.extension],
