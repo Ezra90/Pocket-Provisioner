@@ -51,32 +51,34 @@ class DatabaseHelper {
         // Future migrations go here
         // Example: await db.execute('ALTER TABLE devices ADD COLUMN firmware_version TEXT');
       }
-      if (oldVersion < 3) {
-        // Recreate devices table with UNIQUE constraint on extension
-        await db.execute('''
-          CREATE TABLE devices_tmp (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            model TEXT NOT NULL,
-            extension TEXT UNIQUE NOT NULL,
-            secret TEXT NOT NULL,
-            label TEXT NOT NULL,
-            mac_address TEXT,
-            status TEXT DEFAULT 'PENDING'
-          )
-        ''');
-        await db.execute('''
-          INSERT OR REPLACE INTO devices_tmp (id, model, extension, secret, label, mac_address, status)
-          SELECT id, model, extension, secret, label, mac_address, status FROM devices
-        ''');
-        await db.execute('DROP TABLE devices');
-        await db.execute('ALTER TABLE devices_tmp RENAME TO devices');
-      }
-      if (oldVersion < 4) {
-        await db.execute('ALTER TABLE devices ADD COLUMN wallpaper TEXT');
-      }
-      if (oldVersion < 5) {
-        await db.execute('ALTER TABLE devices ADD COLUMN device_settings TEXT');
-      }
+      await db.transaction((txn) async {
+        if (oldVersion < 3) {
+          // Recreate devices table with UNIQUE constraint on extension
+          await txn.execute('''
+            CREATE TABLE devices_tmp (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              model TEXT NOT NULL,
+              extension TEXT UNIQUE NOT NULL,
+              secret TEXT NOT NULL,
+              label TEXT NOT NULL,
+              mac_address TEXT,
+              status TEXT DEFAULT 'PENDING'
+            )
+          ''');
+          await txn.execute('''
+            INSERT OR REPLACE INTO devices_tmp (id, model, extension, secret, label, mac_address, status)
+            SELECT id, model, extension, secret, label, mac_address, status FROM devices
+          ''');
+          await txn.execute('DROP TABLE devices');
+          await txn.execute('ALTER TABLE devices_tmp RENAME TO devices');
+        }
+        if (oldVersion < 4) {
+          await txn.execute('ALTER TABLE devices ADD COLUMN wallpaper TEXT');
+        }
+        if (oldVersion < 5) {
+          await txn.execute('ALTER TABLE devices ADD COLUMN device_settings TEXT');
+        }
+      });
     },
     );
   }

@@ -137,13 +137,43 @@ class ProvisioningServer {
     };
   }
 
+  static Middleware _corsMiddleware() {
+    return (Handler inner) {
+      return (Request request) async {
+        final response = await inner(request);
+        return response.change(headers: {
+          'Access-Control-Allow-Origin': '*',
+        });
+      };
+    };
+  }
+
   Future<String> start([int port = 8080]) async {
     await stop();
 
     final router = Router();
     final info = NetworkInfo();
     String? myIp = await info.getWifiIP();
-    myIp ??= '0.0.0.0'; 
+
+    // Native fallback: enumerate network interfaces for a valid IPv4 address
+    if (myIp == null) {
+      try {
+        final interfaces = await NetworkInterface.list(type: InternetAddressType.IPv4);
+        for (final iface in interfaces) {
+          for (final addr in iface.addresses) {
+            if (!addr.isLoopback) {
+              myIp = addr.address;
+              break;
+            }
+          }
+          if (myIp != null) break;
+        }
+      } catch (_) {
+        // Ignore errors from native interface lookup
+      }
+    }
+
+    myIp ??= '0.0.0.0';
 
     // --- TEMPLATE HANDLER ---
     router.get('/templates/<filename>', (Request request, String filename) async {
@@ -167,7 +197,6 @@ class ProvisioningServer {
         final content = await mustacheFile.readAsString();
         return Response.ok(content, headers: {
           'Content-Type': 'text/plain',
-          'Access-Control-Allow-Origin': '*',
         });
       }
 
@@ -176,7 +205,6 @@ class ProvisioningServer {
         final content = await file.readAsString();
         return Response.ok(content, headers: {
           'Content-Type': 'text/plain',
-          'Access-Control-Allow-Origin': '*',
         });
       }
 
@@ -195,7 +223,6 @@ class ProvisioningServer {
         final mime = ext == '.png' ? 'image/png' : 'image/jpeg';
         return Response.ok(bytes, headers: {
           'Content-Type': mime,
-          'Access-Control-Allow-Origin': '*',
         });
       }
       return Response.notFound('Original media file not found');
@@ -212,7 +239,6 @@ class ProvisioningServer {
         final mime = file.endsWith('.png') ? 'image/png' : 'image/jpeg';
         return Response.ok(bytes, headers: {
           'Content-Type': mime,
-          'Access-Control-Allow-Origin': '*',
         });
       }
       return Response.notFound('Media file not found');
@@ -227,7 +253,6 @@ class ProvisioningServer {
         final bytes = await audioFile.readAsBytes();
         return Response.ok(bytes, headers: {
           'Content-Type': 'audio/wav',
-          'Access-Control-Allow-Origin': '*',
         });
       }
       return Response.notFound('Ringtone file not found');
@@ -242,7 +267,6 @@ class ProvisioningServer {
         final content = await pbFile.readAsString();
         return Response.ok(content, headers: {
           'Content-Type': 'application/xml',
-          'Access-Control-Allow-Origin': '*',
         });
       }
       return Response.notFound('Phonebook file not found');
@@ -273,12 +297,12 @@ class ProvisioningServer {
       final contentType = ext == '.xml' ? 'application/xml' : 'text/plain';
       return Response.ok(content, headers: {
         'Content-Type': contentType,
-        'Access-Control-Allow-Origin': '*',
       });
     });
 
     try {
       final handler = const Pipeline()
+          .addMiddleware(_corsMiddleware())
           .addMiddleware(_accessLogMiddleware())
           .addHandler(router.call);
       _server = await shelf_io.serve(handler, '0.0.0.0', port);
