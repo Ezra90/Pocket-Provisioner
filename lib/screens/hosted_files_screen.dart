@@ -240,7 +240,7 @@ class _HostedFilesScreenState extends State<HostedFilesScreen> {
                         Expanded(
                           child: Text(
                             'Config files persist here until you manually delete '
-                            'them. Tap a file to edit it, or use "Clone for New '
+                            'them. Tap a file to edit it, or use "Copy for New '
                             'Extension" (📋) to reuse a config as a template.',
                             style: TextStyle(
                                 fontSize: 11,

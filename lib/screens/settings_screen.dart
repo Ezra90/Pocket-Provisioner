@@ -265,7 +265,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ListTile(
                     title: const Text('Hosted Files'),
                     subtitle: const Text(
-                        'View, edit and clone generated config files'),
+                        'View, edit and copy generated config files'),
                     trailing:
                         const Icon(Icons.arrow_forward_ios, size: 16),
                     onTap: () => Navigator.push(
