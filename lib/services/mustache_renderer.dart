@@ -138,6 +138,7 @@ class MustacheRenderer {
         backupServer != null && backupServer.isNotEmpty;
     final bool vlanEnabled =
         voiceVlanId != null && voiceVlanId.isNotEmpty;
+    final bool hasDataVlan = dataVlanId != null && dataVlanId.isNotEmpty;
     final bool hasVoicemail =
         voicemailNumber != null && voicemailNumber.isNotEmpty;
     final bool hasScreensaverTimeout =
@@ -200,6 +201,7 @@ class MustacheRenderer {
       'backup_server': backupServer ?? '',
       'backup_port': backupPort ?? '5060',
       'vlan_enabled': vlanEnabled,
+      'has_data_vlan': hasDataVlan,
       'voice_vlan_id': voiceVlanId ?? '',
       'data_vlan_id': dataVlanId ?? '',
       'wallpaper_url': wallpaperUrl ?? '',
@@ -225,6 +227,7 @@ class MustacheRenderer {
       'has_auto_answer': hasAutoAnswer,
       'auto_answer': _boolFlag(autoAnswer),
       'auto_answer_mode': autoAnswerMode ?? '',
+      'is_intercom_only': autoAnswerMode == 'intercom-only',
       'has_dnd': hasDnd,
       'dnd_enabled': _boolFlag(dndDefault),
       'has_call_waiting': hasCallWaiting,

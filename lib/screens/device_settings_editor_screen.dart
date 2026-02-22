@@ -682,7 +682,7 @@ class _DeviceSettingsEditorScreenState
               context,
               DeviceSettingsResult(
                 settings: _buildSettings(),
-                wallpaper: _wallpaperChanged ? _wallpaper : null,
+                wallpaper: _wallpaperChanged ? (_wallpaper ?? '') : null,
               ),
             ),
           ),
