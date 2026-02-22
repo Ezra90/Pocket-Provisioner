@@ -5,13 +5,15 @@ import '../models/device_settings.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
-  static Database? _database;
+  Database? _database;
+  Future<Database>? _dbInitFuture;
 
   DatabaseHelper._init();
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('provisioner_v2.db');
+    _dbInitFuture ??= _initDB('provisioner_v2.db');
+    _database = await _dbInitFuture!;
     return _database!;
   }
 
@@ -87,11 +89,20 @@ class DatabaseHelper {
   Future<void> insertDevice(Device device) async {
     final db = await instance.database;
     await db.transaction((txn) async {
-      final List<Map<String, dynamic>> existing = await txn.query(
-        'devices',
-        where: 'extension = ?',
-        whereArgs: [device.extension],
-      );
+      List<Map<String, dynamic>> existing = [];
+      if (device.id != null) {
+        existing = await txn.query(
+          'devices',
+          where: 'id = ?',
+          whereArgs: [device.id],
+        );
+      } else {
+        existing = await txn.query(
+          'devices',
+          where: 'extension = ?',
+          whereArgs: [device.extension],
+        );
+      }
 
       if (existing.isNotEmpty) {
         final existingDevice = Device.fromMap(existing.first);
@@ -99,13 +110,16 @@ class DatabaseHelper {
           'devices',
           {
             'model': device.model,
+            'extension': device.extension,
             'secret': device.secret,
             'label': device.label,
             'mac_address': existingDevice.macAddress ?? device.macAddress,
             'status': existingDevice.macAddress != null ? existingDevice.status : device.status,
+            'wallpaper': device.wallpaper,
+            'device_settings': device.deviceSettings?.toJsonString(),
           },
-          where: 'extension = ?',
-          whereArgs: [device.extension],
+          where: 'id = ?',
+          whereArgs: [existingDevice.id],
         );
       } else {
         await txn.insert('devices', device.toMap());
@@ -128,7 +142,7 @@ class DatabaseHelper {
 
   Future<void> assignMac(int id, String mac) async {
     final db = await instance.database;
-    await db.update('devices', {'mac_address': mac, 'status': 'READY'}, where: 'id = ?', whereArgs: [id]);
+    await db.update('devices', {'mac_address': mac.toUpperCase(), 'status': 'READY'}, where: 'id = ?', whereArgs: [id]);
   }
 
   Future<Device?> getDeviceByMac(String mac) async {
@@ -139,21 +153,6 @@ class DatabaseHelper {
   }
 
   // --- Template Methods ---
-  Future<void> saveTemplate(String model, String type, String content) async {
-    final db = await instance.database;
-    await db.insert(
-      'templates', 
-      {'model_name': model, 'content_type': type, 'content': content},
-      conflictAlgorithm: ConflictAlgorithm.replace
-    );
-  }
-
-  Future<Map<String, dynamic>?> getTemplate(String model) async {
-    final db = await instance.database;
-    final maps = await db.query('templates', where: 'model_name = ?', whereArgs: [model]);
-    if (maps.isNotEmpty) return maps.first;
-    return null;
-  }
 
   Future<void> clearDevices() async {
     final db = await instance.database;
@@ -217,7 +216,7 @@ class DatabaseHelper {
     final db = await instance.database;
     await db.update(
       'devices',
-      {'mac_address': mac, 'status': 'READY'},
+      {'mac_address': mac.toUpperCase(), 'status': 'READY'},
       where: 'id = ?',
       whereArgs: [id],
     );
