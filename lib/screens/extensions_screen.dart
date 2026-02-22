@@ -77,6 +77,7 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
               extension: d.extension,
               label: d.label,
               settings: d.deviceSettings,
+              wallpaper: d.wallpaper,
             ) as ExtensionCloneInfo)
         .toList();
 

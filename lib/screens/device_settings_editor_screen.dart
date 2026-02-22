@@ -13,6 +13,8 @@ typedef ExtensionCloneInfo = ({
   String extension,
   String label,
   DeviceSettings? settings,
+  /// Per-device wallpaper value (e.g. 'LOCAL:file.png'), or null if unset.
+  String? wallpaper,
 });
 
 /// Return value from [DeviceSettingsEditorScreen].
@@ -211,7 +213,7 @@ class _DeviceSettingsEditorScreenState
             : null,
       );
 
-  void _applyClone(DeviceSettings s) {
+  void _applyClone(DeviceSettings s, {String? wallpaper}) {
     setState(() {
       _sipServerCtrl.text = s.sipServer ?? '';
       _sipPortCtrl.text = s.sipPort ?? '';
@@ -240,8 +242,18 @@ class _DeviceSettingsEditorScreenState
       _ntpServerCtrl.text = s.ntpServer ?? '';
       _timezoneCtrl.text = s.timezone ?? '';
       _buttonLayout = s.buttonLayout?.map((k) => k.clone()).toList();
+      // Copy wallpaper when the source has one set.
+      // An empty string clears the wallpaper to the global default.
+      if (wallpaper != null) {
+        _wallpaper = wallpaper;
+        _wallpaperChanged = true;
+      }
     });
   }
+
+  /// Returns the number of programmed buttons in [settings], or 0.
+  static int _programmedButtonCount(DeviceSettings? settings) =>
+      settings?.buttonLayout?.where((k) => k.type != 'none').length ?? 0;
 
   Future<void> _showCloneDialog() async {
     if (widget.otherExtensions.isEmpty) {
@@ -257,23 +269,50 @@ class _DeviceSettingsEditorScreenState
         title: const Text('Copy From...'),
         content: SizedBox(
           width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: widget.otherExtensions.length,
-            itemBuilder: (_, i) {
-              final info = widget.otherExtensions[i];
-              return ListTile(
-                dense: true,
-                title:
-                    Text('Ext ${info.extension}  —  ${info.label}'),
-                trailing: info.settings != null
-                    ? const Icon(Icons.settings,
-                        size: 16, color: Colors.blue)
-                    : const Text('no settings',
-                        style: TextStyle(fontSize: 10, color: Colors.grey)),
-                onTap: () => Navigator.pop(ctx, i),
-              );
-            },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Copies all settings and button layout.\n'
+                'Extension number, SIP username and password\n'
+                'are never copied.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: widget.otherExtensions.length,
+                  itemBuilder: (_, i) {
+                    final info = widget.otherExtensions[i];
+                    final s = info.settings;
+                    final hasSettings = s != null;
+                    final buttonCount = _programmedButtonCount(s);
+                    final hasWallpaper = info.wallpaper != null &&
+                        info.wallpaper!.isNotEmpty;
+                    final hasCopyableData = hasSettings || hasWallpaper;
+
+                    return ListTile(
+                      dense: true,
+                      title: Text(
+                        'Ext ${info.extension}  —  ${info.label}',
+                        style: TextStyle(
+                          color: hasCopyableData ? null : Colors.grey,
+                        ),
+                      ),
+                      subtitle: _buildCopyFromSubtitle(
+                        hasSettings: hasSettings,
+                        buttonCount: buttonCount,
+                        hasWallpaper: hasWallpaper,
+                        hasRingtone: s?.ringtone != null,
+                      ),
+                      onTap: () => Navigator.pop(ctx, i),
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         ),
         actions: [
@@ -285,22 +324,90 @@ class _DeviceSettingsEditorScreenState
       ),
     );
 
-    if (selected != null && mounted) {
-      final info = widget.otherExtensions[selected];
-      if (info.settings != null) {
-        _applyClone(info.settings!.clone());
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-              'Copied settings from Ext ${info.extension} (${info.label})'),
-        ));
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content:
-              Text('Ext ${info.extension} has no custom settings to copy'),
-        ));
-      }
+    if (selected == null || !mounted) return;
+
+    final info = widget.otherExtensions[selected];
+    final hasSettings = info.settings != null;
+    final hasWallpaper =
+        info.wallpaper != null && info.wallpaper!.isNotEmpty;
+
+    if (!hasSettings && !hasWallpaper) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+            'Ext ${info.extension} has no settings or wallpaper to copy'),
+      ));
+      return;
     }
+
+    // Apply — settings first (blanks fields when null), then wallpaper.
+    _applyClone(
+      info.settings?.clone() ?? DeviceSettings(),
+      wallpaper: info.wallpaper,
+    );
+
+    // Build an informative confirmation.
+    final btnCount = _programmedButtonCount(info.settings);
+    final parts = <String>[];
+    if (hasSettings) {
+      parts.add('settings');
+      if (btnCount > 0) parts.add('$btnCount button${btnCount == 1 ? '' : 's'}');
+      if (info.settings!.ringtone != null) parts.add('ringtone');
+    }
+    if (hasWallpaper) parts.add('wallpaper');
+
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(
+        'Copied ${parts.join(', ')} from Ext ${info.extension} '
+        '(${info.label}) — review and save',
+      ),
+    ));
   }
+
+  /// Builds the small capability-chips row shown under each extension in
+  /// the Copy From list.
+  Widget? _buildCopyFromSubtitle({
+    required bool hasSettings,
+    required int buttonCount,
+    required bool hasWallpaper,
+    required bool hasRingtone,
+  }) {
+    final chips = <Widget>[];
+    if (hasSettings) {
+      chips.add(_chip(Icons.settings, 'Settings', Colors.blue));
+    }
+    if (buttonCount > 0) {
+      chips.add(_chip(Icons.keyboard, '$buttonCount buttons', Colors.green));
+    }
+    if (hasWallpaper) {
+      chips.add(_chip(Icons.image, 'Wallpaper', Colors.orange));
+    }
+    if (hasRingtone) {
+      chips.add(_chip(Icons.music_note, 'Ringtone', Colors.purple));
+    }
+    if (chips.isEmpty) {
+      return const Text(
+        'Nothing to copy',
+        style: TextStyle(fontSize: 10, color: Colors.grey),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Wrap(spacing: 4, runSpacing: 2, children: chips),
+    );
+  }
+
+  static Widget _chip(IconData icon, String label, Color color) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 2),
+          Text(
+            label,
+            style: TextStyle(fontSize: 10, color: color),
+          ),
+          const SizedBox(width: 6),
+        ],
+      );
 
   /// Opens the wallpaper upload flow (pick image → resize → save).
   Future<void> _uploadWallpaper() async {

@@ -240,6 +240,7 @@ class _ModelAssignmentScreenState extends State<ModelAssignmentScreen> {
             extension: _rows[i].device.extension,
             label: _rows[i].device.label,
             settings: _rows[i].deviceSettings,
+            wallpaper: _rows[i].wallpaper,
           ),
     ];
 
