@@ -15,10 +15,10 @@ import '../services/provisioning_server.dart';
 import '../services/button_layout_service.dart';
 import '../models/button_key.dart';
 import '../models/device.dart';
-import 'settings_screen.dart';
-import 'scanner_screen.dart';
 import 'access_log_screen.dart';
 import 'model_assignment_screen.dart';
+import 'extensions_screen.dart';
+import 'file_manager_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -149,13 +149,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _generateAllConfigs() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      // Only global settings remaining: target provisioning URL
-      final provisioningUrl = prefs.getString('target_provisioning_url') ?? '';
-
-      final carryOver = await ButtonLayoutService.getCarryOverSettings();
-      final carryOverLayout = carryOver['button_layout'] ?? false;
-
       final devices = await DatabaseHelper.instance.getReadyDevices();
 
       if (devices.isEmpty) {
@@ -173,49 +166,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
         await outputDir.create(recursive: true);
       }
 
-      // Model-level layout cache (fallback when no per-device layout)
-      final Map<String, List<ButtonKey>> layoutCache = {};
-
       int generated = 0;
-      final List<String> carriedOverModels = [];
 
       for (final device in devices) {
         if (device.macAddress == null || device.macAddress!.isEmpty) continue;
 
         final ds = device.deviceSettings;
 
-        // Resolve button layout: per-device first, then model-level carry-over
+        // Resolve button layout: per-device only
         List<ButtonKey>? lineKeys;
         if (ds?.buttonLayout != null &&
             ds!.buttonLayout!.any((k) => k.type != 'none')) {
           lineKeys = ds.buttonLayout!.map((k) => k.clone()).toList();
-          // Still apply per-device label overrides from scanning
           final overrides =
               await ButtonLayoutService.getLabelOverrides(device.macAddress!);
           for (final key in lineKeys) {
             final override = overrides[key.id.toString()];
             if (override != null) key.label = override;
-          }
-          if (!carriedOverModels.contains(device.model)) {
-            carriedOverModels.add(device.model);
-          }
-        } else if (carryOverLayout) {
-          if (!layoutCache.containsKey(device.model)) {
-            layoutCache[device.model] =
-                await ButtonLayoutService.getLayoutForModel(device.model);
-          }
-          final baseLayout = layoutCache[device.model]!;
-          if (baseLayout.isNotEmpty) {
-            lineKeys = baseLayout.map((k) => k.clone()).toList();
-            final overrides =
-                await ButtonLayoutService.getLabelOverrides(device.macAddress!);
-            for (final key in lineKeys) {
-              final override = overrides[key.id.toString()];
-              if (override != null) key.label = override;
-            }
-            if (!carriedOverModels.contains(device.model)) {
-              carriedOverModels.add(device.model);
-            }
           }
         }
 
@@ -234,6 +201,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
           }
         }
 
+        // Resolve per-device ringtone to server URL
+        String deviceRingtoneUrl = '';
+        final deviceRingtone = ds?.ringtone;
+        if (deviceRingtone != null && deviceRingtone.isNotEmpty) {
+          final serverUrl = ProvisioningServer.serverUrl;
+          if (deviceRingtone.startsWith('LOCAL:') && serverUrl != null) {
+            final filename = deviceRingtone.substring('LOCAL:'.length);
+            deviceRingtoneUrl = '$serverUrl/ringtones/$filename';
+          } else {
+            deviceRingtoneUrl = deviceRingtone;
+          }
+        }
+
         final variables = MustacheRenderer.buildVariables(
           macAddress: device.macAddress!,
           extension: device.extension,
@@ -242,7 +222,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           model: device.model,
           // All per-device settings; empty string = not configured
           sipServer: ds?.sipServer ?? '',
-          provisioningUrl: ds?.provisioningUrl ?? provisioningUrl,
+          provisioningUrl: ds?.provisioningUrl ?? '',
           sipPort: ds?.sipPort,
           transport: ds?.transport,
           regExpiry: ds?.regExpiry,
@@ -253,6 +233,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           voiceVlanId: ds?.voiceVlanId,
           dataVlanId: ds?.dataVlanId,
           wallpaperUrl: deviceWallpaperUrl,
+          ringtoneUrl: deviceRingtoneUrl,
           ntpServer: ds?.ntpServer,
           timezone: ds?.timezone,
           adminPassword: ds?.adminPassword,
@@ -270,13 +251,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
 
       if (mounted) {
-        final carryMsg = carriedOverModels.isNotEmpty
-            ? " (layout: ${carriedOverModels.join(', ')})"
-            : "";
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text(
-                  "Generated configs for $generated devices!$carryMsg")),
+                  "Generated configs for $generated devices!")),
         );
       }
     } catch (e) {
@@ -301,9 +279,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       WakelockPlus.disable(); 
     } else {
       try {
-        final prefs = await SharedPreferences.getInstance();
-        final port = (int.tryParse(prefs.getString('server_port') ?? '8080') ?? 8080).clamp(1, 65535);
-        String url = await ProvisioningServer.instance.start(port);
+        String url = await ProvisioningServer.instance.start(8080);
         setState(() {
           _serverStatus = "ONLINE: $url";
           _isServerRunning = true;
@@ -332,8 +308,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
           IconButton(
-            icon: const Icon(Icons.settings), 
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SettingsScreen())),
+            icon: const Icon(Icons.folder_open), 
+            tooltip: 'File Manager',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const FileManagerScreen())),
           )
         ],
       ),
@@ -436,15 +413,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 onPressed: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (c) => const ScannerScreen()));
+                  Navigator.push(context, MaterialPageRoute(builder: (c) => const ExtensionsScreen()));
                 },
                 child: const Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.qr_code_scanner, size: 40, color: Colors.white),
+                    Icon(Icons.phone_android, size: 40, color: Colors.white),
                     SizedBox(height: 8),
-                    Text("START SCANNING", style: TextStyle(fontSize: 20, color: Colors.white, fontWeight: FontWeight.bold)),
-                    Text("Auto-Advance Mode", style: TextStyle(color: Colors.white70)),
+                    Text("EXTENSIONS", style: TextStyle(fontSize: 20, color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text("Manage & Configure Handsets", style: TextStyle(color: Colors.white70)),
                   ],
                 ),
               ),

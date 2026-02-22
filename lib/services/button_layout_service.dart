@@ -59,30 +59,6 @@ class ButtonLayoutService {
   }
 
   // ---------------------------------------------------------------------------
-  // Carry-Over Settings
-  // ---------------------------------------------------------------------------
-
-  /// Reads which settings are flagged for carry-over across handsets.
-  /// Returns a map with keys: 'button_layout', 'wallpaper', 'ringtone', 'volume'.
-  static Future<Map<String, bool>> getCarryOverSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    return {
-      'button_layout': prefs.getBool('carry_over_button_layout') ?? false,
-      'wallpaper': prefs.getBool('carry_over_wallpaper') ?? false,
-      'ringtone': prefs.getBool('carry_over_ringtone') ?? false,
-      'volume': prefs.getBool('carry_over_volume') ?? false,
-    };
-  }
-
-  /// Persists carry-over preferences.
-  static Future<void> saveCarryOverSettings(Map<String, bool> settings) async {
-    final prefs = await SharedPreferences.getInstance();
-    for (final entry in settings.entries) {
-      await prefs.setBool('carry_over_${entry.key}', entry.value);
-    }
-  }
-
-  // ---------------------------------------------------------------------------
   // Per-device label overrides (used when button layout is carried over)
   // ---------------------------------------------------------------------------
 

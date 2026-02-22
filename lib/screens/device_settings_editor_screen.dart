@@ -3,6 +3,8 @@ import 'package:file_picker/file_picker.dart';
 import '../data/device_templates.dart';
 import '../models/button_key.dart';
 import '../models/device_settings.dart';
+import '../services/mustache_renderer.dart';
+import '../services/ringtone_service.dart';
 import '../services/wallpaper_service.dart';
 import 'per_extension_button_editor.dart';
 
@@ -11,6 +13,8 @@ typedef ExtensionCloneInfo = ({
   String extension,
   String label,
   DeviceSettings? settings,
+  /// Per-device wallpaper value (e.g. 'LOCAL:file.png'), or null if unset.
+  String? wallpaper,
 });
 
 /// Return value from [DeviceSettingsEditorScreen].
@@ -65,8 +69,17 @@ class _DeviceSettingsEditorScreenState
   String? _wallpaper;
   bool _wallpaperChanged = false;
   late List<WallpaperInfo> _wallpapers;
-  late final TextEditingController _ringtoneCtrl;
+  String? _ringtone;
+  List<RingtoneInfo> _ringtones = [];
   late final TextEditingController _screensaverTimeoutCtrl;
+
+  // Template capability flags (null = still loading)
+  Set<String>? _templateTags;
+
+  /// Returns true when the loaded template contains [tag] (or while still
+  /// loading — fail-open so fields are not permanently hidden).
+  bool _templateSupports(String tag) =>
+      _templateTags == null || _templateTags!.contains(tag);
 
   // Security
   late final TextEditingController _adminPasswordCtrl;
@@ -111,7 +124,7 @@ class _DeviceSettingsEditorScreenState
         TextEditingController(text: s?.outboundProxyPort ?? '');
     _backupServerCtrl = TextEditingController(text: s?.backupServer ?? '');
     _backupPortCtrl = TextEditingController(text: s?.backupPort ?? '');
-    _ringtoneCtrl = TextEditingController(text: s?.ringtone ?? '');
+    _ringtone = s?.ringtone;
     _screensaverTimeoutCtrl =
         TextEditingController(text: s?.screensaverTimeout ?? '');
     _adminPasswordCtrl = TextEditingController(text: s?.adminPassword ?? '');
@@ -132,6 +145,14 @@ class _DeviceSettingsEditorScreenState
     _ntpServerCtrl = TextEditingController(text: s?.ntpServer ?? '');
     _timezoneCtrl = TextEditingController(text: s?.timezone ?? '');
     _buttonLayout = s?.buttonLayout?.map((k) => k.clone()).toList();
+    RingtoneService.listRingtones().then((list) {
+      if (mounted) setState(() => _ringtones = list);
+    });
+    final templateKey =
+        MustacheRenderer.resolveTemplateKey(widget.model);
+    MustacheRenderer.extractAllTags(templateKey).then((tags) {
+      if (mounted) setState(() => _templateTags = tags);
+    });
   }
 
   @override
@@ -143,7 +164,6 @@ class _DeviceSettingsEditorScreenState
     _outboundProxyPortCtrl.dispose();
     _backupServerCtrl.dispose();
     _backupPortCtrl.dispose();
-    _ringtoneCtrl.dispose();
     _screensaverTimeoutCtrl.dispose();
     _adminPasswordCtrl.dispose();
     _voiceVlanCtrl.dispose();
@@ -169,7 +189,7 @@ class _DeviceSettingsEditorScreenState
         outboundProxyPort: _nonEmpty(_outboundProxyPortCtrl.text),
         backupServer: _nonEmpty(_backupServerCtrl.text),
         backupPort: _nonEmpty(_backupPortCtrl.text),
-        ringtone: _nonEmpty(_ringtoneCtrl.text),
+        ringtone: _ringtone?.isNotEmpty == true ? _ringtone : null,
         screensaverTimeout: _nonEmpty(_screensaverTimeoutCtrl.text),
         adminPassword: _nonEmpty(_adminPasswordCtrl.text),
         webUiEnabled: _webUiEnabled,
@@ -193,7 +213,7 @@ class _DeviceSettingsEditorScreenState
             : null,
       );
 
-  void _applyClone(DeviceSettings s) {
+  void _applyClone(DeviceSettings s, {String? wallpaper}) {
     setState(() {
       _sipServerCtrl.text = s.sipServer ?? '';
       _sipPortCtrl.text = s.sipPort ?? '';
@@ -203,7 +223,7 @@ class _DeviceSettingsEditorScreenState
       _outboundProxyPortCtrl.text = s.outboundProxyPort ?? '';
       _backupServerCtrl.text = s.backupServer ?? '';
       _backupPortCtrl.text = s.backupPort ?? '';
-      _ringtoneCtrl.text = s.ringtone ?? '';
+      _ringtone = s.ringtone;
       _screensaverTimeoutCtrl.text = s.screensaverTimeout ?? '';
       _adminPasswordCtrl.text = s.adminPassword ?? '';
       _webUiEnabled = s.webUiEnabled;
@@ -222,8 +242,18 @@ class _DeviceSettingsEditorScreenState
       _ntpServerCtrl.text = s.ntpServer ?? '';
       _timezoneCtrl.text = s.timezone ?? '';
       _buttonLayout = s.buttonLayout?.map((k) => k.clone()).toList();
+      // Copy wallpaper when the source has one set.
+      // An empty string clears the wallpaper to the global default.
+      if (wallpaper != null) {
+        _wallpaper = wallpaper;
+        _wallpaperChanged = true;
+      }
     });
   }
+
+  /// Returns the number of programmed buttons in [settings], or 0.
+  static int _programmedButtonCount(DeviceSettings? settings) =>
+      settings?.buttonLayout?.where((k) => k.type != 'none').length ?? 0;
 
   Future<void> _showCloneDialog() async {
     if (widget.otherExtensions.isEmpty) {
@@ -239,23 +269,50 @@ class _DeviceSettingsEditorScreenState
         title: const Text('Copy From...'),
         content: SizedBox(
           width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: widget.otherExtensions.length,
-            itemBuilder: (_, i) {
-              final info = widget.otherExtensions[i];
-              return ListTile(
-                dense: true,
-                title:
-                    Text('Ext ${info.extension}  —  ${info.label}'),
-                trailing: info.settings != null
-                    ? const Icon(Icons.settings,
-                        size: 16, color: Colors.blue)
-                    : const Text('no settings',
-                        style: TextStyle(fontSize: 10, color: Colors.grey)),
-                onTap: () => Navigator.pop(ctx, i),
-              );
-            },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Copies all settings and button layout.\n'
+                'Extension number, SIP username and password\n'
+                'are never copied.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: widget.otherExtensions.length,
+                  itemBuilder: (_, i) {
+                    final info = widget.otherExtensions[i];
+                    final s = info.settings;
+                    final hasSettings = s != null;
+                    final buttonCount = _programmedButtonCount(s);
+                    final hasWallpaper = info.wallpaper != null &&
+                        info.wallpaper!.isNotEmpty;
+                    final hasCopyableData = hasSettings || hasWallpaper;
+
+                    return ListTile(
+                      dense: true,
+                      title: Text(
+                        'Ext ${info.extension}  —  ${info.label}',
+                        style: TextStyle(
+                          color: hasCopyableData ? null : Colors.grey,
+                        ),
+                      ),
+                      subtitle: _buildCopyFromSubtitle(
+                        hasSettings: hasSettings,
+                        buttonCount: buttonCount,
+                        hasWallpaper: hasWallpaper,
+                        hasRingtone: s?.ringtone != null,
+                      ),
+                      onTap: () => Navigator.pop(ctx, i),
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         ),
         actions: [
@@ -267,22 +324,90 @@ class _DeviceSettingsEditorScreenState
       ),
     );
 
-    if (selected != null && mounted) {
-      final info = widget.otherExtensions[selected];
-      if (info.settings != null) {
-        _applyClone(info.settings!.clone());
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-              'Copied settings from Ext ${info.extension} (${info.label})'),
-        ));
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content:
-              Text('Ext ${info.extension} has no custom settings to copy'),
-        ));
-      }
+    if (selected == null || !mounted) return;
+
+    final info = widget.otherExtensions[selected];
+    final hasSettings = info.settings != null;
+    final hasWallpaper =
+        info.wallpaper != null && info.wallpaper!.isNotEmpty;
+
+    if (!hasSettings && !hasWallpaper) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+            'Ext ${info.extension} has no settings or wallpaper to copy'),
+      ));
+      return;
     }
+
+    // Apply — settings first (blanks fields when null), then wallpaper.
+    _applyClone(
+      info.settings?.clone() ?? DeviceSettings(),
+      wallpaper: info.wallpaper,
+    );
+
+    // Build an informative confirmation.
+    final btnCount = _programmedButtonCount(info.settings);
+    final parts = <String>[];
+    if (hasSettings) {
+      parts.add('settings');
+      if (btnCount > 0) parts.add('$btnCount button${btnCount == 1 ? '' : 's'}');
+      if (info.settings!.ringtone != null) parts.add('ringtone');
+    }
+    if (hasWallpaper) parts.add('wallpaper');
+
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(
+        'Copied ${parts.join(', ')} from Ext ${info.extension} '
+        '(${info.label}) — review and save',
+      ),
+    ));
   }
+
+  /// Builds the small capability-chips row shown under each extension in
+  /// the Copy From list.
+  Widget? _buildCopyFromSubtitle({
+    required bool hasSettings,
+    required int buttonCount,
+    required bool hasWallpaper,
+    required bool hasRingtone,
+  }) {
+    final chips = <Widget>[];
+    if (hasSettings) {
+      chips.add(_chip(Icons.settings, 'Settings', Colors.blue));
+    }
+    if (buttonCount > 0) {
+      chips.add(_chip(Icons.keyboard, '$buttonCount buttons', Colors.green));
+    }
+    if (hasWallpaper) {
+      chips.add(_chip(Icons.image, 'Wallpaper', Colors.orange));
+    }
+    if (hasRingtone) {
+      chips.add(_chip(Icons.music_note, 'Ringtone', Colors.purple));
+    }
+    if (chips.isEmpty) {
+      return const Text(
+        'Nothing to copy',
+        style: TextStyle(fontSize: 10, color: Colors.grey),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Wrap(spacing: 4, runSpacing: 2, children: chips),
+    );
+  }
+
+  static Widget _chip(IconData icon, String label, Color color) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 2),
+          Text(
+            label,
+            style: TextStyle(fontSize: 10, color: color),
+          ),
+          const SizedBox(width: 6),
+        ],
+      );
 
   /// Opens the wallpaper upload flow (pick image → resize → save).
   Future<void> _uploadWallpaper() async {
@@ -380,7 +505,80 @@ class _DeviceSettingsEditorScreenState
     nameCtrl.dispose();
   }
 
-  // ─── helpers ──────────────────────────────────────────────────────────────
+  /// Opens the ringtone upload flow (pick audio → convert → save).
+  Future<void> _uploadRingtone() async {
+    final nameCtrl = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Upload Ringtone'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Name (required)',
+                  hintText: 'e.g. MyRingtone',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Accepts MP3, WAV, M4A, OGG, etc.\nAuto-converted to 8kHz/16-bit/mono WAV.',
+                style: TextStyle(fontSize: 11, color: Colors.grey),
+              ),
+              const SizedBox(height: 10),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.audio_file),
+                label: const Text('Pick & Upload'),
+                onPressed: () async {
+                  final name = nameCtrl.text.trim();
+                  if (name.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Enter a name first')));
+                    return;
+                  }
+                  final res = await FilePicker.platform
+                      .pickFiles(type: FileType.audio);
+                  if (res == null) return;
+                  try {
+                    final filename = await RingtoneService.convertAndSave(
+                        res.files.single.path!, name);
+                    final updated = await RingtoneService.listRingtones();
+                    if (ctx.mounted) Navigator.pop(ctx);
+                    setState(() {
+                      _ringtones = updated;
+                      _ringtone = 'LOCAL:$filename';
+                    });
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('Ringtone uploaded!')));
+                    }
+                  } catch (e) {
+                    if (ctx.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Upload failed: $e')));
+                    }
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+    nameCtrl.dispose();
+  }
 
   Widget _field(TextEditingController ctrl, String label,
       {String? hint,
@@ -552,53 +750,101 @@ class _DeviceSettingsEditorScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Wallpaper picker + upload
-                    const Text('Wallpaper',
-                        style: TextStyle(
-                            fontSize: 12, color: Colors.grey)),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<String?>(
-                            value: _wallpaper,
-                            isExpanded: true,
-                            decoration: const InputDecoration(
-                              border: OutlineInputBorder(),
-                              isDense: true,
-                              hintText: 'Global Default',
+                    // Wallpaper picker — only shown if template uses wallpaper_url
+                    if (_templateSupports('wallpaper_url')) ...[
+                      const Text('Wallpaper',
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey)),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String?>(
+                              value: _wallpaper,
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                                hintText: 'Global Default',
+                              ),
+                              items: [
+                                const DropdownMenuItem<String?>(
+                                    value: null,
+                                    child:
+                                        Text('Global Default')),
+                                ..._wallpapers.map((w) =>
+                                    DropdownMenuItem<String?>(
+                                      value: 'LOCAL:${w.filename}',
+                                      child: Text(w.name,
+                                          overflow:
+                                              TextOverflow
+                                                  .ellipsis),
+                                    )),
+                              ],
+                              onChanged: (v) => setState(() {
+                                _wallpaper = v;
+                                _wallpaperChanged = true;
+                              }),
                             ),
-                            items: [
-                              const DropdownMenuItem<String?>(
-                                  value: null,
-                                  child:
-                                      Text('Global Default')),
-                              ..._wallpapers.map((w) =>
-                                  DropdownMenuItem<String?>(
-                                    value: 'LOCAL:${w.filename}',
-                                    child: Text(w.name,
-                                        overflow:
-                                            TextOverflow
-                                                .ellipsis),
-                                  )),
-                            ],
-                            onChanged: (v) => setState(() {
-                              _wallpaper = v;
-                              _wallpaperChanged = true;
-                            }),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          icon: const Icon(Icons.upload),
-                          tooltip: 'Upload new wallpaper',
-                          onPressed: _uploadWallpaper,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    _field(_ringtoneCtrl, 'Ringtone',
-                        hint: 'e.g. Ring1.wav'),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.upload),
+                            tooltip: 'Upload new wallpaper',
+                            onPressed: _uploadWallpaper,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
+                    // Ringtone picker — only shown if template uses ring_type
+                    if (_templateSupports('ring_type') ||
+                        _templateSupports('ringtone_url')) ...[
+                      const Text('Ringtone',
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey)),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String?>(
+                              value: _ringtone,
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                                hintText: 'Default (Ring1.wav)',
+                              ),
+                              items: [
+                                const DropdownMenuItem<String?>(
+                                    value: null,
+                                    child: Text(
+                                        'Default (Ring1.wav)')),
+                                ..._ringtones.map((r) =>
+                                    DropdownMenuItem<String?>(
+                                      value: 'LOCAL:${r.filename}',
+                                      child: Text(r.name,
+                                          overflow:
+                                              TextOverflow
+                                                  .ellipsis),
+                                    )),
+                              ],
+                              onChanged: (v) =>
+                                  setState(() => _ringtone = v),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.upload),
+                            tooltip: 'Upload new ringtone',
+                            onPressed: _uploadRingtone,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
                     _field(_screensaverTimeoutCtrl,
                         'Screensaver Timeout (s)',
                         keyboard: TextInputType.number),
@@ -644,10 +890,14 @@ class _DeviceSettingsEditorScreenState
                     const EdgeInsets.fromLTRB(16, 8, 16, 8),
                 child: Column(
                   children: [
-                    _field(_voiceVlanCtrl, 'Voice VLAN ID',
-                        keyboard: TextInputType.number),
-                    _field(_dataVlanCtrl, 'Data VLAN ID',
-                        keyboard: TextInputType.number),
+                    // VLAN — only shown if template uses vlan_enabled
+                    if (_templateSupports('vlan_enabled') ||
+                        _templateSupports('voice_vlan_id')) ...[
+                      _field(_voiceVlanCtrl, 'Voice VLAN ID',
+                          keyboard: TextInputType.number),
+                      _field(_dataVlanCtrl, 'Data VLAN ID',
+                          keyboard: TextInputType.number),
+                    ],
                     _optSwitch(
                         'CDP / LLDP',
                         _cdpLldpEnabled,
@@ -750,8 +1000,9 @@ class _DeviceSettingsEditorScreenState
             ],
           ),
 
-          // ── Button Layout ────────────────────────────────────────────────
-          _buildButtonLayoutTile(),
+          // ── Button Layout — only shown if template uses line_keys ────────
+          if (_templateSupports('line_keys'))
+            _buildButtonLayoutTile(),
         ],
         ),
       ),

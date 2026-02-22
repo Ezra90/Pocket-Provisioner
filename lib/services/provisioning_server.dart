@@ -39,6 +39,8 @@ class ProvisioningServer {
   static String _classifyResource(String path) {
     if (path.startsWith('/media/original/')) return 'original_media';
     if (path.startsWith('/media/')) return 'wallpaper';
+    if (path.startsWith('/ringtones/')) return 'ringtone';
+    if (path.startsWith('/phonebook/')) return 'phonebook';
     if (path.startsWith('/templates/')) return 'template';
     return 'config';
   }
@@ -214,6 +216,36 @@ class ProvisioningServer {
         });
       }
       return Response.notFound('Media file not found');
+    });
+
+    // --- RINGTONE HANDLER ---
+    router.get('/ringtones/<file>', (Request request, String file) async {
+      final directory = await getApplicationDocumentsDirectory();
+      final filePath = p.join(directory.path, 'ringtones', file);
+      final audioFile = File(filePath);
+      if (await audioFile.exists()) {
+        final bytes = await audioFile.readAsBytes();
+        return Response.ok(bytes, headers: {
+          'Content-Type': 'audio/wav',
+          'Access-Control-Allow-Origin': '*',
+        });
+      }
+      return Response.notFound('Ringtone file not found');
+    });
+
+    // --- PHONEBOOK HANDLER ---
+    router.get('/phonebook/<file>', (Request request, String file) async {
+      final directory = await getApplicationDocumentsDirectory();
+      final filePath = p.join(directory.path, 'phonebook', file);
+      final pbFile = File(filePath);
+      if (await pbFile.exists()) {
+        final content = await pbFile.readAsString();
+        return Response.ok(content, headers: {
+          'Content-Type': 'application/xml',
+          'Access-Control-Allow-Origin': '*',
+        });
+      }
+      return Response.notFound('Phonebook file not found');
     });
 
     // --- CONFIG HANDLER (static files) ---
