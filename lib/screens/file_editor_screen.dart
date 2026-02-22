@@ -316,7 +316,7 @@ class _FileEditorScreenState extends State<FileEditorScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Clone Config — New Extension'),
+        title: const Text('Copy Config — New Extension'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -374,7 +374,7 @@ class _FileEditorScreenState extends State<FileEditorScreen> {
               child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Clone & Save'),
+            child: const Text('Copy & Save'),
           ),
         ],
       ),
@@ -455,7 +455,7 @@ class _FileEditorScreenState extends State<FileEditorScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error saving clone: $e'),
+          content: Text('Error saving copy: $e'),
           backgroundColor: Colors.red,
         ));
       }
@@ -488,7 +488,7 @@ class _FileEditorScreenState extends State<FileEditorScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.file_copy_outlined),
-            tooltip: 'Clone for New Extension',
+            tooltip: 'Copy for New Extension',
             onPressed: _loading ? null : _cloneConfig,
           ),
           IconButton(
@@ -555,7 +555,7 @@ class _FileEditorScreenState extends State<FileEditorScreen> {
                       Expanded(
                         child: Text(
                           'This file persists until you delete it. '
-                          'Use the 📋 Clone button to create a copy for a new extension.',
+                          'Use the 📋 Copy button to create a copy for a new extension.',
                           style: TextStyle(
                               fontSize: 11, color: Colors.blueGrey),
                         ),
