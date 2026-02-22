@@ -121,7 +121,10 @@ class MustacheTemplateService {
       try {
         final files = customDir.listSync().whereType<File>();
         for (final file in files) {
-          final key = p.basenameWithoutExtension(file.path); // strips .mustache
+          final basename = p.basename(file.path);
+          final key = basename.endsWith('.mustache')
+              ? basename.substring(0, basename.length - '.mustache'.length)
+              : basename;
           if (!bundledTemplates.containsKey(key)) {
             result.add(TemplateInfo(
               key: key,
