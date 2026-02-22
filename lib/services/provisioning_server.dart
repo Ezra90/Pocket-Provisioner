@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../data/database_helper.dart';
 import '../models/access_log_entry.dart';
+import 'mustache_template_service.dart';
 
 class ProvisioningServer {
   static final ProvisioningServer instance = ProvisioningServer._();
@@ -193,19 +194,21 @@ class ProvisioningServer {
           ? file
           : File('${filePath}.mustache');
 
+      // Derive template key (strip .mustache suffix) for content-type lookup
+      final templateKey = filename.endsWith('.mustache')
+          ? filename.substring(0, filename.length - 9)
+          : filename;
+      final contentType = MustacheTemplateService.instance.getContentType(templateKey);
+
       if (await mustacheFile.exists()) {
         final content = await mustacheFile.readAsString();
-        return Response.ok(content, headers: {
-          'Content-Type': 'text/plain',
-        });
+        return Response.ok(content, headers: {'Content-Type': contentType});
       }
 
       // Also check without .mustache extension if exact filename was given
       if (await file.exists()) {
         final content = await file.readAsString();
-        return Response.ok(content, headers: {
-          'Content-Type': 'text/plain',
-        });
+        return Response.ok(content, headers: {'Content-Type': contentType});
       }
 
       return Response.notFound('Template not found');
