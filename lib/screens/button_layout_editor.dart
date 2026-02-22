@@ -154,7 +154,9 @@ class _ButtonLayoutEditorScreenState extends State<ButtonLayoutEditorScreen> {
           ),
         ],
       ),
-      body: Padding(
+      body: SafeArea(
+        top: false,
+        child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -229,6 +231,7 @@ class _ButtonLayoutEditorScreenState extends State<ButtonLayoutEditorScreen> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );
@@ -343,6 +346,7 @@ class KeyEditDialogState extends State<KeyEditDialog> {
             // ── Type selector ──────────────────────────────────────────────
             DropdownButtonFormField<String>(
               value: _selectedType,
+              isExpanded: true,
               decoration: const InputDecoration(labelText: "Type"),
               items: const [
                 DropdownMenuItem(value: 'none', child: Text("None")),
@@ -443,6 +447,7 @@ class KeyEditDialogState extends State<KeyEditDialog> {
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 value: _shortDialMode,
+                isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: "Short Dial Mode",
                   helperText:

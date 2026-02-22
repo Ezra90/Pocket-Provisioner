@@ -120,7 +120,9 @@ class _TemplateManagerScreenState extends State<TemplateManagerScreen> {
           ),
         ],
       ),
-      body: Padding(
+      body: SafeArea(
+        top: false,
+        child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: ListView(
           children: [
@@ -260,6 +262,7 @@ class _TemplateManagerScreenState extends State<TemplateManagerScreen> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

@@ -209,7 +209,9 @@ class _PerExtensionButtonEditorScreenState
           ),
         ],
       ),
-      body: Padding(
+      body: SafeArea(
+        top: false,
+        child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -315,6 +317,7 @@ class _PerExtensionButtonEditorScreenState
               ),
             ),
           ],
+        ),
         ),
       ),
     );

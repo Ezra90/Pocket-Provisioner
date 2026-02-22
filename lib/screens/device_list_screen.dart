@@ -45,6 +45,7 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
           title: Text('Change Model — Ext ${device.extension}'),
           content: DropdownButtonFormField<String>(
             value: selectedModel,
+            isExpanded: true,
             decoration: const InputDecoration(
               labelText: 'Device Model',
               border: OutlineInputBorder(),
@@ -86,7 +87,9 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
           ),
         ],
       ),
-      body: _loading
+      body: SafeArea(
+        top: false,
+        child: _loading
           ? const Center(child: CircularProgressIndicator())
           : _devices.isEmpty
               ? const Center(child: Text('No pending devices'))
@@ -114,6 +117,7 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
                     );
                   },
                 ),
+      ),
     );
   }
 }

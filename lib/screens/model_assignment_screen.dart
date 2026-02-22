@@ -121,6 +121,7 @@ class _ModelAssignmentScreenState extends State<ModelAssignmentScreen> {
           title: const Text('Set Model for Selected'),
           content: DropdownButtonFormField<String>(
             value: selectedModel,
+            isExpanded: true,
             decoration: const InputDecoration(
               labelText: 'Model',
               border: OutlineInputBorder(),
@@ -159,6 +160,7 @@ class _ModelAssignmentScreenState extends State<ModelAssignmentScreen> {
           title: const Text('Set Wallpaper for Selected'),
           content: DropdownButtonFormField<String?>(
             value: selectedWallpaper,
+            isExpanded: true,
             decoration: const InputDecoration(
                 labelText: 'Wallpaper', border: OutlineInputBorder()),
             items: [
@@ -277,7 +279,8 @@ class _ModelAssignmentScreenState extends State<ModelAssignmentScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDS) => AlertDialog(
           title: const Text('Upload Wallpaper'),
-          content: Column(
+          content: SingleChildScrollView(
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
@@ -346,6 +349,7 @@ class _ModelAssignmentScreenState extends State<ModelAssignmentScreen> {
                 },
               ),
             ],
+            ),
           ),
           actions: [
             TextButton(
