@@ -266,14 +266,23 @@ class KeyEditDialogState extends State<KeyEditDialog> {
   late String _shortDialMode;
   late int _customDigits;
 
+  /// All known extensions — widget.csvDevices merged with every device in the
+  /// database.  Loaded asynchronously in initState; falls back to csvDevices
+  /// until ready.
+  List<Device> _allKnownDevices = [];
   List<Device> _filteredDevices = [];
   bool _showCsvPicker = false;
+
+  /// True once the user has manually typed in the label field.
+  /// While false, tapping an extension in the list will also auto-fill the
+  /// label; once true it will only fill the extension, preserving the
+  /// custom label the user entered.
+  bool _labelCustomised = false;
 
   @override
   void initState() {
     super.initState();
     _selectedType = widget.key_.type;
-    // Prefer fullValue as the editable source; fall back to value for legacy keys
     final initialFull = widget.key_.fullValue.isNotEmpty
         ? widget.key_.fullValue
         : widget.key_.value;
@@ -284,8 +293,43 @@ class KeyEditDialogState extends State<KeyEditDialog> {
     _customDigits = widget.key_.customDigits;
     _customDigitsController =
         TextEditingController(text: _customDigits.toString());
-    _filteredDevices = widget.csvDevices;
+
+    // Mark as customised when re-opening a button that already has a label.
+    // This preserves whatever label the button had (whether it was previously
+    // picked from a list or manually typed) and prevents the first extension
+    // pick from silently overwriting it.  The user can always tap the
+    // "restore known name" icon to reset to the DB default.
+    _labelCustomised = widget.key_.label.isNotEmpty;
+
+    _allKnownDevices = List.of(widget.csvDevices);
+    _filteredDevices = _allKnownDevices;
     _searchController.addListener(_filterDevices);
+
+    // Load ALL devices from the database and merge (dedup by extension).
+    _loadAllDevices();
+  }
+
+  Future<void> _loadAllDevices() async {
+    final dbDevices = await DatabaseHelper.instance.getAllDevices();
+    // Merge: start with csvDevices (current batch takes precedence for labels),
+    // then add any DB devices whose extension isn't already present.
+    final knownExts = {for (final d in widget.csvDevices) d.extension};
+    final merged = List.of(widget.csvDevices);
+    for (final d in dbDevices) {
+      if (!knownExts.contains(d.extension)) merged.add(d);
+    }
+    merged.sort((a, b) {
+      final aNum = int.tryParse(a.extension) ?? 0;
+      final bNum = int.tryParse(b.extension) ?? 0;
+      return aNum.compareTo(bNum);
+    });
+    if (mounted) {
+      setState(() {
+        _allKnownDevices = merged;
+        _filteredDevices = merged;
+      });
+      _filterDevices(); // re-apply any active search
+    }
   }
 
   @override
@@ -301,8 +345,8 @@ class KeyEditDialogState extends State<KeyEditDialog> {
     final q = _searchController.text.toLowerCase();
     setState(() {
       _filteredDevices = q.isEmpty
-          ? widget.csvDevices
-          : widget.csvDevices
+          ? _allKnownDevices
+          : _allKnownDevices
               .where((d) =>
                   d.extension.contains(q) ||
                   d.label.toLowerCase().contains(q))
@@ -330,12 +374,28 @@ class KeyEditDialogState extends State<KeyEditDialog> {
         _customDigits,
       );
 
-  bool get _hasCsvDevices => widget.csvDevices.isNotEmpty;
+  bool get _hasCsvDevices => _allKnownDevices.isNotEmpty;
   bool get _showPicker =>
       _showCsvPicker && (_selectedType == 'blf' || _selectedType == 'speeddial');
 
+  /// Returns the default label for the currently entered extension (from the
+  /// known-devices list), or null if not found.
+  String? get _knownLabel {
+    final ext = _fullValueController.text.trim();
+    if (ext.isEmpty) return null;
+    try {
+      return _allKnownDevices
+          .firstWhere((d) => d.extension == ext)
+          .label;
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final knownLabel = _knownLabel;
+
     return AlertDialog(
       title: Text("Edit Key ${widget.key_.id}"),
       content: SingleChildScrollView(
@@ -363,7 +423,7 @@ class KeyEditDialogState extends State<KeyEditDialog> {
             if (_selectedType != 'none') ...[
               const SizedBox(height: 12),
 
-              // ── CSV Picker toggle (BLF / Speed Dial only) ─────────────
+              // ── Extension picker toggle (BLF / Speed Dial only) ───────────
               if (_hasCsvDevices &&
                   (_selectedType == 'blf' || _selectedType == 'speeddial'))
                 OutlinedButton.icon(
@@ -371,19 +431,19 @@ class KeyEditDialogState extends State<KeyEditDialog> {
                       ? Icons.keyboard_hide
                       : Icons.list_alt),
                   label: Text(_showCsvPicker
-                      ? "Hide CSV list — type manually below"
-                      : "Pick from imported CSV list"),
+                      ? "Hide list — type manually below"
+                      : "Pick from known extensions (${_allKnownDevices.length})"),
                   onPressed: () =>
                       setState(() => _showCsvPicker = !_showCsvPicker),
                 ),
 
-              // ── CSV searchable list ────────────────────────────────────
+              // ── Searchable extension list ──────────────────────────────────
               if (_showPicker) ...[
                 const SizedBox(height: 8),
                 TextField(
                   controller: _searchController,
                   decoration: const InputDecoration(
-                    hintText: "Search extension or name…",
+                    hintText: "Search by extension or name…",
                     prefixIcon: Icon(Icons.search),
                     isDense: true,
                     border: OutlineInputBorder(),
@@ -398,16 +458,31 @@ class KeyEditDialogState extends State<KeyEditDialog> {
                           itemCount: _filteredDevices.length,
                           itemBuilder: (ctx, i) {
                             final dev = _filteredDevices[i];
-                            final display =
-                                "${dev.extension}  —  ${dev.label}";
+                            final isSelected =
+                                _fullValueController.text.trim() == dev.extension;
                             return ListTile(
                               dense: true,
-                              title: Text(display,
-                                  style: const TextStyle(fontSize: 13)),
+                              selected: isSelected,
+                              leading: CircleAvatar(
+                                radius: 14,
+                                child: Text(dev.extension,
+                                    style: const TextStyle(fontSize: 10)),
+                              ),
+                              title: Text(dev.extension,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13)),
+                              subtitle: Text(dev.label,
+                                  style: const TextStyle(fontSize: 11)),
                               onTap: () {
                                 setState(() {
+                                  // Always fill the extension number.
                                   _fullValueController.text = dev.extension;
-                                  _labelController.text = dev.label;
+                                  // Only auto-fill the label when the user
+                                  // hasn't explicitly customised it yet.
+                                  if (!_labelCustomised) {
+                                    _labelController.text = dev.label;
+                                  }
                                   _showCsvPicker = false;
                                 });
                               },
@@ -418,32 +493,62 @@ class KeyEditDialogState extends State<KeyEditDialog> {
                 const Divider(),
               ],
 
-              // ── Manual / custom entry ──────────────────────────────────
+              // ── Extension number (manual / result of pick) ─────────────────
               TextField(
                 controller: _fullValueController,
                 decoration: InputDecoration(
-                  labelText: _hasCsvDevices &&
-                          (_selectedType == 'blf' ||
-                              _selectedType == 'speeddial')
-                      ? "Extension / Number (full — or type custom)"
-                      : "Value (Extension / Number)",
+                  labelText: "Extension / Number",
+                  hintText: "e.g. 101",
                   helperText: _shortDialMode != 'full'
                       ? "Short dial: $_effectiveValue"
                       : null,
                   helperStyle: const TextStyle(color: Colors.blue),
                 ),
-                onChanged: (_) => setState(() {}), // refresh preview
+                onChanged: (_) => setState(() {}), // refresh preview + known label
               ),
               const SizedBox(height: 8),
-              TextField(
-                controller: _labelController,
-                decoration: const InputDecoration(
-                  labelText:
-                      "Label (optional — auto-uses device label for BLF)",
-                ),
+
+              // ── Button label ───────────────────────────────────────────────
+              // The label is always fully editable.  If the extension matches a
+              // known device the known name is shown as helper text so the user
+              // can decide whether to keep it, override it, or restore it.
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _labelController,
+                      decoration: InputDecoration(
+                        labelText: "Button Label",
+                        hintText: knownLabel ?? "e.g. Reception",
+                        helperText: _labelCustomised && knownLabel != null
+                            ? "Known name: $knownLabel"
+                            : "Leave blank to use the extension name",
+                        helperStyle: const TextStyle(fontSize: 10, color: Colors.grey),
+                      ),
+                      // Mark as customised as soon as the user types.
+                      onChanged: (_) =>
+                          setState(() => _labelCustomised = true),
+                    ),
+                  ),
+                  // "Restore known name" button — only shown when the current
+                  // extension matches a known device.
+                  if (knownLabel != null)
+                    Tooltip(
+                      message: 'Restore known name: "$knownLabel"',
+                      child: IconButton(
+                        icon: const Icon(Icons.person_pin,
+                            size: 20, color: Colors.blueGrey),
+                        onPressed: () => setState(() {
+                          _labelController.text = knownLabel;
+                          _labelCustomised = false;
+                        }),
+                      ),
+                    ),
+                ],
               ),
 
-              // ── Short Dial ─────────────────────────────────────────────
+              // ── Short Dial ─────────────────────────────────────────────────
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 value: _shortDialMode,
@@ -477,7 +582,7 @@ class KeyEditDialogState extends State<KeyEditDialog> {
                 ),
               ],
 
-              // ── Preview ────────────────────────────────────────────────
+              // ── Preview ────────────────────────────────────────────────────
               if (_fullValueController.text.isNotEmpty &&
                   _shortDialMode != 'full') ...[
                 const SizedBox(height: 8),
@@ -515,14 +620,18 @@ class KeyEditDialogState extends State<KeyEditDialog> {
         ElevatedButton(
           onPressed: () {
             final full = _fullValueController.text.trim();
+            // If label is blank, resolve from known devices.
+            final rawLabel = _labelController.text.trim();
+            final resolvedLabel = rawLabel.isNotEmpty
+                ? rawLabel
+                : (_knownLabel ?? '');
             widget.key_
               ..type = _selectedType
               ..fullValue = full
               ..shortDialMode = _shortDialMode
               ..customDigits = _customDigits
-              ..label = _labelController.text.trim();
+              ..label = resolvedLabel;
             widget.key_.applyShortDial();
-            // If fullValue is empty, use value directly (pure custom entry)
             if (full.isEmpty) widget.key_.value = '';
             widget.onSave(widget.key_);
             Navigator.pop(context);

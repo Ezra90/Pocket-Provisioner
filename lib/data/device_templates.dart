@@ -16,6 +16,40 @@ class RingtoneSpec {
   const RingtoneSpec(this.format, this.sampleRate, this.bitDepth, this.channels, this.maxSizeBytes);
 }
 
+/// Describes the physical programmable-key layout of a handset family.
+///
+/// Keys are split into a [leftKeyCount] left column alongside the screen
+/// and a [rightKeyCount] right column.  Left keys occupy IDs 1…leftKeyCount,
+/// right keys occupy IDs leftKeyCount+1…totalKeyCount.
+///
+/// [hasSoftKeys]  – true if the model has 4 soft-key buttons below the screen.
+/// [hasNavCluster] – true if the model has a 5-way navigation cluster.
+/// [hasDialPad]   – true if the model has a full 12-key dial pad.
+/// [bodyColor]    – base colour used to paint the phone body.
+/// [screenRatio]  – fraction of the centre column width taken by the screen
+///                  (0.0 = no screen shown, 1.0 = full width).
+class PhysicalLayout {
+  final int leftKeyCount;
+  final int rightKeyCount;
+  final bool hasSoftKeys;
+  final bool hasNavCluster;
+  final bool hasDialPad;
+  final int bodyColorValue;
+  final String modelFamily;
+
+  const PhysicalLayout({
+    required this.leftKeyCount,
+    required this.rightKeyCount,
+    this.hasSoftKeys = true,
+    this.hasNavCluster = true,
+    this.hasDialPad = true,
+    this.bodyColorValue = 0xFF424242, // Colors.grey[800]
+    required this.modelFamily,
+  });
+
+  int get totalKeyCount => leftKeyCount + rightKeyCount;
+}
+
 class DeviceTemplates {
   
   static const String defaultTarget = "";
@@ -39,10 +73,65 @@ class DeviceTemplates {
     'Cisco 8851 / 8865':   WallpaperSpec(800, 480, 'Cisco High Res'),
   };
 
-  // --- RINGTONE SPEC (all vendors use same PCM WAV format) ---
+  /// Default ringtone filename used by all vendors when no custom ringtone
+  /// is configured.  Referenced in [MustacheRenderer.buildVariables] and the
+  /// ringtone dropdown hint text.
+  static const String defaultRingtoneName = 'Ring1.wav';
   static const RingtoneSpec ringtoneSpec = RingtoneSpec(
     'WAV (PCM)', 8000, 16, 'Mono', 1048576,
   );
+
+  // --- PHYSICAL BUTTON LAYOUT DATABASE ---
+  // Defines the left/right key column arrangement for each handset family.
+  // Yealink T4x/T5x: 5 keys on each side of the screen (10 total)
+  static const PhysicalLayout _yealinkLayout = PhysicalLayout(
+    leftKeyCount: 5,
+    rightKeyCount: 5,
+    hasSoftKeys: true,
+    hasNavCluster: true,
+    hasDialPad: true,
+    bodyColorValue: 0xFF37474F, // blue-grey
+    modelFamily: 'Yealink T4x/T5x',
+  );
+
+  // Cisco 88xx: 5 keys on each side (10 total)
+  static const PhysicalLayout _ciscoLayout = PhysicalLayout(
+    leftKeyCount: 5,
+    rightKeyCount: 5,
+    hasSoftKeys: true,
+    hasNavCluster: true,
+    hasDialPad: true,
+    bodyColorValue: 0xFF1A237E, // dark navy
+    modelFamily: 'Cisco 78xx/88xx',
+  );
+
+  // Polycom VVX: 6 keys on each side (12 total, covers VVX450 — smaller models
+  // use fewer but the editor gracefully handles empty slots)
+  static const PhysicalLayout _polycomLayout = PhysicalLayout(
+    leftKeyCount: 6,
+    rightKeyCount: 6,
+    hasSoftKeys: true,
+    hasNavCluster: true,
+    hasDialPad: true,
+    bodyColorValue: 0xFF4A148C, // deep purple
+    modelFamily: 'Polycom VVX / Poly Edge',
+  );
+
+  /// Returns the [PhysicalLayout] for [model], falling back to Yealink style.
+  static PhysicalLayout getPhysicalLayout(String model) {
+    final upper = model.toUpperCase();
+    // Cisco: explicit brand name OR 4-digit model numbers starting with 78xx/88xx
+    if (upper.contains('CISCO') ||
+        RegExp(r'(?:^|[^0-9])(?:78|88)\d{2}').hasMatch(upper)) {
+      return _ciscoLayout;
+    }
+    if (upper.contains('POLY') ||
+        upper.contains('VVX') ||
+        upper.contains('EDGE')) {
+      return _polycomLayout;
+    }
+    return _yealinkLayout;
+  }
 
   static WallpaperSpec getSpecForModel(String modelKey) {
     return wallpaperSpecs[modelKey] ?? const WallpaperSpec(480, 272, 'Default');

@@ -6,6 +6,7 @@ import '../models/button_key.dart';
 import '../models/device.dart';
 import '../services/button_layout_service.dart';
 import 'button_layout_editor.dart';
+import 'physical_button_editor.dart';
 
 /// Full-screen button layout editor scoped to a single extension.
 /// Returns the edited [List<ButtonKey>] via [Navigator.pop].
@@ -191,6 +192,30 @@ class _PerExtensionButtonEditorScreenState
           ],
         ),
         actions: [
+          // Open physical / visual layout editor
+          IconButton(
+            icon: const Icon(Icons.phone_android),
+            tooltip: 'Visual handset layout',
+            onPressed: () async {
+              final result =
+                  await Navigator.push<List<ButtonKey>>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PhysicalButtonEditorScreen(
+                    extension: widget.extension,
+                    label: widget.label,
+                    model: widget.model,
+                    initialLayout: _layout,
+                    batchExtensions: widget.batchExtensions,
+                  ),
+                ),
+              );
+              if (result != null) {
+                setState(() => _layout = result);
+                _updateJson(result);
+              }
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.copy),
             tooltip: 'Copy JSON',

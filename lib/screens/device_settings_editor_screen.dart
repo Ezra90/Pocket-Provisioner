@@ -74,6 +74,11 @@ class _DeviceSettingsEditorScreenState
   // Template capability flags (null = still loading)
   Set<String>? _templateTags;
 
+  /// Returns true when the loaded template contains [tag] (or while still
+  /// loading — fail-open so fields are not permanently hidden).
+  bool _templateSupports(String tag) =>
+      _templateTags == null || _templateTags!.contains(tag);
+
   // Security
   late final TextEditingController _adminPasswordCtrl;
   bool? _webUiEnabled;
@@ -639,8 +644,7 @@ class _DeviceSettingsEditorScreenState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Wallpaper picker — only shown if template uses wallpaper_url
-                    if (_templateTags == null ||
-                        _templateTags!.contains('wallpaper_url')) ...[
+                    if (_templateSupports('wallpaper_url')) ...[
                       const Text('Wallpaper',
                           style: TextStyle(
                               fontSize: 12, color: Colors.grey)),
@@ -688,9 +692,8 @@ class _DeviceSettingsEditorScreenState
                     ],
 
                     // Ringtone picker — only shown if template uses ring_type
-                    if (_templateTags == null ||
-                        _templateTags!.contains('ring_type') ||
-                        _templateTags!.contains('ringtone_url')) ...[
+                    if (_templateSupports('ring_type') ||
+                        _templateSupports('ringtone_url')) ...[
                       const Text('Ringtone',
                           style: TextStyle(
                               fontSize: 12, color: Colors.grey)),
@@ -781,9 +784,8 @@ class _DeviceSettingsEditorScreenState
                 child: Column(
                   children: [
                     // VLAN — only shown if template uses vlan_enabled
-                    if (_templateTags == null ||
-                        _templateTags!.contains('vlan_enabled') ||
-                        _templateTags!.contains('voice_vlan_id')) ...[
+                    if (_templateSupports('vlan_enabled') ||
+                        _templateSupports('voice_vlan_id')) ...[
                       _field(_voiceVlanCtrl, 'Voice VLAN ID',
                           keyboard: TextInputType.number),
                       _field(_dataVlanCtrl, 'Data VLAN ID',
@@ -892,8 +894,7 @@ class _DeviceSettingsEditorScreenState
           ),
 
           // ── Button Layout — only shown if template uses line_keys ────────
-          if (_templateTags == null ||
-              _templateTags!.contains('line_keys'))
+          if (_templateSupports('line_keys'))
             _buildButtonLayoutTile(),
         ],
         ),
