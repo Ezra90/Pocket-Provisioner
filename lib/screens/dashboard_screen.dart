@@ -186,7 +186,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           }
         }
 
-        final templateKey = MustacheRenderer.resolveTemplateKey(device.model);
+        final templateKey = await MustacheRenderer.resolveTemplateKey(device.model);
 
         // Resolve per-device wallpaper to server URL
         String deviceWallpaperUrl = '';

@@ -19,11 +19,12 @@ class MustacheRenderer {
   static Future<List<String>> extractVariables(String templateKey) async {
     final source =
         await MustacheTemplateService.instance.loadTemplate(templateKey);
-    // [^#/^!>] excludes the first char being a section/control sigil
-    final regex = RegExp(r'\{\{([^#/^!>][^}]*)\}\}');
+    // Matches both {{variable}} and {{{unescapedVariable}}} tags while
+    // excluding section/control sigils (#, /, ^, !, >).
+    final regex = RegExp(r'\{\{\{?([^#/^!>{}][^{}]*?)\}?\}\}');
     return regex
         .allMatches(source)
-        .map((m) => m.group(1)!.trim())
+        .map((m) => m.group(1)!.trim().replaceAll('&', '').trim())
         .toSet()
         .toList();
   }
@@ -38,7 +39,7 @@ class MustacheRenderer {
         await MustacheTemplateService.instance.loadTemplate(templateKey);
     // Match {{ optionally followed by # or ^ (open sections) or nothing (variables)
     // but NOT / (close), ! (comment), or > (partial).
-    final regex = RegExp(r'\{\{[#^]?([^/!>}][^}]*)\}\}');
+    final regex = RegExp(r'\{\{\s*[#^]?\s*([^/!>}\s][^}]*?)\s*\}\}');
     return regex
         .allMatches(source)
         .map((m) => m.group(1)!.trim())
@@ -46,9 +47,19 @@ class MustacheRenderer {
   }
 
   /// Maps a device model string to the canonical template key.
-  static String resolveTemplateKey(String model) {
+  /// Checks custom/imported templates first, then falls back to brand matching.
+  static Future<String> resolveTemplateKey(String model) async {
+    // 1. Check if the model exactly matches a custom or imported template key
+    final allTemplates = await MustacheTemplateService.instance.listAll();
+    for (final template in allTemplates) {
+      if (template.key.toLowerCase() == model.toLowerCase() ||
+          template.displayName.toLowerCase() == model.toLowerCase()) {
+        return template.key;
+      }
+    }
+
+    // 2. Fall back to generic brand matching for bundled templates
     final upper = model.toUpperCase();
-    // Check for Cisco explicitly or Cisco model numbers with word boundaries
     if (upper.contains('CISCO') ||
         RegExp(r'(?:^|[^0-9])(?:78|88)\d{2}(?:[^0-9]|$)').hasMatch(upper)) {
       return 'cisco_88xx';
@@ -58,6 +69,8 @@ class MustacheRenderer {
         upper.contains('EDGE')) {
       return 'polycom_vvx';
     }
+
+    // 3. Default fallback
     return 'yealink_t4x';
   }
 
@@ -68,7 +81,7 @@ class MustacheRenderer {
       'speeddial' => 13,
       'line' => 15,
       'dtmf' => 34,
-      'park' => 10,
+      'park' => 16, // BLF-based park monitoring for FreePBX/Asterisk
       _ => 0,
     };
   }
@@ -210,10 +223,10 @@ class MustacheRenderer {
           : 'Ring1.wav',
       'has_custom_ringtone': ringtoneUrl != null && ringtoneUrl.isNotEmpty,
       'ringtone_url': ringtoneUrl ?? '',
-      'ntp_server': ntpServer ?? '0.pool.ntp.org',
-      'timezone': timezone ?? 'UTC',
-      'timezone_name': timezoneName ?? 'UTC',
-      'gmt_offset': gmtOffset ?? '0',
+      'ntp_server': ntpServer ?? '0.au.pool.ntp.org',
+      'timezone': timezone ?? '+10',
+      'timezone_name': timezoneName ?? 'Australia/Brisbane',
+      'gmt_offset': gmtOffset ?? '36000',
       'admin_password': adminPassword ?? '',
       'provisioning_url': provisioningUrl,
       'provision_user': extension,
@@ -281,6 +294,8 @@ class MustacheRenderer {
         },
       ],
       'line_keys': lineKeysList,
+      'has_line_keys': lineKeysList.isNotEmpty,
+      'has_attendant_keys': attendantKeysList.isNotEmpty,
       'attendant_keys': attendantKeysList,
       'expansion_keys': <Map<String, dynamic>>[],
       'remote_phonebooks': <Map<String, dynamic>>[],

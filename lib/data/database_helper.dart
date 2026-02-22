@@ -235,15 +235,16 @@ class DatabaseHelper {
     await db.transaction((txn) async {
       final batch = txn.batch();
 
-      for (final device in devices) {
-        final List<Map<String, dynamic>> existing = await txn.query(
-          'devices',
-          where: 'extension = ?',
-          whereArgs: [device.extension],
-        );
+      // Pull all existing devices into a map for O(1) in-memory lookups
+      final List<Map<String, dynamic>> existingMaps = await txn.query('devices');
+      final existingByExtension = <String, Device>{
+        for (final m in existingMaps) (m['extension'] as String): Device.fromMap(m),
+      };
 
-        if (existing.isNotEmpty) {
-          final existingDevice = Device.fromMap(existing.first);
+      for (final device in devices) {
+        final existingDevice = existingByExtension[device.extension];
+
+        if (existingDevice != null) {
           batch.update(
             'devices',
             {
