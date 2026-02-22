@@ -1,6 +1,4 @@
 import 'dart:io';
-import 'package:ffmpeg_kit_flutter/ffmpeg_kit.dart';
-import 'package:ffmpeg_kit_flutter/return_code.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
@@ -20,10 +18,12 @@ class RingtoneInfo {
 }
 
 /// Handles ringtone file management.
-/// All ringtones are stored as 8kHz / 16-bit / mono PCM WAV files.
+/// Ringtones must be provided as WAV files. VoIP phones typically require
+/// PCM WAV files (e.g. 8 kHz / 16-bit / mono) — ensure your WAV file matches
+/// the specifications required by your phone model. Files are stored in the
+/// application documents directory under a dedicated sub-folder.
 class RingtoneService {
   static const int _maxSizeBytes = 1024 * 1024; // 1 MB
-  static const int _maxDurationSeconds = 12;
 
   static Future<Directory> _ringtonesDir() async {
     final appDir = await getApplicationDocumentsDirectory();
@@ -32,45 +32,27 @@ class RingtoneService {
     return dir;
   }
 
-  /// Converts any audio file to phone-compatible WAV (PCM 16-bit LE, 8 kHz, mono)
-  /// and stores it in the ringtones directory.
-  /// If the output exceeds 1 MB it is auto-trimmed to [_maxDurationSeconds].
+  /// Copies a WAV file into the ringtones directory under [customName].wav.
+  /// Throws if the source is not a WAV file or exceeds [_maxSizeBytes].
   /// Returns the output filename (e.g. "MyRingtone.wav").
   static Future<String> convertAndSave(
       String sourcePath, String customName) async {
+    if (!sourcePath.toLowerCase().endsWith('.wav')) {
+      throw Exception('Only WAV files are supported. Please provide a .wav file.');
+    }
+
+    final sourceFile = File(sourcePath);
+    final size = await sourceFile.length();
+    if (size > _maxSizeBytes) {
+      throw Exception(
+          'File exceeds the 1 MB limit (${(size / 1024).toStringAsFixed(0)} KB). '
+          'Please use a shorter audio clip.');
+    }
+
     final dir = await _ringtonesDir();
     final outputFilename = '$customName.wav';
     final outputPath = p.join(dir.path, outputFilename);
-
-    // Convert to 8 kHz, 16-bit, mono PCM WAV
-    final session = await FFmpegKit.execute(
-      '-y -i "$sourcePath" -ar 8000 -ac 1 -sample_fmt s16 "$outputPath"',
-    );
-
-    final returnCode = await session.getReturnCode();
-    if (!ReturnCode.isSuccess(returnCode)) {
-      final logs = await session.getOutput();
-      throw Exception('FFmpeg conversion failed: $logs');
-    }
-
-    // If output exceeds 1 MB, trim to max duration
-    final outFile = File(outputPath);
-    if (await outFile.exists()) {
-      final size = await outFile.length();
-      if (size > _maxSizeBytes) {
-        final trimPath = p.join(dir.path, '${customName}_tmp.wav');
-        final trimSession = await FFmpegKit.execute(
-          '-y -i "$outputPath" -t $_maxDurationSeconds '
-          '-ar 8000 -ac 1 -sample_fmt s16 "$trimPath"',
-        );
-        final trimCode = await trimSession.getReturnCode();
-        if (ReturnCode.isSuccess(trimCode)) {
-          await outFile.delete();
-          await File(trimPath).rename(outputPath);
-        }
-      }
-    }
-
+    await sourceFile.copy(outputPath);
     return outputFilename;
   }
 

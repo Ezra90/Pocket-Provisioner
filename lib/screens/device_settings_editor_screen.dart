@@ -546,7 +546,7 @@ class _DeviceSettingsEditorScreenState
               ),
               const SizedBox(height: 8),
               const Text(
-                'Accepts MP3, WAV, M4A, OGG, etc.\nAuto-converted to 8kHz/16-bit/mono WAV.',
+                'WAV files only (max 1 MB).',
                 style: TextStyle(fontSize: 11, color: Colors.grey),
               ),
               const SizedBox(height: 10),
@@ -560,8 +560,8 @@ class _DeviceSettingsEditorScreenState
                         const SnackBar(content: Text('Enter a name first')));
                     return;
                   }
-                  final res = await FilePicker.platform
-                      .pickFiles(type: FileType.audio);
+                  final res = await FilePicker.platform.pickFiles(
+                      type: FileType.custom, allowedExtensions: ['wav']);
                   if (res == null) return;
                   try {
                     final filename = await RingtoneService.convertAndSave(

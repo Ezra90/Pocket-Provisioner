@@ -16,7 +16,7 @@ import 'file_editor_screen.dart';
 /// Unified file manager with tabs for all server-hosted content:
 ///   1. Configs   — generated MAC config files
 ///   2. Wallpapers — resized wallpaper images
-///   3. Ringtones  — converted WAV ringtone files (NEW)
+///   3. Ringtones  — WAV ringtone files (max 1 MB)
 ///   4. Templates  — Mustache provisioning templates
 ///   5. Phonebook  — XML phonebook files (NEW)
 class FileManagerScreen extends StatefulWidget {
@@ -610,7 +610,7 @@ class _RingtonesTabState extends State<_RingtonesTab>
               ),
             ),
             const SizedBox(height: 8),
-            const Text('Accepts MP3, WAV, M4A, OGG, etc.\nAuto-converted to 8kHz/16-bit/mono WAV.',
+            const Text('WAV files only (max 1 MB).',
                 style: TextStyle(fontSize: 11, color: Colors.grey)),
           ]),
         ),
@@ -626,12 +626,13 @@ class _RingtonesTabState extends State<_RingtonesTab>
     nameCtrl.dispose();
     if (customName.isEmpty) { _snack('A name is required'); return; }
 
-    final result = await FilePicker.platform.pickFiles(type: FileType.audio);
+    final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom, allowedExtensions: ['wav']);
     if (result == null) return;
 
     try {
       await RingtoneService.convertAndSave(result.files.single.path!, customName);
-      _snack('"$customName" uploaded and converted');
+      _snack('"$customName" uploaded');
       _load();
     } catch (e) {
       _snack('Upload failed: $e');
@@ -757,7 +758,7 @@ class _RingtonesTabState extends State<_RingtonesTab>
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('${_fmtBytes(info.sizeBytes)}  •  8kHz/16-bit WAV',
+                                Text('${_fmtBytes(info.sizeBytes)}  •  WAV',
                                     style: const TextStyle(fontSize: 11)),
                                 if (ringtoneUrl != null)
                                   InkWell(
