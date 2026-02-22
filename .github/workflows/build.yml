@@ -22,10 +22,25 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.27.4'
           channel: 'stable'
+          cache: true
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
 
       - name: Install dependencies
         run: flutter pub get
+
+      - name: Clean build artifacts
+        run: flutter clean
 
       - name: Build APK
         env:
@@ -37,3 +52,4 @@ jobs:
         with:
           name: pocket-provisioner-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
