@@ -6,7 +6,7 @@ import '../models/device_settings.dart';
 import '../services/wallpaper_service.dart';
 import 'per_extension_button_editor.dart';
 
-/// Info about another extension, used in the Clone From... dialog.
+/// Info about another extension, used in the Copy From... dialog.
 typedef ExtensionCloneInfo = ({
   String extension,
   String label,
@@ -228,7 +228,7 @@ class _DeviceSettingsEditorScreenState
   Future<void> _showCloneDialog() async {
     if (widget.otherExtensions.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No other extensions to clone from')),
+        const SnackBar(content: Text('No other extensions to copy from')),
       );
       return;
     }
@@ -236,7 +236,7 @@ class _DeviceSettingsEditorScreenState
     final selected = await showDialog<int>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Clone From...'),
+        title: const Text('Copy From...'),
         content: SizedBox(
           width: double.maxFinite,
           child: ListView.builder(
@@ -273,12 +273,12 @@ class _DeviceSettingsEditorScreenState
         _applyClone(info.settings!.clone());
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(
-              'Cloned settings from Ext ${info.extension} (${info.label})'),
+              'Copied settings from Ext ${info.extension} (${info.label})'),
         ));
       } else {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content:
-              Text('Ext ${info.extension} has no custom settings to clone'),
+              Text('Ext ${info.extension} has no custom settings to copy'),
         ));
       }
     }
@@ -454,7 +454,7 @@ class _DeviceSettingsEditorScreenState
         actions: [
           IconButton(
             icon: const Icon(Icons.copy_all),
-            tooltip: 'Clone From...',
+            tooltip: 'Copy From...',
             onPressed: _showCloneDialog,
           ),
           IconButton(
