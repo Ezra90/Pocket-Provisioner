@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../data/device_templates.dart';
 import '../models/button_key.dart';
 import '../models/device.dart';
 import '../services/button_layout_service.dart';
@@ -39,9 +40,14 @@ class _PerExtensionButtonEditorScreenState
   final TextEditingController _jsonCtrl = TextEditingController();
   bool _loaded = false;
 
+  /// Model-specific max key count resolved once from the physical layout.
+  late final int _maxKeys;
+
   @override
   void initState() {
     super.initState();
+    _maxKeys =
+        DeviceTemplates.getPhysicalLayout(widget.model).totalKeyCount;
     _initLayout();
   }
 
@@ -61,7 +67,7 @@ class _PerExtensionButtonEditorScreenState
           await ButtonLayoutService.getLayoutForModel(widget.model);
       layout = modelLayout.isNotEmpty
           ? modelLayout.map((k) => k.clone()).toList()
-          : List.generate(30, (i) => ButtonKey(i + 1));
+          : List.generate(_maxKeys, (i) => ButtonKey(i + 1));
     }
     _updateJson(layout);
     if (mounted) {
@@ -112,10 +118,10 @@ class _PerExtensionButtonEditorScreenState
       final parsed = decoded
           .map((e) => ButtonKey.fromJson(e as Map<String, dynamic>))
           .toList();
-      while (parsed.length < 30) {
+      while (parsed.length < _maxKeys) {
         parsed.add(ButtonKey(parsed.length + 1));
       }
-      setState(() => _layout = parsed.take(30).toList());
+      setState(() => _layout = parsed.take(_maxKeys).toList());
       _updateJson(_layout);
     } catch (e) {
       if (mounted) {
@@ -129,7 +135,7 @@ class _PerExtensionButtonEditorScreenState
   }
 
   void _clearAll() {
-    setState(() => _layout = List.generate(30, (i) => ButtonKey(i + 1)));
+    setState(() => _layout = List.generate(_maxKeys, (i) => ButtonKey(i + 1)));
     _updateJson(_layout);
   }
 

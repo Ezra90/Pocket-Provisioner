@@ -26,8 +26,15 @@ class RingtoneSpec {
 /// [hasNavCluster] – true if the model has a 5-way navigation cluster.
 /// [hasDialPad]   – true if the model has a full 12-key dial pad.
 /// [bodyColor]    – base colour used to paint the phone body.
-/// [screenRatio]  – fraction of the centre column width taken by the screen
-///                  (0.0 = no screen shown, 1.0 = full width).
+/// [isTouchscreen] – true for touchscreen models (T48G, T57W, VVX1500, etc.).
+/// [isLandscape]  – true for landscape-oriented models (VVX1500).
+/// [maxKeys]      – manufacturer max programmable keys (0 = use leftKeyCount+rightKeyCount).
+/// [initialVisibleKeys] – keys visible before "More" is pressed (0 = maxKeys).
+/// [keyPages]     – number of pages for physical-key models (e.g. 3 for T54W).
+/// [expandButtonLabel]   – label shown on the expand button (e.g. '+ Show More').
+/// [collapseButtonLabel] – label shown on the collapse button (e.g. '— Show Less').
+/// [softKeyLabels]       – bottom bar button labels.
+/// [softKeysAreCustomizable] – whether the bottom soft keys can be edited.
 class PhysicalLayout {
   final int leftKeyCount;
   final int rightKeyCount;
@@ -37,6 +44,23 @@ class PhysicalLayout {
   final int bodyColorValue;
   final String modelFamily;
 
+  // Touchscreen / orientation
+  final bool isTouchscreen;
+  final bool isLandscape;
+
+  // Key counts and pagination
+  final int maxKeys;             // 0 → use leftKeyCount + rightKeyCount
+  final int initialVisibleKeys;  // 0 → use totalKeyCount
+  final int keyPages;
+
+  // Expand / collapse labels
+  final String expandButtonLabel;
+  final String collapseButtonLabel;
+
+  // Bottom bar
+  final List<String> softKeyLabels;
+  final bool softKeysAreCustomizable;
+
   const PhysicalLayout({
     required this.leftKeyCount,
     required this.rightKeyCount,
@@ -45,9 +69,22 @@ class PhysicalLayout {
     this.hasDialPad = true,
     this.bodyColorValue = 0xFF424242, // Colors.grey[800]
     required this.modelFamily,
+    this.isTouchscreen = false,
+    this.isLandscape = false,
+    this.maxKeys = 0,
+    this.initialVisibleKeys = 0,
+    this.keyPages = 1,
+    this.expandButtonLabel = '',
+    this.collapseButtonLabel = '',
+    this.softKeyLabels = const <String>[],
+    this.softKeysAreCustomizable = false,
   });
 
-  int get totalKeyCount => leftKeyCount + rightKeyCount;
+  /// Effective total programmable key count.
+  int get totalKeyCount => maxKeys > 0 ? maxKeys : leftKeyCount + rightKeyCount;
+
+  /// Keys visible per page (or default/collapsed view).
+  int get keysPerPage => leftKeyCount + rightKeyCount;
 }
 
 class DeviceTemplates {
@@ -82,7 +119,9 @@ class DeviceTemplates {
   );
 
   // --- PHYSICAL BUTTON LAYOUT DATABASE ---
-  // Defines the left/right key column arrangement for each handset family.
+
+  // ── Family fallback layouts ──────────────────────────────────────────────
+
   // Yealink T4x/T5x: 5 keys on each side of the screen (10 total)
   static const PhysicalLayout _yealinkLayout = PhysicalLayout(
     leftKeyCount: 5,
@@ -117,9 +156,178 @@ class DeviceTemplates {
     modelFamily: 'Polycom VVX / Poly Edge',
   );
 
-  /// Returns the [PhysicalLayout] for [model], falling back to Yealink style.
+  // ── Per-model exact layouts ──────────────────────────────────────────────
+  //
+  // Keys are looked up by uppercase model string before falling back to the
+  // family layouts above.
+
+  static const Map<String, PhysicalLayout> _modelLayouts = {
+
+    // ── Yealink physical-key models ─────────────────────────────────────────
+
+    // T54W / T46U: 27 max keys across 3 pages of 10 (last page has 7)
+    'T54W': PhysicalLayout(
+      leftKeyCount: 5, rightKeyCount: 5,
+      hasSoftKeys: true, hasNavCluster: true, hasDialPad: true,
+      bodyColorValue: 0xFF37474F,
+      modelFamily: 'Yealink T4x/T5x',
+      maxKeys: 27, keyPages: 3,
+    ),
+    'T46U': PhysicalLayout(
+      leftKeyCount: 5, rightKeyCount: 5,
+      hasSoftKeys: true, hasNavCluster: true, hasDialPad: true,
+      bodyColorValue: 0xFF37474F,
+      modelFamily: 'Yealink T4x/T5x',
+      maxKeys: 27, keyPages: 3,
+    ),
+
+    // ── Yealink touchscreen models ───────────────────────────────────────────
+
+    // T48G: 29 max keys; 6 left + 5 right visible by default, then expand to
+    //        4-column grid; customisable bottom soft keys.
+    'T48G': PhysicalLayout(
+      leftKeyCount: 6, rightKeyCount: 5,
+      hasSoftKeys: true, hasNavCluster: true, hasDialPad: true,
+      bodyColorValue: 0xFF37474F,
+      modelFamily: 'Yealink T4x/T5x',
+      isTouchscreen: true,
+      maxKeys: 29, initialVisibleKeys: 11,
+      expandButtonLabel: '+ Show More',
+      collapseButtonLabel: '— Show Less',
+      softKeyLabels: <String>['Directory', 'UnPark', 'GPickup', 'Menu'],
+      softKeysAreCustomizable: true,
+    ),
+    'T57W': PhysicalLayout(
+      leftKeyCount: 6, rightKeyCount: 5,
+      hasSoftKeys: true, hasNavCluster: true, hasDialPad: true,
+      bodyColorValue: 0xFF37474F,
+      modelFamily: 'Yealink T4x/T5x',
+      isTouchscreen: true,
+      maxKeys: 29, initialVisibleKeys: 11,
+      expandButtonLabel: '+ Show More',
+      collapseButtonLabel: '— Show Less',
+      softKeyLabels: <String>['Directory', 'UnPark', 'GPickup', 'Menu'],
+      softKeysAreCustomizable: true,
+    ),
+    'T58W': PhysicalLayout(
+      leftKeyCount: 6, rightKeyCount: 5,
+      hasSoftKeys: true, hasNavCluster: true, hasDialPad: true,
+      bodyColorValue: 0xFF37474F,
+      modelFamily: 'Yealink T4x/T5x',
+      isTouchscreen: true,
+      maxKeys: 27, initialVisibleKeys: 11,
+      expandButtonLabel: '+ Show More',
+      collapseButtonLabel: '— Show Less',
+      softKeyLabels: <String>['Directory', 'UnPark', 'GPickup', 'Menu'],
+      softKeysAreCustomizable: true,
+    ),
+    'T58G': PhysicalLayout(
+      leftKeyCount: 6, rightKeyCount: 5,
+      hasSoftKeys: true, hasNavCluster: true, hasDialPad: true,
+      bodyColorValue: 0xFF37474F,
+      modelFamily: 'Yealink T4x/T5x',
+      isTouchscreen: true,
+      maxKeys: 27, initialVisibleKeys: 11,
+      expandButtonLabel: '+ Show More',
+      collapseButtonLabel: '— Show Less',
+      softKeyLabels: <String>['Directory', 'UnPark', 'GPickup', 'Menu'],
+      softKeysAreCustomizable: true,
+    ),
+
+    // ── Polycom VVX physical models ──────────────────────────────────────────
+
+    'VVX150': PhysicalLayout(
+      leftKeyCount: 1, rightKeyCount: 1,
+      hasSoftKeys: true, hasNavCluster: true, hasDialPad: true,
+      bodyColorValue: 0xFF4A148C,
+      modelFamily: 'Polycom VVX / Poly Edge',
+      maxKeys: 2,
+    ),
+    'VVX250': PhysicalLayout(
+      leftKeyCount: 2, rightKeyCount: 2,
+      hasSoftKeys: true, hasNavCluster: true, hasDialPad: true,
+      bodyColorValue: 0xFF4A148C,
+      modelFamily: 'Polycom VVX / Poly Edge',
+      maxKeys: 4,
+    ),
+    'VVX350': PhysicalLayout(
+      leftKeyCount: 3, rightKeyCount: 3,
+      hasSoftKeys: true, hasNavCluster: true, hasDialPad: true,
+      bodyColorValue: 0xFF4A148C,
+      modelFamily: 'Polycom VVX / Poly Edge',
+      maxKeys: 6,
+    ),
+    'VVX450': PhysicalLayout(
+      leftKeyCount: 6, rightKeyCount: 6,
+      hasSoftKeys: true, hasNavCluster: true, hasDialPad: true,
+      bodyColorValue: 0xFF4A148C,
+      modelFamily: 'Polycom VVX / Poly Edge',
+      maxKeys: 12,
+    ),
+
+    // ── Polycom VVX1500 landscape touchscreen ────────────────────────────────
+
+    'VVX1500': PhysicalLayout(
+      leftKeyCount: 0, rightKeyCount: 6,
+      hasSoftKeys: false, hasNavCluster: false, hasDialPad: false,
+      bodyColorValue: 0xFF212121,
+      modelFamily: 'Polycom VVX / Poly Edge',
+      isTouchscreen: true, isLandscape: true,
+      maxKeys: 24, initialVisibleKeys: 6,
+      expandButtonLabel: 'More',
+      collapseButtonLabel: 'Close',
+      softKeyLabels: <String>['New Call', 'Forward', 'MyStat', 'Buddies'],
+    ),
+
+    // ── Poly Edge physical models ────────────────────────────────────────────
+
+    'EDGE E350': PhysicalLayout(
+      leftKeyCount: 4, rightKeyCount: 4,
+      hasSoftKeys: true, hasNavCluster: true, hasDialPad: true,
+      bodyColorValue: 0xFF4A148C,
+      modelFamily: 'Polycom VVX / Poly Edge',
+      maxKeys: 8,
+    ),
+    'EDGE E450': PhysicalLayout(
+      leftKeyCount: 6, rightKeyCount: 6,
+      hasSoftKeys: true, hasNavCluster: true, hasDialPad: true,
+      bodyColorValue: 0xFF4A148C,
+      modelFamily: 'Polycom VVX / Poly Edge',
+      maxKeys: 12,
+    ),
+
+    // ── Cisco physical models ────────────────────────────────────────────────
+
+    // 8851 / 8865: 10 keys across 2 pages of 5 (left column only, per hardware)
+    'CISCO 8851': PhysicalLayout(
+      leftKeyCount: 5, rightKeyCount: 0,
+      hasSoftKeys: true, hasNavCluster: true, hasDialPad: true,
+      bodyColorValue: 0xFF1A237E,
+      modelFamily: 'Cisco 78xx/88xx',
+      maxKeys: 10, keyPages: 2, initialVisibleKeys: 5,
+    ),
+    'CISCO 8865': PhysicalLayout(
+      leftKeyCount: 5, rightKeyCount: 0,
+      hasSoftKeys: true, hasNavCluster: true, hasDialPad: true,
+      bodyColorValue: 0xFF1A237E,
+      modelFamily: 'Cisco 78xx/88xx',
+      maxKeys: 10, keyPages: 2, initialVisibleKeys: 5,
+    ),
+  };
+
+  /// Returns the [PhysicalLayout] for [model].
+  ///
+  /// First tries an exact model-string match (case-insensitive) from
+  /// [_modelLayouts], then falls back to brand-family detection.
   static PhysicalLayout getPhysicalLayout(String model) {
-    final upper = model.toUpperCase();
+    final upper = model.toUpperCase().trim();
+    if (upper.isEmpty) return _yealinkLayout;
+
+    // Exact per-model lookup.
+    final exact = _modelLayouts[upper];
+    if (exact != null) return exact;
+
+    // Brand-family fallback.
     // Cisco: explicit brand name OR 4-digit model numbers starting with 78xx/88xx
     if (upper.contains('CISCO') ||
         RegExp(r'(?:^|[^0-9])(?:78|88)\d{2}').hasMatch(upper)) {
