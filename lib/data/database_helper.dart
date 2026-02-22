@@ -18,7 +18,7 @@ class DatabaseHelper {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
-    return await openDatabase(path, version: 4,
+    return await openDatabase(path, version: 5,
       onCreate: (db, version) async {
       // 1. Devices Table
       await db.execute('''
@@ -30,7 +30,8 @@ class DatabaseHelper {
           label TEXT NOT NULL,
           mac_address TEXT,
           status TEXT DEFAULT 'PENDING',
-          wallpaper TEXT
+          wallpaper TEXT,
+          device_settings TEXT
         )
       ''');
 
@@ -71,6 +72,9 @@ class DatabaseHelper {
       }
       if (oldVersion < 4) {
         await db.execute('ALTER TABLE devices ADD COLUMN wallpaper TEXT');
+      }
+      if (oldVersion < 5) {
+        await db.execute('ALTER TABLE devices ADD COLUMN device_settings TEXT');
       }
     },
     );
@@ -215,6 +219,7 @@ class DatabaseHelper {
               'mac_address': existingDevice.macAddress ?? device.macAddress,
               'status': existingDevice.macAddress != null ? existingDevice.status : device.status,
               'wallpaper': device.wallpaper,
+              'device_settings': device.deviceSettings?.toJsonString(),
             },
             where: 'extension = ?',
             whereArgs: [device.extension],

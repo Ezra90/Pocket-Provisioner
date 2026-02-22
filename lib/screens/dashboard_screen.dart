@@ -80,7 +80,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       if (extIndex == -1) throw "Could not find 'Device Username' or 'Extension' column";
 
-      final String defaultModel = DeviceTemplates.supportedModels.first;
+      final prefs = await SharedPreferences.getInstance();
+      final lastModel = prefs.getString('last_used_model');
+      final String defaultModel =
+          (lastModel != null && DeviceTemplates.supportedModels.contains(lastModel))
+              ? lastModel
+              : DeviceTemplates.supportedModels.first;
 
       final List<Device> parsedDevices = [];
       for (int i = 1; i < rows.length; i++) {
@@ -120,7 +125,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final imported = await Navigator.push<int>(
         context,
         MaterialPageRoute(
-          builder: (c) => ModelAssignmentScreen(devices: parsedDevices),
+          builder: (c) => ModelAssignmentScreen(
+            devices: parsedDevices,
+            defaultModel: defaultModel,
+          ),
         ),
       );
 
@@ -142,29 +150,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _generateAllConfigs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final sipServer = prefs.getString('sip_server_address') ?? '';
+      // Only global settings remaining: target provisioning URL
       final provisioningUrl = prefs.getString('target_provisioning_url') ?? '';
-      final wallpaperUrl = prefs.getString('public_wallpaper_url') ?? '';
-      
-      final ntpServer = prefs.getString('ntp_server') ?? '';
-      final timezone = prefs.getString('timezone_offset') ?? '';
-      final adminPassword = prefs.getString('admin_password') ?? '';
-      final voiceVlanId = prefs.getString('voice_vlan_id') ?? '';
-
-      // Resolve local wallpaper references to actual server URLs
-      String resolvedWallpaperUrl = wallpaperUrl;
-      if (wallpaperUrl == 'LOCAL_HOSTED' || wallpaperUrl.startsWith('LOCAL:')) {
-        final serverUrl = ProvisioningServer.serverUrl;
-        if (serverUrl != null) {
-          if (wallpaperUrl.startsWith('LOCAL:')) {
-            final filename = wallpaperUrl.substring('LOCAL:'.length); // strip "LOCAL:"
-            resolvedWallpaperUrl = '$serverUrl/media/$filename';
-          } else {
-            // Legacy LOCAL_HOSTED — try to find any wallpaper in the media dir
-            resolvedWallpaperUrl = '$serverUrl/media/custom_bg.png';
-          }
-        }
-      }
 
       final carryOver = await ButtonLayoutService.getCarryOverSettings();
       final carryOverLayout = carryOver['button_layout'] ?? false;
@@ -186,7 +173,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         await outputDir.create(recursive: true);
       }
 
-      // Build a carry-over layout cache keyed by model (only when flag is on)
+      // Model-level layout cache (fallback when no per-device layout)
       final Map<String, List<ButtonKey>> layoutCache = {};
 
       int generated = 0;
@@ -195,25 +182,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
       for (final device in devices) {
         if (device.macAddress == null || device.macAddress!.isEmpty) continue;
 
+        final ds = device.deviceSettings;
+
+        // Resolve button layout: per-device first, then model-level carry-over
         List<ButtonKey>? lineKeys;
-        if (carryOverLayout) {
-          // Load layout once per model and cache it
+        if (ds?.buttonLayout != null &&
+            ds!.buttonLayout!.any((k) => k.type != 'none')) {
+          lineKeys = ds.buttonLayout!.map((k) => k.clone()).toList();
+          // Still apply per-device label overrides from scanning
+          final overrides =
+              await ButtonLayoutService.getLabelOverrides(device.macAddress!);
+          for (final key in lineKeys) {
+            final override = overrides[key.id.toString()];
+            if (override != null) key.label = override;
+          }
+          if (!carriedOverModels.contains(device.model)) {
+            carriedOverModels.add(device.model);
+          }
+        } else if (carryOverLayout) {
           if (!layoutCache.containsKey(device.model)) {
             layoutCache[device.model] =
                 await ButtonLayoutService.getLayoutForModel(device.model);
           }
           final baseLayout = layoutCache[device.model]!;
           if (baseLayout.isNotEmpty) {
-            // Deep-copy keys so per-device overrides don't mutate the cache
             lineKeys = baseLayout.map((k) => k.clone()).toList();
-
-            // Apply per-device label overrides saved during scanning
-            final overrides = await ButtonLayoutService.getLabelOverrides(device.macAddress!);
-            if (overrides.isNotEmpty) {
-              for (final key in lineKeys) {
-                final override = overrides[key.id.toString()];
-                if (override != null) key.label = override;
-              }
+            final overrides =
+                await ButtonLayoutService.getLabelOverrides(device.macAddress!);
+            for (final key in lineKeys) {
+              final override = overrides[key.id.toString()];
+              if (override != null) key.label = override;
             }
             if (!carriedOverModels.contains(device.model)) {
               carriedOverModels.add(device.model);
@@ -223,8 +221,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         final templateKey = MustacheRenderer.resolveTemplateKey(device.model);
 
-        // Per-device wallpaper overrides global setting; null/empty falls back to global.
-        String deviceWallpaperUrl = resolvedWallpaperUrl;
+        // Resolve per-device wallpaper to server URL
+        String deviceWallpaperUrl = '';
         final deviceWallpaper = device.wallpaper;
         if (deviceWallpaper != null && deviceWallpaper.isNotEmpty) {
           final serverUrl = ProvisioningServer.serverUrl;
@@ -242,17 +240,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
           displayName: device.label,
           secret: device.secret,
           model: device.model,
-          sipServer: sipServer,
-          provisioningUrl: provisioningUrl,
+          // All per-device settings; empty string = not configured
+          sipServer: ds?.sipServer ?? '',
+          provisioningUrl: ds?.provisioningUrl ?? provisioningUrl,
+          sipPort: ds?.sipPort,
+          transport: ds?.transport,
+          regExpiry: ds?.regExpiry,
+          outboundProxyHost: ds?.outboundProxyHost,
+          outboundProxyPort: ds?.outboundProxyPort,
+          backupServer: ds?.backupServer,
+          backupPort: ds?.backupPort,
+          voiceVlanId: ds?.voiceVlanId,
+          dataVlanId: ds?.dataVlanId,
           wallpaperUrl: deviceWallpaperUrl,
+          ntpServer: ds?.ntpServer,
+          timezone: ds?.timezone,
+          adminPassword: ds?.adminPassword,
+          voicemailNumber: ds?.voicemailNumber,
           lineKeys: lineKeys,
-          ntpServer: ntpServer.isNotEmpty ? ntpServer : null,
-          timezone: timezone.isNotEmpty ? timezone : null,
-          adminPassword: adminPassword.isNotEmpty ? adminPassword : null,
-          voiceVlanId: voiceVlanId.isNotEmpty ? voiceVlanId : null,
         );
         final rendered = await MustacheRenderer.render(templateKey, variables);
-        final contentType = MustacheTemplateService.contentTypes[templateKey] ?? 'text/plain';
+        final contentType =
+            MustacheTemplateService.contentTypes[templateKey] ?? 'text/plain';
         final ext = contentType == 'application/xml' ? 'xml' : 'cfg';
         final mac = device.macAddress!.replaceAll(':', '').toUpperCase();
         final file = File(p.join(outputDir.path, '$mac.$ext'));
@@ -261,17 +270,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
 
       if (mounted) {
-        final carryMsg = carryOverLayout && carriedOverModels.isNotEmpty
-            ? " (layout carried over: ${carriedOverModels.join(', ')})"
+        final carryMsg = carriedOverModels.isNotEmpty
+            ? " (layout: ${carriedOverModels.join(', ')})"
             : "";
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Generated configs for $generated devices!$carryMsg")),
+          SnackBar(
+              content: Text(
+                  "Generated configs for $generated devices!$carryMsg")),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error generating configs: $e"), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text("Error generating configs: $e"),
+              backgroundColor: Colors.red),
         );
       }
     }

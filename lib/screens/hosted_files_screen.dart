@@ -15,7 +15,7 @@ class HostedFilesScreen extends StatefulWidget {
 }
 
 class _HostedFilesScreenState extends State<HostedFilesScreen> {
-  List<FileSystemEntity> _generatedConfigs = [];
+  List<_ConfigEntry> _generatedConfigs = [];
   List<FileSystemEntity> _customTemplates = [];
   bool _loading = true;
 
@@ -29,19 +29,31 @@ class _HostedFilesScreenState extends State<HostedFilesScreen> {
     setState(() => _loading = true);
     final appDir = await getApplicationDocumentsDirectory();
 
-    final configDir = Directory(p.join(appDir.path, 'generated_configs'));
-    final templateDir = Directory(p.join(appDir.path, 'custom_templates'));
+    final configDir =
+        Directory(p.join(appDir.path, 'generated_configs'));
+    final templateDir =
+        Directory(p.join(appDir.path, 'custom_templates'));
 
-    final configs = (await configDir.exists())
-        ? configDir.listSync().whereType<File>().toList()
-        : <FileSystemEntity>[];
+    // Load configs with metadata, sorted newest first
+    final configEntries = <_ConfigEntry>[];
+    if (await configDir.exists()) {
+      for (final f
+          in configDir.listSync().whereType<File>()) {
+        final stat = await f.stat();
+        configEntries.add(
+            _ConfigEntry(file: f, stat: stat));
+      }
+      configEntries.sort(
+          (a, b) => b.stat.modified.compareTo(a.stat.modified));
+    }
+
     final templates = (await templateDir.exists())
         ? templateDir.listSync().whereType<File>().toList()
         : <FileSystemEntity>[];
 
     if (mounted) {
       setState(() {
-        _generatedConfigs = configs;
+        _generatedConfigs = configEntries;
         _customTemplates = templates;
         _loading = false;
       });
@@ -57,10 +69,90 @@ class _HostedFilesScreenState extends State<HostedFilesScreen> {
     }
   }
 
+  Future<void> _deleteConfig(_ConfigEntry entry) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Config'),
+        content: Text(
+            'Delete ${p.basename(entry.file.path)}?\n\nThis file will no longer be served.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+            style:
+                ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await entry.file.delete();
+      _loadFiles();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e')));
+      }
+    }
+  }
+
+  Future<void> _deleteAllConfigs() async {
+    if (_generatedConfigs.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete All Configs'),
+        content: Text(
+            'Delete all ${_generatedConfigs.length} generated config files? '
+            'This cannot be undone.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+            style:
+                ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete All',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    for (final entry in _generatedConfigs) {
+      try {
+        await entry.file.delete();
+      } catch (_) {}
+    }
+    _loadFiles();
+  }
+
+  String _formatDate(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inSeconds < 60) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${dt.day}/${dt.month}/${dt.year}';
+  }
+
+  String _formatSize(int bytes) {
+    if (bytes < 1024) return '${bytes}B';
+    return '${(bytes / 1024).toStringAsFixed(1)}kB';
+  }
+
   @override
   Widget build(BuildContext context) {
     final serverUrl = ProvisioningServer.serverUrl;
-    final displayUrl = serverUrl != null ? '$serverUrl/' : 'Server not running';
+    final displayUrl =
+        serverUrl != null ? '$serverUrl/' : 'Server not running';
 
     return Scaffold(
       appBar: AppBar(
@@ -72,8 +164,16 @@ class _HostedFilesScreenState extends State<HostedFilesScreen> {
               tooltip: 'Access Log',
               onPressed: () => Navigator.push(
                 context,
-                MaterialPageRoute(builder: (c) => const AccessLogScreen()),
+                MaterialPageRoute(
+                    builder: (c) => const AccessLogScreen()),
               ),
+            ),
+          if (_generatedConfigs.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.delete_sweep,
+                  color: Colors.red),
+              tooltip: 'Delete all configs',
+              onPressed: _deleteAllConfigs,
             ),
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -87,89 +187,206 @@ class _HostedFilesScreenState extends State<HostedFilesScreen> {
           : RefreshIndicator(
               onRefresh: _loadFiles,
               child: ListView(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(14),
                 children: [
-                  // --- Server URL Banner ---
+                  // Server URL banner
                   Card(
                     color: serverUrl != null
                         ? Colors.green.shade50
                         : Colors.red.shade50,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
+                          horizontal: 14, vertical: 10),
                       child: Row(
                         children: [
-                          Icon(
-                            Icons.router,
-                            color: serverUrl != null
-                                ? Colors.green
-                                : Colors.red,
-                          ),
-                          const SizedBox(width: 12),
+                          Icon(Icons.router,
+                              color: serverUrl != null
+                                  ? Colors.green
+                                  : Colors.red),
+                          const SizedBox(width: 10),
                           Expanded(
-                            child: Text(
-                              displayUrl,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 14),
-                            ),
+                            child: Text(displayUrl,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13)),
                           ),
                           if (serverUrl != null)
                             IconButton(
-                              icon: const Icon(Icons.copy, size: 20),
+                              icon: const Icon(Icons.copy,
+                                  size: 18),
                               tooltip: 'Copy URL',
-                              onPressed: () => _copyUrl(displayUrl),
+                              onPressed: () =>
+                                  _copyUrl(displayUrl),
                             ),
                         ],
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
 
-                  // --- Generated Configs Section ---
-                  const Text(
-                    'Generated Configs',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  // Persistence note
+                  Container(
+                    margin: const EdgeInsets.only(top: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.info_outline,
+                            size: 14, color: Colors.blueGrey),
+                        SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Config files persist here until you manually delete '
+                            'them. Tap a file to edit it, or use "Clone for New '
+                            'Extension" (📋) to reuse a config as a template.',
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.blueGrey),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 14),
+
+                  // Generated Configs
+                  Row(
+                    children: [
+                      const Text('Generated Configs',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15)),
+                      const SizedBox(width: 6),
+                      Text('(${_generatedConfigs.length})',
+                          style: const TextStyle(
+                              color: Colors.grey, fontSize: 13)),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
                   if (_generatedConfigs.isEmpty)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 8),
-                      child: Text('No generated configs found',
+                      child: Text('No generated configs yet',
                           style: TextStyle(color: Colors.grey)),
                     )
                   else
-                    ..._generatedConfigs.map((f) {
-                      final name = p.basename(f.path);
-                      return ListTile(
-                        dense: true,
-                        leading:
-                            const Icon(Icons.description, color: Colors.blue),
-                        title: Text(name),
-                        trailing:
-                            const Icon(Icons.arrow_forward_ios, size: 14),
-                        onTap: () async {
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (c) => FileEditorScreen(
-                                filePath: f.path,
-                                fileName: name,
-                              ),
+                    ..._generatedConfigs.map((entry) {
+                      final name =
+                          p.basename(entry.file.path);
+                      final subtitle =
+                          '${_formatSize(entry.stat.size)}  •  '
+                          '${_formatDate(entry.stat.modified)}';
+                      return Dismissible(
+                        key: ValueKey(entry.file.path),
+                        direction:
+                            DismissDirection.endToStart,
+                        background: Container(
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(
+                              right: 16),
+                          color: Colors.red,
+                          child: const Icon(Icons.delete,
+                              color: Colors.white),
+                        ),
+                        confirmDismiss: (_) async {
+                          return await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Delete?'),
+                              content: Text('Delete $name?'),
+                              actions: [
+                                TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(
+                                            ctx, false),
+                                    child: const Text(
+                                        'Cancel')),
+                                ElevatedButton(
+                                  style: ElevatedButton
+                                      .styleFrom(
+                                          backgroundColor:
+                                              Colors.red),
+                                  onPressed: () =>
+                                      Navigator.pop(
+                                          ctx, true),
+                                  child: const Text(
+                                      'Delete'),
+                                ),
+                              ],
                             ),
-                          );
+                          ) ??
+                              false;
+                        },
+                        onDismissed: (_) async {
+                          try {
+                            await entry.file.delete();
+                          } catch (_) {}
                           _loadFiles();
                         },
+                        child: ListTile(
+                          dense: true,
+                          leading: const Icon(
+                              Icons.description,
+                              color: Colors.blue),
+                          title: Text(name),
+                          subtitle: Text(subtitle,
+                              style: const TextStyle(
+                                  fontSize: 11)),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Copy URL
+                              if (serverUrl != null)
+                                IconButton(
+                                  icon: const Icon(
+                                      Icons.link,
+                                      size: 18),
+                                  tooltip: 'Copy URL',
+                                  onPressed: () =>
+                                      _copyUrl(
+                                          '$serverUrl/$name'),
+                                ),
+                              // Delete
+                              IconButton(
+                                icon: const Icon(
+                                    Icons.delete_outline,
+                                    size: 18,
+                                    color: Colors.red),
+                                tooltip: 'Delete',
+                                onPressed: () =>
+                                    _deleteConfig(entry),
+                              ),
+                            ],
+                          ),
+                          onTap: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (c) =>
+                                    FileEditorScreen(
+                                  filePath:
+                                      entry.file.path,
+                                  fileName: name,
+                                ),
+                              ),
+                            );
+                            _loadFiles();
+                          },
+                        ),
                       );
                     }),
 
-                  const Divider(height: 32),
+                  const Divider(height: 28),
 
-                  // --- Custom Templates Section ---
-                  const Text(
-                    'Custom Templates',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  const SizedBox(height: 8),
+                  // Custom Templates
+                  const Text('Custom Templates',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15)),
+                  const SizedBox(height: 6),
                   if (_customTemplates.isEmpty)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 8),
@@ -184,12 +401,15 @@ class _HostedFilesScreenState extends State<HostedFilesScreen> {
                         leading: const Icon(Icons.edit_document,
                             color: Colors.orange),
                         title: Text(name),
-                        trailing: const Icon(Icons.lock_outline, size: 16),
+                        trailing: const Icon(
+                            Icons.lock_outline,
+                            size: 16),
                         onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          ScaffoldMessenger.of(context)
+                              .showSnackBar(
                             const SnackBar(
                               content: Text(
-                                  'Templates are read-only here. Use the Template Manager to edit them.'),
+                                  'Use the Template Manager to edit templates.'),
                             ),
                           );
                         },
@@ -201,3 +421,11 @@ class _HostedFilesScreenState extends State<HostedFilesScreen> {
     );
   }
 }
+
+/// Pairs a [File] with its [FileStat] so sorting by date is cheap.
+class _ConfigEntry {
+  final File file;
+  final FileStat stat;
+  const _ConfigEntry({required this.file, required this.stat});
+}
+
