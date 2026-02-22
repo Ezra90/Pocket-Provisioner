@@ -72,6 +72,13 @@ account.{{line_index}}.auto_answer = {{auto_answer}}
 {{/has_auto_answer}}
 {{/lines}}
 
+{{#has_auto_answer}}
+# AUTO ANSWER MODE
+features.intercom.allow = 1
+features.intercom.mute = 0
+features.intercom.barge = 1
+{{/has_auto_answer}}
+
 # DISPLAY
 phone_setting.backgrounds = {{wallpaper_url}}
 phone_setting.ring_type = {{ring_type}}
@@ -83,8 +90,10 @@ screensaver.wait_time = {{screensaver_timeout}}
 # VLAN
 static.network.vlan.internet_port_enable = 1
 static.network.vlan.internet_port_vid = {{voice_vlan_id}}
+{{#has_data_vlan}}
 static.network.vlan.pc_port_enable = 1
 static.network.vlan.pc_port_vid = {{data_vlan_id}}
+{{/has_data_vlan}}
 {{/vlan_enabled}}
 
 {{#has_cdp_lldp}}

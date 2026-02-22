@@ -49,11 +49,11 @@
         <Screen_Saver_Wait>{{screensaver_timeout}}</Screen_Saver_Wait>
 {{/has_screensaver_timeout}}
 {{#has_web_ui}}
-        <Web_Access>{{web_ui_enabled}}</Web_Access>
+        <Web_Access>{{#is_web_ui_enabled}}Yes{{/is_web_ui_enabled}}{{^is_web_ui_enabled}}No{{/is_web_ui_enabled}}</Web_Access>
 {{/has_web_ui}}
 {{#has_cdp_lldp}}
-        <CDP_Enable>{{cdp_lldp_enabled}}</CDP_Enable>
-        <LLDP_Enable>{{cdp_lldp_enabled}}</LLDP_Enable>
+        <CDP_Enable>{{#is_cdp_lldp_enabled}}Yes{{/is_cdp_lldp_enabled}}{{^is_cdp_lldp_enabled}}No{{/is_cdp_lldp_enabled}}</CDP_Enable>
+        <LLDP_Enable>{{#is_cdp_lldp_enabled}}Yes{{/is_cdp_lldp_enabled}}{{^is_cdp_lldp_enabled}}No{{/is_cdp_lldp_enabled}}</LLDP_Enable>
 {{/has_cdp_lldp}}
     </system>
     <sipProfile>
@@ -102,13 +102,13 @@
         <preferredCodec>g711ulaw</preferredCodec>
         <phonePassword>{{admin_password}}</phonePassword>
 {{#has_auto_answer}}
-        <Auto_Answer_1_>{{auto_answer}}</Auto_Answer_1_>
+        <Auto_Answer_1_>{{#is_auto_answer}}Yes{{/is_auto_answer}}{{^is_auto_answer}}No{{/is_auto_answer}}</Auto_Answer_1_>
 {{/has_auto_answer}}
 {{#has_dnd}}
-        <Do_Not_Disturb_Enable_1_>{{dnd_enabled}}</Do_Not_Disturb_Enable_1_>
+        <Do_Not_Disturb_Enable_1_>{{#is_dnd_enabled}}Yes{{/is_dnd_enabled}}{{^is_dnd_enabled}}No{{/is_dnd_enabled}}</Do_Not_Disturb_Enable_1_>
 {{/has_dnd}}
 {{#has_call_waiting}}
-        <Call_Waiting_Serv_1_>{{call_waiting}}</Call_Waiting_Serv_1_>
+        <Call_Waiting_Serv_1_>{{#is_call_waiting}}Yes{{/is_call_waiting}}{{^is_call_waiting}}No{{/is_call_waiting}}</Call_Waiting_Serv_1_>
 {{/has_call_waiting}}
 {{#has_cfw_always}}
         <Call_Forward_All_Dialing_DN_1_>{{cfw_always}}</Call_Forward_All_Dialing_DN_1_>

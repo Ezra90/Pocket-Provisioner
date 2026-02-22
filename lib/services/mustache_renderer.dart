@@ -138,6 +138,7 @@ class MustacheRenderer {
         backupServer != null && backupServer.isNotEmpty;
     final bool vlanEnabled =
         voiceVlanId != null && voiceVlanId.isNotEmpty;
+    final bool hasDataVlan = dataVlanId != null && dataVlanId.isNotEmpty;
     final bool hasVoicemail =
         voicemailNumber != null && voicemailNumber.isNotEmpty;
     final bool hasScreensaverTimeout =
@@ -200,6 +201,7 @@ class MustacheRenderer {
       'backup_server': backupServer ?? '',
       'backup_port': backupPort ?? '5060',
       'vlan_enabled': vlanEnabled,
+      'has_data_vlan': hasDataVlan,
       'voice_vlan_id': voiceVlanId ?? '',
       'data_vlan_id': dataVlanId ?? '',
       'wallpaper_url': wallpaperUrl ?? '',
@@ -220,15 +222,21 @@ class MustacheRenderer {
       'screensaver_timeout': screensaverTimeout ?? '',
       'has_web_ui': hasWebUi,
       'web_ui_enabled': _boolFlag(webUiEnabled),
+      'is_web_ui_enabled': webUiEnabled == true,
       'has_cdp_lldp': hasCdpLldp,
       'cdp_lldp_enabled': _boolFlag(cdpLldpEnabled),
+      'is_cdp_lldp_enabled': cdpLldpEnabled == true,
       'has_auto_answer': hasAutoAnswer,
       'auto_answer': _boolFlag(autoAnswer),
+      'is_auto_answer': autoAnswer == true,
       'auto_answer_mode': autoAnswerMode ?? '',
+      'is_intercom_only': autoAnswerMode == 'intercom-only',
       'has_dnd': hasDnd,
       'dnd_enabled': _boolFlag(dndDefault),
+      'is_dnd_enabled': dndDefault == true,
       'has_call_waiting': hasCallWaiting,
       'call_waiting': _boolFlag(callWaiting),
+      'is_call_waiting': callWaiting == true,
       'has_cfw_always': hasCfwAlways,
       'cfw_always': cfwAlways ?? '',
       'has_cfw_busy': hasCfwBusy,
