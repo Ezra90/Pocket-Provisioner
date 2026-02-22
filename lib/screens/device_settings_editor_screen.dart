@@ -6,7 +6,7 @@ import '../models/device_settings.dart';
 import '../services/wallpaper_service.dart';
 import 'per_extension_button_editor.dart';
 
-/// Info about another extension, used in the Clone From... dialog.
+/// Info about another extension, used in the Copy From... dialog.
 typedef ExtensionCloneInfo = ({
   String extension,
   String label,
@@ -294,7 +294,8 @@ class _DeviceSettingsEditorScreenState
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDS) => AlertDialog(
           title: const Text('Upload Wallpaper'),
-          content: Column(
+          content: SingleChildScrollView(
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
@@ -365,6 +366,7 @@ class _DeviceSettingsEditorScreenState
                 },
               ),
             ],
+            ),
           ),
           actions: [
             TextButton(
@@ -470,7 +472,9 @@ class _DeviceSettingsEditorScreenState
           ),
         ],
       ),
-      body: ListView(
+      body: SafeArea(
+        top: false,
+        child: ListView(
         padding: const EdgeInsets.all(12),
         children: [
           // ── SIP & Registration ──────────────────────────────────────────
@@ -492,6 +496,7 @@ class _DeviceSettingsEditorScreenState
                       padding: const EdgeInsets.only(bottom: 12),
                       child: DropdownButtonFormField<String?>(
                         value: _transport,
+                        isExpanded: true,
                         decoration: const InputDecoration(
                           labelText: 'Transport',
                           hintText: 'Inherited (UDP)',
@@ -557,6 +562,7 @@ class _DeviceSettingsEditorScreenState
                         Expanded(
                           child: DropdownButtonFormField<String?>(
                             value: _wallpaper,
+                            isExpanded: true,
                             decoration: const InputDecoration(
                               border: OutlineInputBorder(),
                               isDense: true,
@@ -675,6 +681,7 @@ class _DeviceSettingsEditorScreenState
                             const EdgeInsets.only(bottom: 12),
                         child: DropdownButtonFormField<String?>(
                           value: _autoAnswerMode,
+                          isExpanded: true,
                           decoration: const InputDecoration(
                             labelText: 'Auto Answer Mode',
                             border: OutlineInputBorder(),
@@ -746,6 +753,7 @@ class _DeviceSettingsEditorScreenState
           // ── Button Layout ────────────────────────────────────────────────
           _buildButtonLayoutTile(),
         ],
+        ),
       ),
     );
   }

@@ -186,7 +186,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: const Text("Confirm Assignment"),
-        content: Column(
+        content: SingleChildScrollView(
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -216,6 +217,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
               ),
             ],
           ],
+          ),
         ),
         actions: [
           TextButton(
@@ -318,7 +320,9 @@ class _ScannerScreenState extends State<ScannerScreen> {
           ),
         ],
       ),
-      body: Column(
+      body: SafeArea(
+        top: false,
+        child: Column(
         children: [
           Container(
             width: double.infinity,
@@ -438,6 +442,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
             ),
           ),
         ],
+        ),
       ),
     );
   }

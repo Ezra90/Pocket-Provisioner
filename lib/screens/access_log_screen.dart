@@ -344,7 +344,9 @@ class _AccessLogScreenState extends State<AccessLogScreen> {
                 ],
               ),
             )
-          : SingleChildScrollView(
+          : SafeArea(
+              top: false,
+              child: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -353,6 +355,7 @@ class _AccessLogScreenState extends State<AccessLogScreen> {
                   _buildRawLog(),
                   const SizedBox(height: 24),
                 ],
+              ),
               ),
             ),
     );

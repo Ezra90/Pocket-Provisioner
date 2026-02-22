@@ -57,7 +57,8 @@ class _MediaManagerScreenState extends State<MediaManagerScreen> {
           final spec = DeviceTemplates.getSpecForModel(selectedModel);
           return AlertDialog(
             title: const Text('Import Wallpaper'),
-            content: Column(
+            content: SingleChildScrollView(
+              child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -72,6 +73,7 @@ class _MediaManagerScreenState extends State<MediaManagerScreen> {
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   value: selectedModel,
+                  isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: 'Target Model / Resolution',
                     border: OutlineInputBorder(),
@@ -87,6 +89,7 @@ class _MediaManagerScreenState extends State<MediaManagerScreen> {
                   style: const TextStyle(fontSize: 12, color: Colors.blue),
                 ),
               ],
+              ),
             ),
             actions: [
               TextButton(
@@ -247,11 +250,13 @@ class _MediaManagerScreenState extends State<MediaManagerScreen> {
           final spec = DeviceTemplates.getSpecForModel(selectedModel);
           return AlertDialog(
             title: const Text('Re-process Wallpaper'),
-            content: Column(
+            content: SingleChildScrollView(
+              child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
                   value: selectedModel,
+                  isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: 'New Target Model / Resolution',
                     border: OutlineInputBorder(),
@@ -267,6 +272,7 @@ class _MediaManagerScreenState extends State<MediaManagerScreen> {
                   style: const TextStyle(fontSize: 12, color: Colors.blue),
                 ),
               ],
+              ),
             ),
             actions: [
               TextButton(
@@ -350,7 +356,9 @@ class _MediaManagerScreenState extends State<MediaManagerScreen> {
           ),
         ],
       ),
-      body: _loading
+      body: SafeArea(
+        top: false,
+        child: _loading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: _loadWallpapers,
@@ -448,6 +456,7 @@ class _MediaManagerScreenState extends State<MediaManagerScreen> {
                       },
                     ),
             ),
+        ),
     );
   }
 }

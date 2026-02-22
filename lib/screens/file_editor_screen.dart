@@ -118,7 +118,7 @@ class _FileEditorScreenState extends State<FileEditorScreen> {
     }
   }
 
-  // ── Clone for new extension ───────────────────────────────────────────────
+  // ── Copy for new extension ───────────────────────────────────────────────
 
   /// Extracts common provisioning fields from the config content.
   _ParsedFields _parseFields(String content) {
@@ -505,7 +505,9 @@ class _FileEditorScreenState extends State<FileEditorScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : Column(
+          : SafeArea(
+              top: false,
+              child: Column(
               children: [
                 // URL banner
                 Card(
@@ -584,6 +586,7 @@ class _FileEditorScreenState extends State<FileEditorScreen> {
                   ),
                 ),
               ],
+              ),
             ),
     );
   }

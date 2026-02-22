@@ -182,7 +182,9 @@ class _HostedFilesScreenState extends State<HostedFilesScreen> {
           ),
         ],
       ),
-      body: _loading
+      body: SafeArea(
+        top: false,
+        child: _loading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: _loadFiles,
@@ -418,6 +420,7 @@ class _HostedFilesScreenState extends State<HostedFilesScreen> {
                 ],
               ),
             ),
+        ),
     );
   }
 }
