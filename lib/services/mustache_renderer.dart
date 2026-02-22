@@ -38,8 +38,8 @@ class MustacheRenderer {
     final source =
         await MustacheTemplateService.instance.loadTemplate(templateKey);
     // Match {{ optionally followed by # or ^ (open sections) or nothing (variables)
-    // but NOT / (close), ! (comment), or > (partial).
-    final regex = RegExp(r'\{\{\s*[#^]?\s*([^/!>}\s][^}]*?)\s*\}\}');
+    // but NOT / (close), ! (comment), or > (partial). Handles optional triple braces.
+    final regex = RegExp(r'\{\{\{?\s*[#^]?\s*([^/!>}\s][^}]*?)\s*\}?\}\}');
     return regex
         .allMatches(source)
         .map((m) => m.group(1)!.trim())
@@ -172,7 +172,7 @@ class MustacheRenderer {
 
     final int lineCount = 1; // Currently single-line, but future-proof
     final List<Map<String, dynamic>> lineKeysList = keys
-        .where((k) => k.type != 'none' && k.value.isNotEmpty)
+        .where((k) => k.type != 'none' && (k.type == 'line' || k.value.isNotEmpty))
         .map((k) {
           final effectiveLabel =
               k.label.isNotEmpty ? k.label : (labels[k.value] ?? k.value);

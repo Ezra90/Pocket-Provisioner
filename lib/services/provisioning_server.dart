@@ -211,7 +211,7 @@ class ProvisioningServer {
     // --- MEDIA HANDLER (original files) ---
     router.get('/media/original/<file>', (Request request, String file) async {
       final directory = await getApplicationDocumentsDirectory();
-      final filePath = p.join(directory.path, 'media', 'original', file);
+      final filePath = p.join(directory.path, 'media', 'original', p.basename(file));
       final imageFile = File(filePath);
 
       if (await imageFile.exists()) {
@@ -228,12 +228,12 @@ class ProvisioningServer {
     // --- MEDIA HANDLER ---
     router.get('/media/<file>', (Request request, String file) async {
       final directory = await getApplicationDocumentsDirectory();
-      final filePath = p.join(directory.path, 'media', file);
+      final filePath = p.join(directory.path, 'media', p.basename(file));
       final imageFile = File(filePath);
 
       if (await imageFile.exists()) {
         final bytes = await imageFile.readAsBytes();
-        final mime = file.endsWith('.png') ? 'image/png' : 'image/jpeg';
+        final mime = file.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
         return Response.ok(bytes, headers: {
           'Content-Type': mime,
         });
@@ -244,7 +244,7 @@ class ProvisioningServer {
     // --- RINGTONE HANDLER ---
     router.get('/ringtones/<file>', (Request request, String file) async {
       final directory = await getApplicationDocumentsDirectory();
-      final filePath = p.join(directory.path, 'ringtones', file);
+      final filePath = p.join(directory.path, 'ringtones', p.basename(file));
       final audioFile = File(filePath);
       if (await audioFile.exists()) {
         final bytes = await audioFile.readAsBytes();
@@ -258,7 +258,7 @@ class ProvisioningServer {
     // --- PHONEBOOK HANDLER ---
     router.get('/phonebook/<file>', (Request request, String file) async {
       final directory = await getApplicationDocumentsDirectory();
-      final filePath = p.join(directory.path, 'phonebook', file);
+      final filePath = p.join(directory.path, 'phonebook', p.basename(file));
       final pbFile = File(filePath);
       if (await pbFile.exists()) {
         final content = await pbFile.readAsString();
@@ -366,12 +366,12 @@ class ProvisioningServer {
       }
 
       // Direct file lookups instead of blocking listSync()
-      File match = File(p.join(configDir.path, filename));
+      File match = File(p.join(configDir.path, p.basename(filename)));
       if (!await match.exists()) {
-        match = File(p.join(configDir.path, filename.toLowerCase()));
+        match = File(p.join(configDir.path, p.basename(filename).toLowerCase()));
       }
       if (!await match.exists()) {
-        match = File(p.join(configDir.path, filename.toUpperCase()));
+        match = File(p.join(configDir.path, p.basename(filename).toUpperCase()));
       }
 
       if (!await match.exists()) {
