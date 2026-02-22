@@ -28,6 +28,23 @@ class MustacheRenderer {
         .toList();
   }
 
+  /// Extracts ALL tag names from a template — both simple variables (`{{foo}}`)
+  /// and section/inverted tags (`{{#foo}}`, `{{^foo}}`).
+  /// Excludes closing tags (`{{/foo}}`), comments (`{{!…}}`), and partials (`{{>…}}`).
+  /// Returns a [Set] for O(1) membership checks.
+  /// Use this to decide which UI features to show for a given handset model.
+  static Future<Set<String>> extractAllTags(String templateKey) async {
+    final source =
+        await MustacheTemplateService.instance.loadTemplate(templateKey);
+    // Match {{ optionally followed by # or ^ (open sections) or nothing (variables)
+    // but NOT / (close), ! (comment), or > (partial).
+    final regex = RegExp(r'\{\{[#^]?([^/!>}][^}]*)\}\}');
+    return regex
+        .allMatches(source)
+        .map((m) => m.group(1)!.trim())
+        .toSet();
+  }
+
   /// Maps a device model string to the canonical template key.
   static String resolveTemplateKey(String model) {
     final upper = model.toUpperCase();
@@ -78,7 +95,7 @@ class MustacheRenderer {
     required String provisioningUrl,
     String? sipPort,
     String? transport,
-    String? regExpires,
+    String? regExpiry,
     String? outboundProxyHost,
     String? outboundProxyPort,
     String? backupServer,
@@ -86,6 +103,7 @@ class MustacheRenderer {
     String? voiceVlanId,
     String? dataVlanId,
     String? wallpaperUrl,
+    String? ringtoneUrl,
     String? ntpServer,
     String? timezone,
     String? timezoneName,
@@ -154,6 +172,11 @@ class MustacheRenderer {
       'voice_vlan_id': voiceVlanId ?? '',
       'data_vlan_id': dataVlanId ?? '',
       'wallpaper_url': wallpaperUrl ?? '',
+      'ring_type': ringtoneUrl != null && ringtoneUrl.isNotEmpty
+          ? ringtoneUrl
+          : 'Ring1.wav',
+      'has_custom_ringtone': ringtoneUrl != null && ringtoneUrl.isNotEmpty,
+      'ringtone_url': ringtoneUrl ?? '',
       'ntp_server': ntpServer ?? '0.pool.ntp.org',
       'timezone': timezone ?? 'UTC',
       'timezone_name': timezoneName ?? 'UTC',
@@ -162,7 +185,6 @@ class MustacheRenderer {
       'provisioning_url': provisioningUrl,
       'provision_user': extension,
       'provision_pass': secret,
-      'ring_type': 'Ring1.wav',
       'lines': [
         {
           'line_index': 1,
@@ -175,7 +197,7 @@ class MustacheRenderer {
           'sip_port': sipPort ?? '5060',
           'transport': transport ?? 'UDP',
           'transport_code': _transportToCode(transport ?? 'UDP'),
-          'expires': regExpires ?? '3600',
+          'expires': regExpiry ?? '3600',
           'has_outbound_proxy': hasOutboundProxy,
           'outbound_proxy_host': outboundProxyHost ?? '',
           'outbound_proxy_port': outboundProxyPort ?? '5060',

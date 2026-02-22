@@ -3,6 +3,8 @@ import 'package:file_picker/file_picker.dart';
 import '../data/device_templates.dart';
 import '../models/button_key.dart';
 import '../models/device_settings.dart';
+import '../services/mustache_renderer.dart';
+import '../services/ringtone_service.dart';
 import '../services/wallpaper_service.dart';
 import 'per_extension_button_editor.dart';
 
@@ -65,8 +67,12 @@ class _DeviceSettingsEditorScreenState
   String? _wallpaper;
   bool _wallpaperChanged = false;
   late List<WallpaperInfo> _wallpapers;
-  late final TextEditingController _ringtoneCtrl;
+  String? _ringtone;
+  List<RingtoneInfo> _ringtones = [];
   late final TextEditingController _screensaverTimeoutCtrl;
+
+  // Template capability flags (null = still loading)
+  Set<String>? _templateTags;
 
   // Security
   late final TextEditingController _adminPasswordCtrl;
@@ -111,7 +117,7 @@ class _DeviceSettingsEditorScreenState
         TextEditingController(text: s?.outboundProxyPort ?? '');
     _backupServerCtrl = TextEditingController(text: s?.backupServer ?? '');
     _backupPortCtrl = TextEditingController(text: s?.backupPort ?? '');
-    _ringtoneCtrl = TextEditingController(text: s?.ringtone ?? '');
+    _ringtone = s?.ringtone;
     _screensaverTimeoutCtrl =
         TextEditingController(text: s?.screensaverTimeout ?? '');
     _adminPasswordCtrl = TextEditingController(text: s?.adminPassword ?? '');
@@ -132,6 +138,14 @@ class _DeviceSettingsEditorScreenState
     _ntpServerCtrl = TextEditingController(text: s?.ntpServer ?? '');
     _timezoneCtrl = TextEditingController(text: s?.timezone ?? '');
     _buttonLayout = s?.buttonLayout?.map((k) => k.clone()).toList();
+    RingtoneService.listRingtones().then((list) {
+      if (mounted) setState(() => _ringtones = list);
+    });
+    final templateKey =
+        MustacheRenderer.resolveTemplateKey(widget.model);
+    MustacheRenderer.extractAllTags(templateKey).then((tags) {
+      if (mounted) setState(() => _templateTags = tags);
+    });
   }
 
   @override
@@ -143,7 +157,6 @@ class _DeviceSettingsEditorScreenState
     _outboundProxyPortCtrl.dispose();
     _backupServerCtrl.dispose();
     _backupPortCtrl.dispose();
-    _ringtoneCtrl.dispose();
     _screensaverTimeoutCtrl.dispose();
     _adminPasswordCtrl.dispose();
     _voiceVlanCtrl.dispose();
@@ -169,7 +182,7 @@ class _DeviceSettingsEditorScreenState
         outboundProxyPort: _nonEmpty(_outboundProxyPortCtrl.text),
         backupServer: _nonEmpty(_backupServerCtrl.text),
         backupPort: _nonEmpty(_backupPortCtrl.text),
-        ringtone: _nonEmpty(_ringtoneCtrl.text),
+        ringtone: _ringtone?.isNotEmpty == true ? _ringtone : null,
         screensaverTimeout: _nonEmpty(_screensaverTimeoutCtrl.text),
         adminPassword: _nonEmpty(_adminPasswordCtrl.text),
         webUiEnabled: _webUiEnabled,
@@ -203,7 +216,7 @@ class _DeviceSettingsEditorScreenState
       _outboundProxyPortCtrl.text = s.outboundProxyPort ?? '';
       _backupServerCtrl.text = s.backupServer ?? '';
       _backupPortCtrl.text = s.backupPort ?? '';
-      _ringtoneCtrl.text = s.ringtone ?? '';
+      _ringtone = s.ringtone;
       _screensaverTimeoutCtrl.text = s.screensaverTimeout ?? '';
       _adminPasswordCtrl.text = s.adminPassword ?? '';
       _webUiEnabled = s.webUiEnabled;
@@ -380,7 +393,80 @@ class _DeviceSettingsEditorScreenState
     nameCtrl.dispose();
   }
 
-  // ─── helpers ──────────────────────────────────────────────────────────────
+  /// Opens the ringtone upload flow (pick audio → convert → save).
+  Future<void> _uploadRingtone() async {
+    final nameCtrl = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Upload Ringtone'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Name (required)',
+                  hintText: 'e.g. MyRingtone',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Accepts MP3, WAV, M4A, OGG, etc.\nAuto-converted to 8kHz/16-bit/mono WAV.',
+                style: TextStyle(fontSize: 11, color: Colors.grey),
+              ),
+              const SizedBox(height: 10),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.audio_file),
+                label: const Text('Pick & Upload'),
+                onPressed: () async {
+                  final name = nameCtrl.text.trim();
+                  if (name.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Enter a name first')));
+                    return;
+                  }
+                  final res = await FilePicker.platform
+                      .pickFiles(type: FileType.audio);
+                  if (res == null) return;
+                  try {
+                    final filename = await RingtoneService.convertAndSave(
+                        res.files.single.path!, name);
+                    final updated = await RingtoneService.listRingtones();
+                    if (ctx.mounted) Navigator.pop(ctx);
+                    setState(() {
+                      _ringtones = updated;
+                      _ringtone = 'LOCAL:$filename';
+                    });
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('Ringtone uploaded!')));
+                    }
+                  } catch (e) {
+                    if (ctx.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Upload failed: $e')));
+                    }
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+    nameCtrl.dispose();
+  }
 
   Widget _field(TextEditingController ctrl, String label,
       {String? hint,
@@ -552,53 +638,103 @@ class _DeviceSettingsEditorScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Wallpaper picker + upload
-                    const Text('Wallpaper',
-                        style: TextStyle(
-                            fontSize: 12, color: Colors.grey)),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<String?>(
-                            value: _wallpaper,
-                            isExpanded: true,
-                            decoration: const InputDecoration(
-                              border: OutlineInputBorder(),
-                              isDense: true,
-                              hintText: 'Global Default',
+                    // Wallpaper picker — only shown if template uses wallpaper_url
+                    if (_templateTags == null ||
+                        _templateTags!.contains('wallpaper_url')) ...[
+                      const Text('Wallpaper',
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey)),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String?>(
+                              value: _wallpaper,
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                                hintText: 'Global Default',
+                              ),
+                              items: [
+                                const DropdownMenuItem<String?>(
+                                    value: null,
+                                    child:
+                                        Text('Global Default')),
+                                ..._wallpapers.map((w) =>
+                                    DropdownMenuItem<String?>(
+                                      value: 'LOCAL:${w.filename}',
+                                      child: Text(w.name,
+                                          overflow:
+                                              TextOverflow
+                                                  .ellipsis),
+                                    )),
+                              ],
+                              onChanged: (v) => setState(() {
+                                _wallpaper = v;
+                                _wallpaperChanged = true;
+                              }),
                             ),
-                            items: [
-                              const DropdownMenuItem<String?>(
-                                  value: null,
-                                  child:
-                                      Text('Global Default')),
-                              ..._wallpapers.map((w) =>
-                                  DropdownMenuItem<String?>(
-                                    value: 'LOCAL:${w.filename}',
-                                    child: Text(w.name,
-                                        overflow:
-                                            TextOverflow
-                                                .ellipsis),
-                                  )),
-                            ],
-                            onChanged: (v) => setState(() {
-                              _wallpaper = v;
-                              _wallpaperChanged = true;
-                            }),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          icon: const Icon(Icons.upload),
-                          tooltip: 'Upload new wallpaper',
-                          onPressed: _uploadWallpaper,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    _field(_ringtoneCtrl, 'Ringtone',
-                        hint: 'e.g. Ring1.wav'),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.upload),
+                            tooltip: 'Upload new wallpaper',
+                            onPressed: _uploadWallpaper,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
+                    // Ringtone picker — only shown if template uses ring_type
+                    if (_templateTags == null ||
+                        _templateTags!.contains('ring_type') ||
+                        _templateTags!.contains('ringtone_url')) ...[
+                      const Text('Ringtone',
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey)),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String?>(
+                              value: _ringtone,
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                                hintText: 'Default (Ring1.wav)',
+                              ),
+                              items: [
+                                const DropdownMenuItem<String?>(
+                                    value: null,
+                                    child: Text(
+                                        'Default (Ring1.wav)')),
+                                ..._ringtones.map((r) =>
+                                    DropdownMenuItem<String?>(
+                                      value: 'LOCAL:${r.filename}',
+                                      child: Text(r.name,
+                                          overflow:
+                                              TextOverflow
+                                                  .ellipsis),
+                                    )),
+                              ],
+                              onChanged: (v) =>
+                                  setState(() => _ringtone = v),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.upload),
+                            tooltip: 'Upload new ringtone',
+                            onPressed: _uploadRingtone,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
                     _field(_screensaverTimeoutCtrl,
                         'Screensaver Timeout (s)',
                         keyboard: TextInputType.number),
@@ -644,10 +780,15 @@ class _DeviceSettingsEditorScreenState
                     const EdgeInsets.fromLTRB(16, 8, 16, 8),
                 child: Column(
                   children: [
-                    _field(_voiceVlanCtrl, 'Voice VLAN ID',
-                        keyboard: TextInputType.number),
-                    _field(_dataVlanCtrl, 'Data VLAN ID',
-                        keyboard: TextInputType.number),
+                    // VLAN — only shown if template uses vlan_enabled
+                    if (_templateTags == null ||
+                        _templateTags!.contains('vlan_enabled') ||
+                        _templateTags!.contains('voice_vlan_id')) ...[
+                      _field(_voiceVlanCtrl, 'Voice VLAN ID',
+                          keyboard: TextInputType.number),
+                      _field(_dataVlanCtrl, 'Data VLAN ID',
+                          keyboard: TextInputType.number),
+                    ],
                     _optSwitch(
                         'CDP / LLDP',
                         _cdpLldpEnabled,
@@ -750,8 +891,10 @@ class _DeviceSettingsEditorScreenState
             ],
           ),
 
-          // ── Button Layout ────────────────────────────────────────────────
-          _buildButtonLayoutTile(),
+          // ── Button Layout — only shown if template uses line_keys ────────
+          if (_templateTags == null ||
+              _templateTags!.contains('line_keys'))
+            _buildButtonLayoutTile(),
         ],
         ),
       ),

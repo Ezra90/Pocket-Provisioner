@@ -7,6 +7,15 @@ class WallpaperSpec {
   const WallpaperSpec(this.width, this.height, this.label, {this.format = 'png'});
 }
 
+class RingtoneSpec {
+  final String format;
+  final int sampleRate;
+  final int bitDepth;
+  final String channels;
+  final int maxSizeBytes;
+  const RingtoneSpec(this.format, this.sampleRate, this.bitDepth, this.channels, this.maxSizeBytes);
+}
+
 class DeviceTemplates {
   
   static const String defaultTarget = "";
@@ -29,6 +38,11 @@ class DeviceTemplates {
     'Poly VVX 1500':       WallpaperSpec(800, 480, 'Legacy Video'),
     'Cisco 8851 / 8865':   WallpaperSpec(800, 480, 'Cisco High Res'),
   };
+
+  // --- RINGTONE SPEC (all vendors use same PCM WAV format) ---
+  static const RingtoneSpec ringtoneSpec = RingtoneSpec(
+    'WAV (PCM)', 8000, 16, 'Mono', 1048576,
+  );
 
   static WallpaperSpec getSpecForModel(String modelKey) {
     return wallpaperSpecs[modelKey] ?? const WallpaperSpec(480, 272, 'Default');

@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/device.dart';
+import '../models/device_settings.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -195,6 +196,35 @@ class DatabaseHelper {
   Future<void> updateDeviceModel(int id, String model) async {
     final db = await instance.database;
     await db.update('devices', {'model': model}, where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Updates per-device settings and optionally the wallpaper for a device.
+  /// [wallpaper] null = keep existing; non-null = replace (pass '' to clear).
+  Future<void> updateDeviceSettings(
+      int id, DeviceSettings? settings, String? wallpaper) async {
+    final db = await instance.database;
+    final fields = <String, dynamic>{
+      'device_settings': settings?.toJsonString(),
+    };
+    if (wallpaper != null) fields['wallpaper'] = wallpaper.isEmpty ? null : wallpaper;
+    await db.update('devices', fields, where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Updates the MAC address and status for a single device.
+  Future<void> updateDeviceMac(int id, String mac) async {
+    final db = await instance.database;
+    await db.update(
+      'devices',
+      {'mac_address': mac, 'status': 'READY'},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// Deletes a single device by ID.
+  Future<void> deleteDevice(int id) async {
+    final db = await instance.database;
+    await db.delete('devices', where: 'id = ?', whereArgs: [id]);
   }
 
   /// Batch insert devices using a single transaction for performance
