@@ -1,6 +1,61 @@
+{{! META: {
+  "categories": [
+    {"id": "sip",          "label": "SIP & Registration",    "icon": "📞", "order": 1},
+    {"id": "display",      "label": "Display & Audio",        "icon": "📱", "order": 2},
+    {"id": "security",     "label": "Security",               "icon": "🔑", "order": 3},
+    {"id": "network",      "label": "Network",                "icon": "🌐", "order": 4},
+    {"id": "call_features","label": "Call Features",          "icon": "📲", "order": 5},
+    {"id": "provisioning", "label": "Provisioning & Time",    "icon": "🔧", "order": 6},
+    {"id": "diagnostics",  "label": "Diagnostics & Logs",     "icon": "🔍", "order": 7}
+  ],
+  "variables": [
+    {"name": "sip_server",        "category": "sip",           "description": "Primary SIP proxy address.", "example": "pbx.example.com", "default": ""},
+    {"name": "sip_port",          "category": "sip",           "description": "SIP signalling port.", "example": "5060", "default": "5060"},
+    {"name": "outbound_proxy_host","category":"sip",            "description": "Outbound proxy hostname or IP.", "example": "sbc.example.com", "default": ""},
+    {"name": "backup_server",     "category": "sip",           "description": "Backup SIP proxy address.", "example": "pbx2.example.com", "default": ""},
+    {"name": "voicemail_number",  "category": "call_features", "description": "Messages access number.", "example": "*97", "default": ""},
+    {"name": "wallpaper_url",     "category": "display",       "description": "Background image URL.", "example": "http://192.168.1.1:8080/media/logo.jpg", "default": ""},
+    {"name": "screensaver_timeout","category":"display",        "description": "Screen saver wait time in minutes.", "example": "10", "default": "0"},
+    {"name": "admin_password",    "category": "security",      "description": "Phone admin / web UI password.", "example": "Str0ngP@ss", "default": ""},
+    {"name": "web_ui_enabled",    "category": "security",      "description": "Enable (Yes) or disable (No) the web management UI.", "example": "Yes", "default": "Yes"},
+    {"name": "cdp_lldp_enabled",  "category": "network",       "description": "Enable (Yes) CDP and LLDP.", "example": "Yes", "default": "Yes"},
+    {"name": "voice_vlan_id",     "category": "network",       "description": "802.1Q Voice VLAN ID.", "example": "100", "default": ""},
+    {"name": "auto_answer",       "category": "call_features", "description": "Auto-answer: Yes or No.", "example": "Yes", "default": "No"},
+    {"name": "dnd_enabled",       "category": "call_features", "description": "Do Not Disturb: Yes or No.", "example": "No", "default": "No"},
+    {"name": "call_waiting",      "category": "call_features", "description": "Call waiting: Yes or No.", "example": "Yes", "default": "Yes"},
+    {"name": "cfw_always",        "category": "call_features", "description": "Call forward all dialing number.", "example": "+61400000000", "default": ""},
+    {"name": "cfw_busy",          "category": "call_features", "description": "Call forward busy dialing number.", "example": "voicemail", "default": ""},
+    {"name": "cfw_no_answer",     "category": "call_features", "description": "Call forward no-answer dialing number.", "example": "voicemail", "default": ""},
+    {"name": "dial_plan",         "category": "call_features", "description": "Cisco MPP dial plan string.", "example": "(9,8,**xx.|*xx.|[2-9]xxxxxx|1xxxxxxxxxx|xxxxxxxxxxxx)", "default": ""},
+    {"name": "ntp_server",        "category": "provisioning",  "description": "Primary NTP server hostname or IP.", "example": "0.pool.ntp.org", "default": "0.pool.ntp.org"},
+    {"name": "timezone",          "category": "provisioning",  "description": "Cisco time zone string.", "example": "Australia/Sydney", "default": "America/Los_Angeles"},
+    {"name": "provisioning_url",  "category": "provisioning",  "description": "Provisioning profile URL.", "example": "http://192.168.1.1:8080", "default": ""},
+    {"name": "syslog_server",     "category": "diagnostics",   "description": "Remote syslog server hostname or IP.", "example": "192.168.1.50", "default": ""},
+    {"name": "debug_level",       "category": "diagnostics",   "description": "Syslog debug level for Cisco MPP (0=none, 1=error, 2=warning, 3=verbose).", "example": "3", "default": "0"}
+  ]
+} }}
 <?xml version="1.0" encoding="UTF-8"?>
 <device>
     <deviceProtocol>SIP</deviceProtocol>
+    <system>
+        <Time_Zone>{{timezone}}</Time_Zone>
+        <Primary_NTP_Server>{{ntp_server}}</Primary_NTP_Server>
+{{#has_syslog}}
+        <Syslog_Server>{{syslog_server}}</Syslog_Server>
+        <Debug_Level>{{debug_level}}</Debug_Level>
+{{/has_syslog}}
+{{#has_screensaver_timeout}}
+        <Screen_Saver_Enable>Yes</Screen_Saver_Enable>
+        <Screen_Saver_Wait>{{screensaver_timeout}}</Screen_Saver_Wait>
+{{/has_screensaver_timeout}}
+{{#has_web_ui}}
+        <Web_Access>{{web_ui_enabled}}</Web_Access>
+{{/has_web_ui}}
+{{#has_cdp_lldp}}
+        <CDP_Enable>{{cdp_lldp_enabled}}</CDP_Enable>
+        <LLDP_Enable>{{cdp_lldp_enabled}}</LLDP_Enable>
+{{/has_cdp_lldp}}
+    </system>
     <sipProfile>
         <sipProxies>
             <registerWithProxy>true</registerWithProxy>
@@ -46,6 +101,24 @@
     <commonProfile>
         <preferredCodec>g711ulaw</preferredCodec>
         <phonePassword>{{admin_password}}</phonePassword>
+{{#has_auto_answer}}
+        <Auto_Answer_1_>{{auto_answer}}</Auto_Answer_1_>
+{{/has_auto_answer}}
+{{#has_dnd}}
+        <Do_Not_Disturb_Enable_1_>{{dnd_enabled}}</Do_Not_Disturb_Enable_1_>
+{{/has_dnd}}
+{{#has_call_waiting}}
+        <Call_Waiting_Serv_1_>{{call_waiting}}</Call_Waiting_Serv_1_>
+{{/has_call_waiting}}
+{{#has_cfw_always}}
+        <Call_Forward_All_Dialing_DN_1_>{{cfw_always}}</Call_Forward_All_Dialing_DN_1_>
+{{/has_cfw_always}}
+{{#has_cfw_busy}}
+        <Call_Forward_Busy_Dialing_DN_1_>{{cfw_busy}}</Call_Forward_Busy_Dialing_DN_1_>
+{{/has_cfw_busy}}
+{{#has_cfw_no_answer}}
+        <Call_Forward_No_Ans_Dialing_DN_1_>{{cfw_no_answer}}</Call_Forward_No_Ans_Dialing_DN_1_>
+{{/has_cfw_no_answer}}
     </commonProfile>
 {{#vlan_enabled}}
     <vendorConfig>
@@ -56,6 +129,11 @@
     <userLocale>
         <backgroundFile>{{wallpaper_url}}</backgroundFile>
     </userLocale>
+{{#has_dial_plan}}
+    <dialPlan>
+        <Dial_Plan_1_>{{dial_plan}}</Dial_Plan_1_>
+    </dialPlan>
+{{/has_dial_plan}}
     <provisioning>
         <profile_rule>{{provisioning_url}}/{{mac_address}}.xml</profile_rule>
     </provisioning>

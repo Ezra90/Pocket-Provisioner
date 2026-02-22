@@ -104,6 +104,14 @@ class _DeviceSettingsEditorScreenState
   late final TextEditingController _provisioningUrlCtrl;
   late final TextEditingController _ntpServerCtrl;
   late final TextEditingController _timezoneCtrl;
+  late final TextEditingController _dstEnableCtrl;
+
+  // Diagnostics
+  late final TextEditingController _syslogServerCtrl;
+  late final TextEditingController _debugLevelCtrl;
+
+  // Call Features (extended)
+  late final TextEditingController _dialPlanCtrl;
 
   // Button Layout
   List<ButtonKey>? _buttonLayout;
@@ -144,6 +152,10 @@ class _DeviceSettingsEditorScreenState
         TextEditingController(text: s?.provisioningUrl ?? '');
     _ntpServerCtrl = TextEditingController(text: s?.ntpServer ?? '');
     _timezoneCtrl = TextEditingController(text: s?.timezone ?? '');
+    _dstEnableCtrl = TextEditingController(text: s?.dstEnable ?? '');
+    _syslogServerCtrl = TextEditingController(text: s?.syslogServer ?? '');
+    _debugLevelCtrl = TextEditingController(text: s?.debugLevel ?? '');
+    _dialPlanCtrl = TextEditingController(text: s?.dialPlan ?? '');
     _buttonLayout = s?.buttonLayout?.map((k) => k.clone()).toList();
     RingtoneService.listRingtones().then((list) {
       if (mounted) setState(() => _ringtones = list);
@@ -175,6 +187,10 @@ class _DeviceSettingsEditorScreenState
     _provisioningUrlCtrl.dispose();
     _ntpServerCtrl.dispose();
     _timezoneCtrl.dispose();
+    _dstEnableCtrl.dispose();
+    _syslogServerCtrl.dispose();
+    _debugLevelCtrl.dispose();
+    _dialPlanCtrl.dispose();
     super.dispose();
   }
 
@@ -204,9 +220,13 @@ class _DeviceSettingsEditorScreenState
         cfwBusy: _nonEmpty(_cfwBusyCtrl.text),
         cfwNoAnswer: _nonEmpty(_cfwNoAnswerCtrl.text),
         voicemailNumber: _nonEmpty(_voicemailCtrl.text),
+        dialPlan: _nonEmpty(_dialPlanCtrl.text),
         provisioningUrl: _nonEmpty(_provisioningUrlCtrl.text),
         ntpServer: _nonEmpty(_ntpServerCtrl.text),
         timezone: _nonEmpty(_timezoneCtrl.text),
+        dstEnable: _nonEmpty(_dstEnableCtrl.text),
+        syslogServer: _nonEmpty(_syslogServerCtrl.text),
+        debugLevel: _nonEmpty(_debugLevelCtrl.text),
         buttonLayout: (_buttonLayout != null &&
                 _buttonLayout!.any((k) => k.type != 'none'))
             ? _buttonLayout
@@ -238,9 +258,13 @@ class _DeviceSettingsEditorScreenState
       _cfwBusyCtrl.text = s.cfwBusy ?? '';
       _cfwNoAnswerCtrl.text = s.cfwNoAnswer ?? '';
       _voicemailCtrl.text = s.voicemailNumber ?? '';
+      _dialPlanCtrl.text = s.dialPlan ?? '';
       _provisioningUrlCtrl.text = s.provisioningUrl ?? '';
       _ntpServerCtrl.text = s.ntpServer ?? '';
       _timezoneCtrl.text = s.timezone ?? '';
+      _dstEnableCtrl.text = s.dstEnable ?? '';
+      _syslogServerCtrl.text = s.syslogServer ?? '';
+      _debugLevelCtrl.text = s.debugLevel ?? '';
       _buttonLayout = s.buttonLayout?.map((k) => k.clone()).toList();
       // Copy wallpaper when the source has one set.
       // An empty string clears the wallpaper to the global default.
@@ -970,6 +994,8 @@ class _DeviceSettingsEditorScreenState
                     _field(_cfwNoAnswerCtrl,
                         'Call Forward No Answer'),
                     _field(_voicemailCtrl, 'Voicemail Number'),
+                    _field(_dialPlanCtrl, 'Dial Plan',
+                        hint: 'e.g. (x+|\\+x+|xxx|xx+)'),
                   ],
                 ),
               ),
@@ -994,6 +1020,30 @@ class _DeviceSettingsEditorScreenState
                         hint: 'e.g. pool.ntp.org'),
                     _field(_timezoneCtrl, 'Timezone',
                         hint: 'e.g. +10'),
+                    _field(_dstEnableCtrl, 'DST Enable',
+                        hint: '0=off, 1=auto, 2=manual'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          // ── Diagnostics ─────────────────────────────────────────────────
+          ExpansionTile(
+            leading: const Text('🔍',
+                style: TextStyle(fontSize: 20)),
+            title: const Text('Diagnostics & Logs'),
+            children: [
+              Padding(
+                padding:
+                    const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                child: Column(
+                  children: [
+                    _field(_syslogServerCtrl, 'Syslog Server',
+                        hint: 'e.g. 192.168.1.100'),
+                    _field(_debugLevelCtrl, 'Debug Level',
+                        hint: '0-3 (Cisco), higher = more verbose',
+                        keyboard: TextInputType.number),
                   ],
                 ),
               ),

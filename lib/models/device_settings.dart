@@ -41,6 +41,14 @@ class DeviceSettings {
   String? provisioningUrl;
   String? ntpServer;
   String? timezone;
+  String? dstEnable; // Daylight saving time (Yealink: 0/1/2)
+
+  // Diagnostics
+  String? syslogServer; // IP of remote syslog server
+  String? debugLevel; // Syslog verbosity (Cisco: 0-3)
+
+  // Call Features (extended)
+  String? dialPlan; // Digitmap / dial plan string
 
   /// Per-device button layout.  null = use model-default from ButtonLayoutService.
   List<ButtonKey>? buttonLayout;
@@ -72,6 +80,10 @@ class DeviceSettings {
     this.provisioningUrl,
     this.ntpServer,
     this.timezone,
+    this.dstEnable,
+    this.syslogServer,
+    this.debugLevel,
+    this.dialPlan,
     this.buttonLayout,
   });
 
@@ -103,6 +115,10 @@ class DeviceSettings {
       provisioningUrl != null ||
       ntpServer != null ||
       timezone != null ||
+      dstEnable != null ||
+      syslogServer != null ||
+      debugLevel != null ||
+      dialPlan != null ||
       (buttonLayout != null && buttonLayout!.any((k) => k.type != 'none'));
 
   /// Deep-copies this object.
@@ -133,6 +149,10 @@ class DeviceSettings {
         provisioningUrl: provisioningUrl,
         ntpServer: ntpServer,
         timezone: timezone,
+        dstEnable: dstEnable,
+        syslogServer: syslogServer,
+        debugLevel: debugLevel,
+        dialPlan: dialPlan,
         buttonLayout: buttonLayout?.map((k) => k.clone()).toList(),
       );
 
@@ -163,6 +183,10 @@ class DeviceSettings {
         if (provisioningUrl != null) 'provisioning_url': provisioningUrl,
         if (ntpServer != null) 'ntp_server': ntpServer,
         if (timezone != null) 'timezone': timezone,
+        if (dstEnable != null) 'dst_enable': dstEnable,
+        if (syslogServer != null) 'syslog_server': syslogServer,
+        if (debugLevel != null) 'debug_level': debugLevel,
+        if (dialPlan != null) 'dial_plan': dialPlan,
         if (buttonLayout != null && buttonLayout!.isNotEmpty)
           'button_layout': buttonLayout!.map((k) => k.toJson()).toList(),
       };
@@ -194,6 +218,10 @@ class DeviceSettings {
         provisioningUrl: m['provisioning_url'] as String?,
         ntpServer: m['ntp_server'] as String?,
         timezone: m['timezone'] as String?,
+        dstEnable: m['dst_enable'] as String?,
+        syslogServer: m['syslog_server'] as String?,
+        debugLevel: m['debug_level'] as String?,
+        dialPlan: m['dial_plan'] as String?,
         buttonLayout: m['button_layout'] != null
             ? (m['button_layout'] as List<dynamic>)
                 .map((e) => ButtonKey.fromJson(e as Map<String, dynamic>))
