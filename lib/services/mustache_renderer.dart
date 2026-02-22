@@ -84,6 +84,9 @@ class MustacheRenderer {
     };
   }
 
+  /// Converts a nullable bool to a '1'/'0' string flag for templates.
+  static String _boolFlag(bool? value) => value == true ? '1' : '0';
+
   /// Builds the complete Mustache variable map for all three templates.
   static Map<String, dynamic> buildVariables({
     required String macAddress,
@@ -110,6 +113,22 @@ class MustacheRenderer {
     String? gmtOffset,
     String? adminPassword,
     String? voicemailNumber,
+    // Call features
+    String? screensaverTimeout,
+    bool? webUiEnabled,
+    bool? cdpLldpEnabled,
+    bool? autoAnswer,
+    String? autoAnswerMode,
+    bool? dndDefault,
+    bool? callWaiting,
+    String? cfwAlways,
+    String? cfwBusy,
+    String? cfwNoAnswer,
+    // Diagnostics / extended provisioning
+    String? syslogServer,
+    String? dialPlan,
+    String? dstEnable,
+    String? debugLevel,
     List<ButtonKey>? lineKeys,
     Map<String, String>? extToLabel,
   }) {
@@ -121,6 +140,18 @@ class MustacheRenderer {
         voiceVlanId != null && voiceVlanId.isNotEmpty;
     final bool hasVoicemail =
         voicemailNumber != null && voicemailNumber.isNotEmpty;
+    final bool hasScreensaverTimeout =
+        screensaverTimeout != null && screensaverTimeout.isNotEmpty;
+    final bool hasWebUi = webUiEnabled != null;
+    final bool hasCdpLldp = cdpLldpEnabled != null;
+    final bool hasAutoAnswer = autoAnswer != null;
+    final bool hasDnd = dndDefault != null;
+    final bool hasCallWaiting = callWaiting != null;
+    final bool hasCfwAlways = cfwAlways != null && cfwAlways.isNotEmpty;
+    final bool hasCfwBusy = cfwBusy != null && cfwBusy.isNotEmpty;
+    final bool hasCfwNoAnswer = cfwNoAnswer != null && cfwNoAnswer.isNotEmpty;
+    final bool hasSyslog = syslogServer != null && syslogServer.isNotEmpty;
+    final bool hasDialPlan = dialPlan != null && dialPlan.isNotEmpty;
 
     final keys = lineKeys ?? <ButtonKey>[];
     final labels = extToLabel ?? <String, String>{};
@@ -185,6 +216,31 @@ class MustacheRenderer {
       'provisioning_url': provisioningUrl,
       'provision_user': extension,
       'provision_pass': secret,
+      'has_screensaver_timeout': hasScreensaverTimeout,
+      'screensaver_timeout': screensaverTimeout ?? '',
+      'has_web_ui': hasWebUi,
+      'web_ui_enabled': _boolFlag(webUiEnabled),
+      'has_cdp_lldp': hasCdpLldp,
+      'cdp_lldp_enabled': _boolFlag(cdpLldpEnabled),
+      'has_auto_answer': hasAutoAnswer,
+      'auto_answer': _boolFlag(autoAnswer),
+      'auto_answer_mode': autoAnswerMode ?? '',
+      'has_dnd': hasDnd,
+      'dnd_enabled': _boolFlag(dndDefault),
+      'has_call_waiting': hasCallWaiting,
+      'call_waiting': _boolFlag(callWaiting),
+      'has_cfw_always': hasCfwAlways,
+      'cfw_always': cfwAlways ?? '',
+      'has_cfw_busy': hasCfwBusy,
+      'cfw_busy': cfwBusy ?? '',
+      'has_cfw_no_answer': hasCfwNoAnswer,
+      'cfw_no_answer': cfwNoAnswer ?? '',
+      'has_syslog': hasSyslog,
+      'syslog_server': syslogServer ?? '',
+      'has_dial_plan': hasDialPlan,
+      'dial_plan': dialPlan ?? '',
+      'dst_enable': dstEnable ?? '0',
+      'debug_level': debugLevel ?? '0',
       'lines': [
         {
           'line_index': 1,
@@ -206,6 +262,14 @@ class MustacheRenderer {
           'backup_port': backupPort ?? '5060',
           'has_voicemail': hasVoicemail,
           'voicemail_number': voicemailNumber ?? '',
+          'has_auto_answer': hasAutoAnswer,
+          'auto_answer': _boolFlag(autoAnswer),
+          'has_cfw_always': hasCfwAlways,
+          'cfw_always': cfwAlways ?? '',
+          'has_cfw_busy': hasCfwBusy,
+          'cfw_busy': cfwBusy ?? '',
+          'has_cfw_no_answer': hasCfwNoAnswer,
+          'cfw_no_answer': cfwNoAnswer ?? '',
         },
       ],
       'line_keys': lineKeysList,
