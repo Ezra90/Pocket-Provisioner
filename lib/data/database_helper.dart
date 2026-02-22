@@ -233,6 +233,8 @@ class DatabaseHelper {
   Future<void> insertDevices(List<Device> devices) async {
     final db = await instance.database;
     await db.transaction((txn) async {
+      final batch = txn.batch();
+
       for (final device in devices) {
         final List<Map<String, dynamic>> existing = await txn.query(
           'devices',
@@ -242,7 +244,7 @@ class DatabaseHelper {
 
         if (existing.isNotEmpty) {
           final existingDevice = Device.fromMap(existing.first);
-          await txn.update(
+          batch.update(
             'devices',
             {
               'model': device.model,
@@ -257,9 +259,11 @@ class DatabaseHelper {
             whereArgs: [device.extension],
           );
         } else {
-          await txn.insert('devices', device.toMap());
+          batch.insert('devices', device.toMap());
         }
       }
+
+      await batch.commit(noResult: true);
     });
   }
 }

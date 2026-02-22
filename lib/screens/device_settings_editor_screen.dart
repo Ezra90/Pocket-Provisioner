@@ -227,10 +227,7 @@ class _DeviceSettingsEditorScreenState
         dstEnable: _nonEmpty(_dstEnableCtrl.text),
         syslogServer: _nonEmpty(_syslogServerCtrl.text),
         debugLevel: _nonEmpty(_debugLevelCtrl.text),
-        buttonLayout: (_buttonLayout != null &&
-                _buttonLayout!.any((k) => k.type != 'none'))
-            ? _buttonLayout
-            : null,
+        buttonLayout: _buttonLayout,
       );
 
   void _applyClone(DeviceSettings s, {String? wallpaper}) {
@@ -266,12 +263,9 @@ class _DeviceSettingsEditorScreenState
       _syslogServerCtrl.text = s.syslogServer ?? '';
       _debugLevelCtrl.text = s.debugLevel ?? '';
       _buttonLayout = s.buttonLayout?.map((k) => k.clone()).toList();
-      // Copy wallpaper when the source has one set.
-      // An empty string clears the wallpaper to the global default.
-      if (wallpaper != null) {
-        _wallpaper = wallpaper;
-        _wallpaperChanged = true;
-      }
+      // Always apply the cloned wallpaper state, even if null
+      _wallpaper = wallpaper;
+      _wallpaperChanged = true;
     });
   }
 
@@ -1020,8 +1014,25 @@ class _DeviceSettingsEditorScreenState
                         hint: 'e.g. pool.ntp.org'),
                     _field(_timezoneCtrl, 'Timezone',
                         hint: 'e.g. +10'),
-                    _field(_dstEnableCtrl, 'DST Enable',
-                        hint: '0=off, 1=auto, 2=manual'),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: DropdownButtonFormField<String?>(
+                        value: _dstEnableCtrl.text.isEmpty ? null : _dstEnableCtrl.text,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Daylight Savings Time',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: const [
+                          DropdownMenuItem<String?>(value: null, child: Text('Inherited (Global Default)')),
+                          DropdownMenuItem(value: '0', child: Text('Disabled (0)')),
+                          DropdownMenuItem(value: '1', child: Text('Automatic (1)')),
+                          DropdownMenuItem(value: '2', child: Text('Manual (2)')),
+                        ],
+                        onChanged: (v) => setState(() => _dstEnableCtrl.text = v ?? ''),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1041,9 +1052,26 @@ class _DeviceSettingsEditorScreenState
                   children: [
                     _field(_syslogServerCtrl, 'Syslog Server',
                         hint: 'e.g. 192.168.1.100'),
-                    _field(_debugLevelCtrl, 'Debug Level',
-                        hint: '0-3 (Cisco), higher = more verbose',
-                        keyboard: TextInputType.number),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: DropdownButtonFormField<String?>(
+                        value: _debugLevelCtrl.text.isEmpty ? null : _debugLevelCtrl.text,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Debug Level',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: const [
+                          DropdownMenuItem<String?>(value: null, child: Text('Inherited (Global Default)')),
+                          DropdownMenuItem(value: '0', child: Text('Off (0)')),
+                          DropdownMenuItem(value: '1', child: Text('Low (1)')),
+                          DropdownMenuItem(value: '2', child: Text('Medium (2)')),
+                          DropdownMenuItem(value: '3', child: Text('Verbose (3)')),
+                        ],
+                        onChanged: (v) => setState(() => _debugLevelCtrl.text = v ?? ''),
+                      ),
+                    ),
                   ],
                 ),
               ),
