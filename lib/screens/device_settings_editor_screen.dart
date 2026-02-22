@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import '../data/device_templates.dart';
 import '../models/button_key.dart';
@@ -601,13 +602,15 @@ class _DeviceSettingsEditorScreenState
   Widget _field(TextEditingController ctrl, String label,
       {String? hint,
       bool obscure = false,
-      TextInputType? keyboard}) {
+      TextInputType? keyboard,
+      List<TextInputFormatter>? inputFormatters}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextField(
         controller: ctrl,
         obscureText: obscure,
         keyboardType: keyboard,
+        inputFormatters: inputFormatters,
         decoration: InputDecoration(
           labelText: label,
           hintText: hint ?? 'Inherited (global default)',
@@ -989,7 +992,10 @@ class _DeviceSettingsEditorScreenState
                         'Call Forward No Answer'),
                     _field(_voicemailCtrl, 'Voicemail Number'),
                     _field(_dialPlanCtrl, 'Dial Plan',
-                        hint: 'e.g. (x+|\\+x+|xxx|xx+)'),
+                        hint: 'e.g. (x+|\\+x+|xxx|xx+)',
+                        inputFormatters: [
+                          FilteringTextInputFormatter.deny(RegExp(r'"')),
+                        ]),
                   ],
                 ),
               ),
