@@ -161,10 +161,10 @@ class _DeviceSettingsEditorScreenState
     RingtoneService.listRingtones().then((list) {
       if (mounted) setState(() => _ringtones = list);
     });
-    final templateKey =
-        MustacheRenderer.resolveTemplateKey(widget.model);
-    MustacheRenderer.extractAllTags(templateKey).then((tags) {
-      if (mounted) setState(() => _templateTags = tags);
+    MustacheRenderer.resolveTemplateKey(widget.model).then((templateKey) {
+      MustacheRenderer.extractAllTags(templateKey).then((tags) {
+        if (mounted) setState(() => _templateTags = tags);
+      });
     });
   }
 

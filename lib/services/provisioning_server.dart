@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../data/database_helper.dart';
 import '../models/access_log_entry.dart';
+import 'mustache_renderer.dart';
 import 'mustache_template_service.dart';
 
 class ProvisioningServer {
@@ -128,6 +129,9 @@ class ProvisioningServer {
           timestamp: DateTime.now(),
         );
 
+        if (_accessLog.length >= 2000) {
+          _accessLog.removeRange(0, _accessLog.length - 1999);
+        }
         _accessLog.add(entry);
         if (!_logController.isClosed) {
           _logController.add(entry);
@@ -160,7 +164,19 @@ class ProvisioningServer {
     if (myIp == null) {
       try {
         final interfaces = await NetworkInterface.list(type: InternetAddressType.IPv4);
-        for (final iface in interfaces) {
+
+        // Sort interfaces so physical Wi-Fi/Ethernet adapters come before virtual/VPN ones
+        final sortedInterfaces = interfaces.toList()..sort((a, b) {
+          final aName = a.name.toLowerCase();
+          final bName = b.name.toLowerCase();
+          final aIsPhysical = aName.startsWith('wlan') || aName.startsWith('eth') || aName.startsWith('en');
+          final bIsPhysical = bName.startsWith('wlan') || bName.startsWith('eth') || bName.startsWith('en');
+          if (aIsPhysical && !bIsPhysical) return -1;
+          if (!aIsPhysical && bIsPhysical) return 1;
+          return aName.compareTo(bName);
+        });
+
+        for (final iface in sortedInterfaces) {
           for (final addr in iface.addresses) {
             if (!addr.isLoopback) {
               myIp = addr.address;
@@ -178,40 +194,18 @@ class ProvisioningServer {
 
     // --- TEMPLATE HANDLER ---
     router.get('/templates/<filename>', (Request request, String filename) async {
-      final directory = await getApplicationDocumentsDirectory();
-      final templateDir = Directory(p.join(directory.path, 'custom_templates'));
-
-      if (!await templateDir.exists()) {
-        return Response.notFound('Templates directory not found');
-      }
-
-      // Look for exact .mustache file match
-      final filePath = p.join(templateDir.path, filename);
-      final file = File(filePath);
-
-      // Also try appending .mustache if not already present
-      final mustacheFile = filename.endsWith('.mustache')
-          ? file
-          : File('${filePath}.mustache');
-
-      // Derive template key (strip .mustache suffix) for content-type lookup
       final templateKey = filename.endsWith('.mustache')
           ? filename.substring(0, filename.length - 9)
           : filename;
-      final contentType = MustacheTemplateService.instance.getContentType(templateKey);
 
-      if (await mustacheFile.exists()) {
-        final content = await mustacheFile.readAsString();
+      try {
+        final content = await MustacheTemplateService.instance.loadTemplate(templateKey);
+        final contentType = MustacheTemplateService.instance.getContentType(templateKey);
+
         return Response.ok(content, headers: {'Content-Type': contentType});
+      } catch (e) {
+        return Response.notFound('Template not found: $e');
       }
-
-      // Also check without .mustache extension if exact filename was given
-      if (await file.exists()) {
-        final content = await file.readAsString();
-        return Response.ok(content, headers: {'Content-Type': contentType});
-      }
-
-      return Response.notFound('Template not found');
     });
 
     // --- MEDIA HANDLER (original files) ---
@@ -275,8 +269,95 @@ class ProvisioningServer {
       return Response.notFound('Phonebook file not found');
     });
 
-    // --- CONFIG HANDLER (static files) ---
+    // --- CONFIG HANDLER (dynamic generation with static fallback) ---
     router.get('/<filename>', (Request request, String filename) async {
+      // --- Try dynamic config generation first ---
+      final macMatch = RegExp(r'^([0-9a-fA-F]{12})\.(cfg|xml)$', caseSensitive: false).firstMatch(filename);
+
+      if (macMatch != null) {
+        final mac = macMatch.group(1)!.toUpperCase();
+        final device = await DatabaseHelper.instance.getDeviceByMac(mac);
+
+        if (device != null) {
+          try {
+            final templateKey = await MustacheRenderer.resolveTemplateKey(device.model);
+            final ds = device.deviceSettings;
+
+            // Resolve wallpaper URL
+            String deviceWallpaperUrl = '';
+            final deviceWallpaper = device.wallpaper;
+            if (deviceWallpaper != null && deviceWallpaper.isNotEmpty) {
+              if (deviceWallpaper.startsWith('LOCAL:') && _serverUrl != null) {
+                final fname = deviceWallpaper.substring('LOCAL:'.length);
+                deviceWallpaperUrl = '$_serverUrl/media/$fname';
+              } else {
+                deviceWallpaperUrl = deviceWallpaper;
+              }
+            }
+
+            // Resolve ringtone URL
+            String deviceRingtoneUrl = '';
+            final deviceRingtone = ds?.ringtone;
+            if (deviceRingtone != null && deviceRingtone.isNotEmpty) {
+              if (deviceRingtone.startsWith('LOCAL:') && _serverUrl != null) {
+                final fname = deviceRingtone.substring('LOCAL:'.length);
+                deviceRingtoneUrl = '$_serverUrl/ringtones/$fname';
+              } else {
+                deviceRingtoneUrl = deviceRingtone;
+              }
+            }
+
+            final variables = MustacheRenderer.buildVariables(
+              macAddress: device.macAddress ?? mac,
+              extension: device.extension,
+              displayName: device.label,
+              secret: device.secret,
+              model: device.model,
+              sipServer: ds?.sipServer ?? '',
+              provisioningUrl: ds?.provisioningUrl ?? _serverUrl ?? '',
+              sipPort: ds?.sipPort,
+              transport: ds?.transport,
+              regExpiry: ds?.regExpiry,
+              outboundProxyHost: ds?.outboundProxyHost,
+              outboundProxyPort: ds?.outboundProxyPort,
+              backupServer: ds?.backupServer,
+              backupPort: ds?.backupPort,
+              voiceVlanId: ds?.voiceVlanId,
+              dataVlanId: ds?.dataVlanId,
+              wallpaperUrl: deviceWallpaperUrl,
+              ringtoneUrl: deviceRingtoneUrl,
+              ntpServer: ds?.ntpServer,
+              timezone: ds?.timezone,
+              adminPassword: ds?.adminPassword,
+              voicemailNumber: ds?.voicemailNumber,
+              screensaverTimeout: ds?.screensaverTimeout,
+              webUiEnabled: ds?.webUiEnabled,
+              cdpLldpEnabled: ds?.cdpLldpEnabled,
+              autoAnswer: ds?.autoAnswer,
+              autoAnswerMode: ds?.autoAnswerMode,
+              dndDefault: ds?.dndDefault,
+              callWaiting: ds?.callWaiting,
+              cfwAlways: ds?.cfwAlways,
+              cfwBusy: ds?.cfwBusy,
+              cfwNoAnswer: ds?.cfwNoAnswer,
+              syslogServer: ds?.syslogServer,
+              dialPlan: ds?.dialPlan,
+              dstEnable: ds?.dstEnable,
+              debugLevel: ds?.debugLevel,
+            );
+
+            final content = await MustacheRenderer.render(templateKey, variables);
+            final contentType = filename.toLowerCase().endsWith('.xml') ? 'application/xml' : 'text/plain';
+
+            return Response.ok(content, headers: {'Content-Type': contentType});
+          } catch (e) {
+            // Dynamic generation failed, fall through to static file lookup
+            print('Dynamic config generation failed for $mac: $e');
+          }
+        }
+      }
+
+      // --- Fallback to static generated files ---
       final directory = await getApplicationDocumentsDirectory();
       final configDir = Directory(p.join(directory.path, 'generated_configs'));
 
@@ -284,14 +365,16 @@ class ProvisioningServer {
         return Response.notFound('Config directory not found');
       }
 
-      // Case-insensitive file lookup (important for MAC address filenames)
-      final files = configDir.listSync().whereType<File>();
-      final matches = files.where(
-        (f) => p.basename(f.path).toLowerCase() == filename.toLowerCase(),
-      );
-      final File? match = matches.isEmpty ? null : matches.first;
+      // Direct file lookups instead of blocking listSync()
+      File match = File(p.join(configDir.path, filename));
+      if (!await match.exists()) {
+        match = File(p.join(configDir.path, filename.toLowerCase()));
+      }
+      if (!await match.exists()) {
+        match = File(p.join(configDir.path, filename.toUpperCase()));
+      }
 
-      if (match == null) {
+      if (!await match.exists()) {
         return Response.notFound('Config file not found');
       }
 
