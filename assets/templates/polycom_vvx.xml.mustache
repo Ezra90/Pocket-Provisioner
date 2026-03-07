@@ -30,7 +30,8 @@
     {"name": "ntp_server",       "category": "provisioning",  "description": "Primary NTP time server hostname or IP.", "example": "0.pool.ntp.org", "default": "0.pool.ntp.org"},
     {"name": "gmt_offset",       "category": "provisioning",  "description": "GMT offset in seconds for the SNTP client.", "example": "36000", "default": "0"},
     {"name": "provisioning_url", "category": "provisioning",  "description": "Provisioning server base URL.", "example": "http://192.168.1.1:8080", "default": ""},
-    {"name": "syslog_server",    "category": "diagnostics",   "description": "Remote syslog server hostname or IP.", "example": "192.168.1.50", "default": ""}
+    {"name": "syslog_server",    "category": "diagnostics",   "description": "Remote syslog server hostname or IP.", "example": "192.168.1.50", "default": ""},
+    {"name": "ringtone_url",     "category": "display",       "description": "Custom ringtone URL (WAV file served by the provisioning server).", "example": "http://192.168.1.1:8080/ringtones/MyRing.wav", "default": ""}
   ]
 } }}
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -51,7 +52,7 @@
     msg.mwi.{{line_index}}.callBack="{{voicemail_number}}"
 {{/has_voicemail}}
 {{#has_auto_answer}}
-    reg.{{line_index}}.autoAnswer="{{auto_answer}}"
+    reg.{{line_index}}.autoAnswerAll="{{auto_answer}}"
 {{/has_auto_answer}}
 {{#has_cfw_always}}
     reg.{{line_index}}.forward.all.enable="1"
@@ -111,11 +112,13 @@
     qos.ethernet.callControl.user_priority="5"
     qos.ip.callControl.dscp="46"
   />
+{{#wallpaper_url}}
   <bg>
     <bg.color>
       <bg.color.bm bg.color.bm.1.name="{{wallpaper_url}}" />
     </bg.color>
   </bg>
+{{/wallpaper_url}}
 {{#has_screensaver_timeout}}
   <screensaver
     idleTimeout.enable="1"
@@ -126,6 +129,11 @@
     tcpIpApp.sntp.address="{{ntp_server}}"
     tcpIpApp.sntp.gmtOffset="{{gmt_offset}}"
   />
+{{#has_custom_ringtone}}
+  <se.rt>
+    <se.rt.file se.rt.file.1.name="{{ringtone_url}}" />
+  </se.rt>
+{{/has_custom_ringtone}}
 {{#has_cdp_lldp}}
   <lldp
     lldp.enable="{{cdp_lldp_enabled}}"
