@@ -36,6 +36,11 @@ dependencies:
   # Templating
   mustache_template: ^2.0.0
 
+  # In-app updates
+  http: ^1.6.0
+  open_filex: ^4.7.0
+  package_info_plus: ^9.0.0
+
   # UI
   cupertino_icons: ^1.0.2
 
