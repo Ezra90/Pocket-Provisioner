@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
@@ -129,8 +130,9 @@ class ProvisioningServer {
           timestamp: DateTime.now(),
         );
 
-        if (_accessLog.length >= 2000) {
-          _accessLog.removeRange(0, _accessLog.length - 1999);
+        // Trim in batches of 50 to keep amortised cost O(1) per insert.
+        if (_accessLog.length >= 500) {
+          _accessLog.removeRange(0, 50);
         }
         _accessLog.add(entry);
         if (!_logController.isClosed) {
@@ -352,7 +354,7 @@ class ProvisioningServer {
             return Response.ok(content, headers: {'Content-Type': contentType});
           } catch (e) {
             // Dynamic generation failed, fall through to static file lookup
-            print('Dynamic config generation failed for $mac: $e');
+            debugPrint('Dynamic config generation failed for $mac: $e');
           }
         }
       }
@@ -393,10 +395,10 @@ class ProvisioningServer {
           .addHandler(router.call);
       _server = await shelf_io.serve(handler, '0.0.0.0', port);
       _serverUrl = 'http://$myIp:$port';
-      print('Server running: $_serverUrl');
+      debugPrint('Server running: $_serverUrl');
       return _serverUrl!;
     } catch (e) {
-      print("Error starting server: $e");
+      debugPrint('Error starting server: $e');
       rethrow;
     }
   }
@@ -409,7 +411,7 @@ class ProvisioningServer {
       _accessLog.clear();
       _deviceAccessMap.clear();
       _ipMacMap.clear();
-      print('Server stopped');
+      debugPrint('Server stopped');
     }
   }
 }

@@ -341,6 +341,26 @@ class DeviceTemplates {
     return _yealinkLayout;
   }
 
+  /// Returns the [wallpaperSpecs] display-name key that best matches [model].
+  /// Used to pre-select the correct entry in the wallpaper spec dropdown.
+  static String getWallpaperSpecKeyForDeviceModel(String model) {
+    final upper = model.toUpperCase().trim();
+    if (upper == 'T54W' || upper == 'T46U') return 'Yealink T54W / T46U';
+    if (upper == 'T48G' || upper == 'T57W') return 'Yealink T48G / T57W';
+    if (upper == 'T58W' || upper == 'T58G') return 'Yealink T58W';
+    if (upper == 'EDGE E450') return 'Poly Edge E450';
+    if (upper == 'EDGE E350') return 'Poly Edge E350';
+    if (upper == 'VVX1500') return 'Poly VVX 1500';
+    if (upper.contains('CISCO') ||
+        upper.contains('8851') ||
+        upper.contains('8865')) return 'Cisco 8851 / 8865';
+    return wallpaperSpecs.keys.first;
+  }
+
+  /// Returns the [WallpaperSpec] that best matches [model].
+  static WallpaperSpec getWallpaperSpecForDeviceModel(String model) =>
+      getSpecForModel(getWallpaperSpecKeyForDeviceModel(model));
+
   static WallpaperSpec getSpecForModel(String modelKey) {
     return wallpaperSpecs[modelKey] ?? const WallpaperSpec(480, 272, 'Default');
   }

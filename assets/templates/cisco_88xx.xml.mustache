@@ -31,7 +31,8 @@
     {"name": "timezone",          "category": "provisioning",  "description": "Cisco time zone string.", "example": "Australia/Sydney", "default": "America/Los_Angeles"},
     {"name": "provisioning_url",  "category": "provisioning",  "description": "Provisioning profile URL.", "example": "http://192.168.1.1:8080", "default": ""},
     {"name": "syslog_server",     "category": "diagnostics",   "description": "Remote syslog server hostname or IP.", "example": "192.168.1.50", "default": ""},
-    {"name": "debug_level",       "category": "diagnostics",   "description": "Syslog debug level for Cisco MPP (0=none, 1=error, 2=warning, 3=verbose).", "example": "3", "default": "0"}
+    {"name": "debug_level",       "category": "diagnostics",   "description": "Syslog debug level for Cisco MPP (0=none, 1=error, 2=warning, 3=verbose).", "example": "3", "default": "0"},
+    {"name": "ringtone_url",      "category": "display",       "description": "Custom ringtone URL (WAV file served by the provisioning server).", "example": "http://192.168.1.1:8080/ringtones/MyRing.wav", "default": ""}
   ]
 } }}
 <?xml version="1.0" encoding="UTF-8"?>
@@ -127,7 +128,12 @@
     </vendorConfig>
 {{/vlan_enabled}}
     <userLocale>
+{{#wallpaper_url}}
         <backgroundFile>{{wallpaper_url}}</backgroundFile>
+{{/wallpaper_url}}
+{{#has_custom_ringtone}}
+        <Ring_Tone_Url>{{ringtone_url}}</Ring_Tone_Url>
+{{/has_custom_ringtone}}
     </userLocale>
 {{#has_dial_plan}}
     <dialPlan>

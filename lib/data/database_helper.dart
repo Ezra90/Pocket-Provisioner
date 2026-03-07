@@ -49,10 +49,6 @@ class DatabaseHelper {
       ''');
     },
     onUpgrade: (db, oldVersion, newVersion) async {
-      if (oldVersion < 2) {
-        // Future migrations go here
-        // Example: await db.execute('ALTER TABLE devices ADD COLUMN firmware_version TEXT');
-      }
       await db.transaction((txn) async {
         if (oldVersion < 3) {
           // Recreate devices table with UNIQUE constraint on extension

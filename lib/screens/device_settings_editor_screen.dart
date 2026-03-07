@@ -430,7 +430,8 @@ class _DeviceSettingsEditorScreenState
 
   /// Opens the wallpaper upload flow (pick image → resize → save).
   Future<void> _uploadWallpaper() async {
-    String selectedModel = DeviceTemplates.wallpaperSpecs.keys.first;
+    String selectedModel =
+        DeviceTemplates.getWallpaperSpecKeyForDeviceModel(widget.model);
     final nameCtrl = TextEditingController();
 
     await showDialog(
@@ -491,12 +492,12 @@ class _DeviceSettingsEditorScreenState
                             res.files.single.path!, spec, name);
                     final updated = await WallpaperService.listWallpapers();
                     if (ctx.mounted) Navigator.pop(ctx);
-                    setState(() {
-                      _wallpapers = updated;
-                      _wallpaper = 'LOCAL:$filename';
-                      _wallpaperChanged = true;
-                    });
                     if (mounted) {
+                      setState(() {
+                        _wallpapers = updated;
+                        _wallpaper = 'LOCAL:$filename';
+                        _wallpaperChanged = true;
+                      });
                       ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                               content: Text('Wallpaper uploaded!')));
@@ -546,7 +547,9 @@ class _DeviceSettingsEditorScreenState
               ),
               const SizedBox(height: 8),
               const Text(
-                'WAV files only (max 1 MB).',
+                'WAV files only (max 1 MB).\n'
+                'Stereo files are auto-converted to mono.\n'
+                'Recommended: PCM, 8 kHz, 16-bit, Mono.',
                 style: TextStyle(fontSize: 11, color: Colors.grey),
               ),
               const SizedBox(height: 10),
@@ -564,18 +567,26 @@ class _DeviceSettingsEditorScreenState
                       type: FileType.custom, allowedExtensions: ['wav']);
                   if (res == null) return;
                   try {
-                    final filename = await RingtoneService.convertAndSave(
+                    final saved = await RingtoneService.convertAndSave(
                         res.files.single.path!, name);
                     final updated = await RingtoneService.listRingtones();
                     if (ctx.mounted) Navigator.pop(ctx);
-                    setState(() {
-                      _ringtones = updated;
-                      _ringtone = 'LOCAL:$filename';
-                    });
                     if (mounted) {
+                      setState(() {
+                        _ringtones = updated;
+                        _ringtone = 'LOCAL:${saved.filename}';
+                      });
+                      final info = saved.wavInfo;
+                      final note = info?.compatibilityNote;
+                      final msg = note != null
+                          ? 'Uploaded (${info!.formatString}) — ⚠ $note'
+                          : info != null
+                              ? 'Uploaded — ${info.formatString}'
+                              : 'Ringtone uploaded!';
                       ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Ringtone uploaded!')));
+                          SnackBar(
+                              content: Text(msg),
+                              duration: const Duration(seconds: 5)));
                     }
                   } catch (e) {
                     if (ctx.mounted) {

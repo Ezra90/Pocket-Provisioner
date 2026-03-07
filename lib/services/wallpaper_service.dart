@@ -88,8 +88,8 @@ class WallpaperService {
     final mediaDir = await _mediaDir();
     final origDir = await _originalDir();
 
-    final files = mediaDir
-        .listSync()
+    final allEntries = await mediaDir.list().toList();
+    final files = allEntries
         .whereType<File>()
         .where((f) => f.path.endsWith('.png') || f.path.endsWith('.jpg') || f.path.endsWith('.jpeg'))
         .toList();
@@ -102,13 +102,12 @@ class WallpaperService {
       final name = nameMatch != null ? nameMatch.group(1)! : filename;
 
       // Find matching original
-      final origFiles = origDir
-          .listSync()
+      final origEntries = await origDir.list().toList();
+      final origFiles = origEntries
           .whereType<File>()
           .where((f) => p.basename(f.path).startsWith('${name}_original'))
           .toList();
       final origPath = origFiles.isNotEmpty ? origFiles.first.path : null;
-
       final stat = await file.stat();
       result.add(WallpaperInfo(
         name: name,
@@ -133,8 +132,8 @@ class WallpaperService {
     final nameMatch = _resizedNamePattern.firstMatch(filename);
     if (nameMatch != null) {
       final name = nameMatch.group(1)!;
-      final origFiles = origDir
-          .listSync()
+      final origEntries = await origDir.list().toList();
+      final origFiles = origEntries
           .whereType<File>()
           .where((f) => p.basename(f.path).startsWith('${name}_original'))
           .toList();
@@ -161,8 +160,8 @@ class WallpaperService {
     final oldNameMatch = _resizedNamePattern.firstMatch(oldFilename);
     if (oldNameMatch != null) {
       final oldName = oldNameMatch.group(1)!;
-      final origFiles = origDir
-          .listSync()
+      final origEntries = await origDir.list().toList();
+      final origFiles = origEntries
           .whereType<File>()
           .where((f) => p.basename(f.path).startsWith('${oldName}_original'))
           .toList();
@@ -179,8 +178,8 @@ class WallpaperService {
   /// Re-process an original file with a (potentially different) spec.
   static Future<String> reprocessFromOriginal(String name, WallpaperSpec newSpec) async {
     final origDir = await _originalDir();
-    final origFiles = origDir
-        .listSync()
+    final origEntries = await origDir.list().toList();
+    final origFiles = origEntries
         .whereType<File>()
         .where((f) => p.basename(f.path).startsWith('${name}_original'))
         .toList();

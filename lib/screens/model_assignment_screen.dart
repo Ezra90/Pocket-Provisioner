@@ -29,6 +29,8 @@ class _ModelAssignmentScreenState extends State<ModelAssignmentScreen> {
   late List<_RowState> _rows;
   List<WallpaperInfo> _wallpapers = [];
 
+  static final _wallpaperFilenameRe = RegExp(r'^(.+)_\d+x\d+\.');
+
   /// All MACs available for assignment (from CSV + scanned during review).
   List<String> _scannedMacs = [];
 
@@ -148,6 +150,28 @@ class _ModelAssignmentScreenState extends State<ModelAssignmentScreen> {
           if (row.selected) row.model = result;
         }
       });
+      // Reprocess any LOCAL wallpapers to match the new model's spec.
+      final newSpec =
+          DeviceTemplates.getWallpaperSpecForDeviceModel(result);
+      for (final row in _rows) {
+        if (!row.selected) continue;
+        final wp = row.wallpaper;
+        if (wp == null || !wp.startsWith('LOCAL:')) continue;
+        final filename = wp.substring('LOCAL:'.length);
+        final nameMatch =
+            _wallpaperFilenameRe.firstMatch(filename);
+        if (nameMatch == null) continue;
+        final wallpaperName = nameMatch.group(1)!;
+        try {
+          final newFilename = await WallpaperService.reprocessFromOriginal(
+              wallpaperName, newSpec);
+          if (mounted) {
+            setState(() => row.wallpaper = 'LOCAL:$newFilename');
+          }
+        } catch (e) {
+          debugPrint('Wallpaper reprocess failed for $wallpaperName: $e');
+        }
+      }
     }
   }
 
@@ -271,8 +295,29 @@ class _ModelAssignmentScreenState extends State<ModelAssignmentScreen> {
 
   // ── wallpaper upload from row ─────────────────────────────────────────────
 
+  Future<void> _reprocessWallpaperForRow(int rowIndex, String newModel) async {
+    final row = _rows[rowIndex];
+    final wp = row.wallpaper;
+    if (wp == null || !wp.startsWith('LOCAL:')) return;
+    final filename = wp.substring('LOCAL:'.length);
+    final nameMatch = _wallpaperFilenameRe.firstMatch(filename);
+    if (nameMatch == null) return;
+    final wallpaperName = nameMatch.group(1)!;
+    final newSpec = DeviceTemplates.getWallpaperSpecForDeviceModel(newModel);
+    try {
+      final newFilename =
+          await WallpaperService.reprocessFromOriginal(wallpaperName, newSpec);
+      if (mounted) {
+        setState(() => row.wallpaper = 'LOCAL:$newFilename');
+      }
+    } catch (e) {
+      debugPrint('Wallpaper reprocess failed for $wallpaperName: $e');
+    }
+  }
+
   Future<void> _uploadWallpaperForRow(int rowIndex) async {
-    String selectedModel = DeviceTemplates.wallpaperSpecs.keys.first;
+    String selectedModel =
+        DeviceTemplates.getWallpaperSpecKeyForDeviceModel(_rows[rowIndex].model);
     final nameCtrl = TextEditingController();
 
     await showDialog(
@@ -497,6 +542,8 @@ class _ModelAssignmentScreenState extends State<ModelAssignmentScreen> {
                   onTapSettings: () => _openSettings(index),
                   onUploadWallpaper: () =>
                       _uploadWallpaperForRow(index),
+                  onModelChanged: (newModel) =>
+                      _reprocessWallpaperForRow(index, newModel),
                 );
               },
             ),
@@ -620,6 +667,7 @@ class _DeviceRow extends StatelessWidget {
   final void Function(String?) onMacChanged;
   final VoidCallback onTapSettings;
   final VoidCallback onUploadWallpaper;
+  final void Function(String) onModelChanged;
 
   const _DeviceRow({
     required this.row,
@@ -630,6 +678,7 @@ class _DeviceRow extends StatelessWidget {
     required this.onMacChanged,
     required this.onTapSettings,
     required this.onUploadWallpaper,
+    required this.onModelChanged,
   });
 
   @override
@@ -745,6 +794,7 @@ class _DeviceRow extends StatelessWidget {
                         if (v != null) {
                           row.model = v;
                           onChanged();
+                          onModelChanged(v);
                         }
                       },
                     ),
