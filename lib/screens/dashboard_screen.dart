@@ -7,12 +7,14 @@ import 'package:csv/csv.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import 'package:package_info_plus/package_info_plus.dart';
 import '../data/database_helper.dart';
 import '../data/device_templates.dart';
 import '../services/mustache_renderer.dart';
 import '../services/mustache_template_service.dart';
 import '../services/provisioning_server.dart';
 import '../services/button_layout_service.dart';
+import '../services/update_service.dart';
 import '../models/button_key.dart';
 import '../models/device.dart';
 import 'access_log_screen.dart';
@@ -31,12 +33,60 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _serverStatus = "OFFLINE";
   bool _isServerRunning = false;
   Color _statusColor = Colors.red.shade100;
-  final String _appVersion = "v0.0.4";
+  String _appVersion = "v0.0.4";
+
+  // Update state
+  UpdateInfo? _pendingUpdate;
+  bool _checkingUpdate = false;
 
   @override
   void initState() {
     super.initState();
     _checkPermissions();
+    _loadAppVersion();
+    _autoCheckForUpdate();
+  }
+
+  Future<void> _loadAppVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (mounted) setState(() => _appVersion = "v${info.version}");
+  }
+
+  Future<void> _autoCheckForUpdate() async {
+    final update = await UpdateService.checkForUpdate();
+    if (mounted && update != null) {
+      setState(() => _pendingUpdate = update);
+    }
+  }
+
+  Future<void> _manualCheckForUpdate() async {
+    setState(() {
+      _checkingUpdate = true;
+      _pendingUpdate = null;
+    });
+    final update = await UpdateService.checkForUpdate();
+    if (!mounted) return;
+    setState(() {
+      _checkingUpdate = false;
+      _pendingUpdate = update;
+    });
+    if (update == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("You're on the latest version.")),
+      );
+    } else {
+      _showUpdateDialog(update);
+    }
+  }
+
+  void _showUpdateDialog(UpdateInfo info) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _UpdateDialog(info: info),
+    ).then((_) {
+      if (mounted) setState(() => _pendingUpdate = null);
+    });
   }
 
   Future<void> _checkPermissions() async {
@@ -325,10 +375,52 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
           IconButton(
-            icon: const Icon(Icons.folder_open), 
+            icon: const Icon(Icons.folder_open),
             tooltip: 'File Manager',
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const FileManagerScreen())),
-          )
+            onPressed: () => Navigator.push(
+                context, MaterialPageRoute(builder: (c) => const FileManagerScreen())),
+          ),
+          // Update indicator: spinning while checking, badge when update ready.
+          if (_checkingUpdate)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white),
+                ),
+              ),
+            )
+          else
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.system_update),
+                  tooltip: _pendingUpdate != null
+                      ? 'Update available: v${_pendingUpdate!.version}'
+                      : 'Check for Updates',
+                  onPressed: _pendingUpdate != null
+                      ? () => _showUpdateDialog(_pendingUpdate!)
+                      : _manualCheckForUpdate,
+                ),
+                if (_pendingUpdate != null)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: Colors.orange,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
         ],
       ),
       body: SafeArea(
@@ -338,6 +430,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Update available banner
+            if (_pendingUpdate != null)
+              GestureDetector(
+                onTap: () => _showUpdateDialog(_pendingUpdate!),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.new_releases, color: Colors.orange),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Update available: v${_pendingUpdate!.version} — Tap to install',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
             Card(
               color: _statusColor,
               elevation: 4,
@@ -447,6 +566,99 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ),
       ),
+    );
+  }
+}
+
+// ── Update dialog ─────────────────────────────────────────────────────────────
+
+class _UpdateDialog extends StatefulWidget {
+  final UpdateInfo info;
+  const _UpdateDialog({required this.info});
+
+  @override
+  State<_UpdateDialog> createState() => _UpdateDialogState();
+}
+
+class _UpdateDialogState extends State<_UpdateDialog> {
+  double _progress = 0;
+  bool _downloading = false;
+  String? _error;
+
+  Future<void> _startDownload() async {
+    setState(() {
+      _downloading = true;
+      _error = null;
+      _progress = 0;
+    });
+
+    await UpdateService.downloadAndInstall(
+      widget.info,
+      onProgress: (p) {
+        if (mounted) setState(() => _progress = p);
+      },
+      onError: (msg) {
+        if (mounted) setState(() { _error = msg; _downloading = false; });
+      },
+    );
+
+    // If no error, the installer launched — close the dialog.
+    if (mounted && _error == null) Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Row(
+        children: [
+          Icon(Icons.system_update, color: Colors.orange),
+          SizedBox(width: 8),
+          Text('Update Available'),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Version ${widget.info.version} is available.',
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+          if (widget.info.releaseNotes.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              widget.info.releaseNotes,
+              maxLines: 6,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13),
+            ),
+          ],
+          if (_downloading) ...[
+            const SizedBox(height: 16),
+            LinearProgressIndicator(value: _progress > 0 ? _progress : null),
+            const SizedBox(height: 6),
+            Text(
+              _progress > 0
+                  ? 'Downloading… ${(_progress * 100).toStringAsFixed(0)}%'
+                  : 'Starting download…',
+              style: const TextStyle(fontSize: 12),
+            ),
+          ],
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 13)),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _downloading ? null : () => Navigator.of(context).pop(),
+          child: const Text('Later'),
+        ),
+        ElevatedButton.icon(
+          onPressed: _downloading ? null : _startDownload,
+          icon: const Icon(Icons.download),
+          label: const Text('Download & Install'),
+        ),
+      ],
     );
   }
 }
