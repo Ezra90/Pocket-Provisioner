@@ -59,8 +59,8 @@ class RingtoneService {
   /// Lists all WAV files in the ringtones directory.
   static Future<List<RingtoneInfo>> listRingtones() async {
     final dir = await _ringtonesDir();
-    final files = dir
-        .listSync()
+    final allEntries = await dir.list().toList();
+    final files = allEntries
         .whereType<File>()
         .where((f) => f.path.toLowerCase().endsWith('.wav'))
         .toList();

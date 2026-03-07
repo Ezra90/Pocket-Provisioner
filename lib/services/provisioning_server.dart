@@ -129,8 +129,8 @@ class ProvisioningServer {
           timestamp: DateTime.now(),
         );
 
-        if (_accessLog.length >= 2000) {
-          _accessLog.removeRange(0, _accessLog.length - 1999);
+        if (_accessLog.length >= 500) {
+          _accessLog.removeAt(0);
         }
         _accessLog.add(entry);
         if (!_logController.isClosed) {
