@@ -632,8 +632,14 @@ class _RingtonesTabState extends State<_RingtonesTab>
     if (result == null) return;
 
     try {
-      await RingtoneService.convertAndSave(result.files.single.path!, customName);
-      _snack('"$customName" uploaded');
+      final saved = await RingtoneService.convertAndSave(
+          result.files.single.path!, customName);
+      final info = saved.wavInfo;
+      final note = info?.compatibilityNote;
+      final msg = note != null
+          ? '"$customName" uploaded (${info!.formatString}) — ⚠ $note'
+          : '"$customName" uploaded${info != null ? ' (${info.formatString})' : ''}';
+      _snack(msg);
       _load();
     } catch (e) {
       _snack('Upload failed: $e');
