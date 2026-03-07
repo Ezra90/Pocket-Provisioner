@@ -130,8 +130,9 @@ class ProvisioningServer {
           timestamp: DateTime.now(),
         );
 
+        // Trim in batches of 50 to keep amortised cost O(1) per insert.
         if (_accessLog.length >= 500) {
-          _accessLog.removeAt(0);
+          _accessLog.removeRange(0, 50);
         }
         _accessLog.add(entry);
         if (!_logController.isClosed) {
