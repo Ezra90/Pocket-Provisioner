@@ -411,16 +411,28 @@ class _ModelAssignmentScreenState extends State<ModelAssignmentScreen> {
   // ── confirm import ────────────────────────────────────────────────────────
 
   Future<void> _confirmImport() async {
+    final selectedRows =
+        _rows.where((r) => r.selected && r.device.extension.isNotEmpty).toList();
+
+    if (selectedRows.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text(
+                'No rows selected. Check the boxes next to extensions to import.')),
+      );
+      return;
+    }
+
     // Determine most-commonly used model to remember.
     final modelCounts = <String, int>{};
-    for (final r in _rows) {
+    for (final r in selectedRows) {
       modelCounts[r.model] = (modelCounts[r.model] ?? 0) + 1;
     }
     final mostCommonModel = modelCounts.entries
         .reduce((a, b) => a.value >= b.value ? a : b)
         .key;
 
-    final devices = _rows
+    final devices = selectedRows
         .map((r) => Device(
               model: r.model,
               extension: r.device.extension,
@@ -605,14 +617,14 @@ class _ModelAssignmentScreenState extends State<ModelAssignmentScreen> {
                     child: ElevatedButton.icon(
                       icon: const Icon(Icons.check),
                       label: Text(
-                          'Confirm Import (${_rows.length})'),
+                          'Confirm Import ($selectedCount)'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(
                             vertical: 14),
                       ),
-                      onPressed: _confirmImport,
+                      onPressed: selectedCount > 0 ? _confirmImport : null,
                     ),
                   ),
                 ],

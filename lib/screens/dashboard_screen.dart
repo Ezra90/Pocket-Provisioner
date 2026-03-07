@@ -143,6 +143,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (row.length <= extIndex) continue;
 
         String extension = row[extIndex].toString().trim();
+        if (extension.isEmpty) continue;
         String secret = (passIndex != -1 && row.length > passIndex) ? row[passIndex].toString().trim() : "1234";
         
         // Use CSV model if available and recognised, otherwise fall back to default
