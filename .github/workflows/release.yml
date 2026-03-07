@@ -38,6 +38,9 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}-
 
+      - name: Clean build artifacts
+        run: flutter clean
+
       - name: Install dependencies
         run: flutter pub get
 
@@ -52,6 +55,6 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: "Pocket Provisioner ${{ github.ref_name }}"
           generate_release_notes: true
-          files: build/app/outputs/flutter-apk/app-release-*.apk
+          files: build/app/outputs/flutter-apk/app-*-release.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
