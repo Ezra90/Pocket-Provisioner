@@ -36,20 +36,20 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}-
 
-      - name: Install dependencies
-        run: flutter pub get
-
       - name: Clean build artifacts
         run: flutter clean
+
+      - name: Install dependencies
+        run: flutter pub get
 
       - name: Build APK
         env:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g"
-        run: flutter build apk --release
+        run: flutter build apk --release --split-per-abi
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: pocket-provisioner-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/app-release-*.apk
           if-no-files-found: error
