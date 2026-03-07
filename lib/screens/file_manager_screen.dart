@@ -140,7 +140,8 @@ class _ConfigsTabState extends State<_ConfigsTab>
     final dir = Directory(p.join(appDir.path, 'generated_configs'));
     final entries = <_FileEntry>[];
     if (await dir.exists()) {
-      for (final f in dir.listSync().whereType<File>()) {
+      final files = await dir.list().whereType<File>().toList();
+      for (final f in files) {
         final stat = await f.stat();
         entries.add(_FileEntry(file: f, stat: stat));
       }
@@ -1016,7 +1017,8 @@ class _PhonebookTabState extends State<_PhonebookTab>
     final dir = Directory(p.join(appDir.path, 'phonebook'));
     final entries = <_FileEntry>[];
     if (await dir.exists()) {
-      for (final f in dir.listSync().whereType<File>()) {
+      final files = await dir.list().whereType<File>().toList();
+      for (final f in files) {
         final stat = await f.stat();
         entries.add(_FileEntry(file: f, stat: stat));
       }

@@ -188,7 +188,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         final templateKey = await MustacheRenderer.resolveTemplateKey(device.model);
 
-        // Resolve per-device wallpaper to server URL
+        // Resolve per-device wallpaper to server URL.
+        // Note: if the provisioning server is not running when configs are
+        // generated, ProvisioningServer.serverUrl is null and LOCAL: wallpaper
+        // URLs will be omitted from static config files.
         String deviceWallpaperUrl = '';
         final deviceWallpaper = device.wallpaper;
         if (deviceWallpaper != null && deviceWallpaper.isNotEmpty) {

@@ -491,12 +491,12 @@ class _DeviceSettingsEditorScreenState
                             res.files.single.path!, spec, name);
                     final updated = await WallpaperService.listWallpapers();
                     if (ctx.mounted) Navigator.pop(ctx);
-                    setState(() {
-                      _wallpapers = updated;
-                      _wallpaper = 'LOCAL:$filename';
-                      _wallpaperChanged = true;
-                    });
                     if (mounted) {
+                      setState(() {
+                        _wallpapers = updated;
+                        _wallpaper = 'LOCAL:$filename';
+                        _wallpaperChanged = true;
+                      });
                       ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                               content: Text('Wallpaper uploaded!')));
@@ -568,11 +568,11 @@ class _DeviceSettingsEditorScreenState
                         res.files.single.path!, name);
                     final updated = await RingtoneService.listRingtones();
                     if (ctx.mounted) Navigator.pop(ctx);
-                    setState(() {
-                      _ringtones = updated;
-                      _ringtone = 'LOCAL:$filename';
-                    });
                     if (mounted) {
+                      setState(() {
+                        _ringtones = updated;
+                        _ringtone = 'LOCAL:$filename';
+                      });
                       ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                               content: Text('Ringtone uploaded!')));
