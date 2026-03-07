@@ -1,4 +1,6 @@
-# Pocket Provisioner v0.0.4
+# Pocket Provisioner v0.0.4 *(Alpha)*
+
+> ⚠️ **This is an early alpha release.** Versions will stay in the `0.0.x` range while the app is actively being developed. Expect frequent revisions and breaking changes between releases.
 
 **Pocket Provisioner** is a mobile field utility for Telecommunications Technicians. It turns an Android/iOS device into a temporary **Provisioning Server**, allowing for rapid deployment of VoIP handsets (Yealink, Polycom, Cisco) without needing a laptop or complex on-site infrastructure.
 
@@ -110,6 +112,19 @@ flutter run
 
 ### Build Release APK (Android)
 
+The CI pipeline builds a split-per-ABI APK (one file per CPU architecture). To reproduce this locally:
+
+```bash
+flutter build apk --release --split-per-abi
+```
+
+Output files will be in `build/app/outputs/flutter-apk/`:
+- `app-arm64-v8a-release.apk` — most modern Android phones
+- `app-armeabi-v7a-release.apk` — older 32-bit devices
+- `app-x86_64-release.apk` — emulators / Intel devices
+
+To build a single universal APK instead:
+
 ```bash
 flutter build apk --release
 ```
@@ -141,5 +156,20 @@ flutter build ipa --release
 | Platform | Version |
 |---|---|
 | Android `minSdkVersion` | 23 (Android 6.0+) |
-| Android `targetSdkVersion` | 34 |
+| Android `targetSdkVersion` | 36 |
 | iOS `MinimumOSVersion` | 12.0 |
+
+---
+
+## 🔢 Versioning
+
+This project uses [semantic versioning](https://semver.org/) in the format `MAJOR.MINOR.PATCH+BUILD`:
+
+- **Version string** (e.g., `0.0.4`) is defined in `pubspec.yaml` and maps to the Android `versionName`.
+- **Build number** (e.g., `+1`) is appended in `pubspec.yaml` and maps to the Android `versionCode`.
+
+Since this is a very early alpha, versions will remain in the `0.0.x` range for the foreseeable future. To release a new version:
+
+1. Update the `version` field in `pubspec.yaml` (e.g., `0.0.4+1` → `0.0.5+1`).
+2. Commit and push to `main` — the CI workflow builds the APK and uploads it as an artifact named `pocket-provisioner-v<version>-apk`.
+3. To create an official GitHub Release, push a matching git tag: `git tag v0.0.5 && git push origin v0.0.5`.
