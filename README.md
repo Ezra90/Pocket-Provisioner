@@ -31,21 +31,33 @@ Tap the **Gear Icon [⚙]** to configure your job environment using the new cate
     * **Local Admin Password:** Set a global administrative password for the phones.
     * Use links here to manage Device Templates, Line Keys, and Hosted Files.
 
-### 2. Import Data (CSV)
-Tap **Import CSV**. The app supports two main formats:
+### 2. Import Data (CSV / Excel)
+Tap **Import CSV / Excel**. The app accepts `.csv`, `.txt`, and `.xlsx` files. It reads the first row as column headers (case-insensitive) and maps them to the following fields:
 
-**A. Carrier / Broadworks Copy-Paste:**
-The app looks for these specific headers:
-* `Device username` -> Maps to **Extension** (Auth ID)
-* `DMS password` -> Maps to **Secret** (Auth Password)
-* `Device type` -> Maps to **Model**
-* `User ID` or `Phone Number` -> Combined with Name for the Label (e.g., "0755551234 - Reception")
+| Field | Accepted column names |
+|---|---|
+| **Extension** *(required)* | `Extension`, `Device Username`, `Username`, `User` |
+| **Secret / Password** | `Secret`, `DMS Password`, or any column containing `pass` |
+| **Label / Name** | `Name`, `Label`, `Description`, `Display Name`, `Device Name`, `Caller ID Name` |
+| **Model** | `Model`, `Device Type`, `Phone Model`, `Handset` |
+| **Phone / DID** *(prepended to label)* | `Phone`, `User ID`, `DN`, `DID`, or any column containing `direct` |
+| **MAC Address** | Any column containing `mac` |
+
+The app supports two common export formats out of the box:
+
+**A. Carrier / Broadworks Bulk Export:**
+* `Device username` → Extension (Auth ID)
+* `DMS password` → Secret (Auth Password)
+* `Device type` → Model
+* `User ID` or `Phone Number` → Combined with Name for the Label (e.g., "0755551234 - Reception")
 
 **B. Standard / FreePBX Export:**
 * `Extension`
 * `Secret`
 * `Model`
 * `Label` or `Name`
+
+> **Tip:** Tap the ℹ️ icon next to the **Import CSV / Excel** button in the app to see the full list of accepted column names at any time.
 
 ### 3. Deploy
 1.  Tap **Start Server**. (Android will ask for Location permission to find Wi-Fi IP).
