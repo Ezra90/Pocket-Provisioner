@@ -39,6 +39,7 @@ class DeviceSettings {
 
   // Provisioning
   String? provisioningUrl;
+  String? firmwareUrl; // LOCAL:<filename> or direct URL; empty = no firmware push
   String? ntpServer;
   String? timezone;
   String? dstEnable; // Daylight saving time (Yealink: 0/1/2)
@@ -78,6 +79,7 @@ class DeviceSettings {
     this.cfwNoAnswer,
     this.voicemailNumber,
     this.provisioningUrl,
+    this.firmwareUrl,
     this.ntpServer,
     this.timezone,
     this.dstEnable,
@@ -113,6 +115,7 @@ class DeviceSettings {
       cfwNoAnswer != null ||
       voicemailNumber != null ||
       provisioningUrl != null ||
+      firmwareUrl != null ||
       ntpServer != null ||
       timezone != null ||
       dstEnable != null ||
@@ -147,6 +150,7 @@ class DeviceSettings {
         cfwNoAnswer: cfwNoAnswer,
         voicemailNumber: voicemailNumber,
         provisioningUrl: provisioningUrl,
+        firmwareUrl: firmwareUrl,
         ntpServer: ntpServer,
         timezone: timezone,
         dstEnable: dstEnable,
@@ -181,6 +185,7 @@ class DeviceSettings {
         if (cfwNoAnswer != null) 'cfw_no_answer': cfwNoAnswer,
         if (voicemailNumber != null) 'voicemail_number': voicemailNumber,
         if (provisioningUrl != null) 'provisioning_url': provisioningUrl,
+        if (firmwareUrl != null) 'firmware_url': firmwareUrl,
         if (ntpServer != null) 'ntp_server': ntpServer,
         if (timezone != null) 'timezone': timezone,
         if (dstEnable != null) 'dst_enable': dstEnable,
@@ -216,6 +221,7 @@ class DeviceSettings {
         cfwNoAnswer: m['cfw_no_answer'] as String?,
         voicemailNumber: m['voicemail_number'] as String?,
         provisioningUrl: m['provisioning_url'] as String?,
+        firmwareUrl: m['firmware_url'] as String?,
         ntpServer: m['ntp_server'] as String?,
         timezone: m['timezone'] as String?,
         dstEnable: m['dst_enable'] as String?,

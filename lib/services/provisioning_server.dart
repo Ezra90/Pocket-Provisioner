@@ -44,6 +44,7 @@ class ProvisioningServer {
     if (path.startsWith('/media/')) return 'wallpaper';
     if (path.startsWith('/ringtones/')) return 'ringtone';
     if (path.startsWith('/phonebook/')) return 'phonebook';
+    if (path.startsWith('/firmware/')) return 'firmware';
     if (path.startsWith('/templates/')) return 'template';
     return 'config';
   }
@@ -271,6 +272,20 @@ class ProvisioningServer {
       return Response.notFound('Phonebook file not found');
     });
 
+    // --- FIRMWARE HANDLER ---
+    router.get('/firmware/<file>', (Request request, String file) async {
+      final directory = await getApplicationDocumentsDirectory();
+      final filePath = p.join(directory.path, 'firmware', p.basename(file));
+      final fwFile = File(filePath);
+      if (await fwFile.exists()) {
+        final bytes = await fwFile.readAsBytes();
+        return Response.ok(bytes, headers: {
+          'Content-Type': 'application/octet-stream',
+        });
+      }
+      return Response.notFound('Firmware file not found');
+    });
+
     // --- CONFIG HANDLER (dynamic generation with static fallback) ---
     router.get('/<filename>', (Request request, String filename) async {
       // --- Try dynamic config generation first ---
@@ -306,6 +321,18 @@ class ProvisioningServer {
                 deviceRingtoneUrl = '$_serverUrl/ringtones/$fname';
               } else {
                 deviceRingtoneUrl = deviceRingtone;
+              }
+            }
+
+            // Resolve firmware URL
+            String deviceFirmwareUrl = '';
+            final rawFirmwareUrl = ds?.firmwareUrl;
+            if (rawFirmwareUrl != null && rawFirmwareUrl.isNotEmpty) {
+              if (rawFirmwareUrl.startsWith('LOCAL:') && _serverUrl != null) {
+                final fname = rawFirmwareUrl.substring('LOCAL:'.length);
+                deviceFirmwareUrl = '$_serverUrl/firmware/$fname';
+              } else {
+                deviceFirmwareUrl = rawFirmwareUrl;
               }
             }
 
@@ -346,6 +373,7 @@ class ProvisioningServer {
               dialPlan: ds?.dialPlan,
               dstEnable: ds?.dstEnable,
               debugLevel: ds?.debugLevel,
+              firmwareUrl: deviceFirmwareUrl.isNotEmpty ? deviceFirmwareUrl : null,
             );
 
             final content = await MustacheRenderer.render(templateKey, variables);

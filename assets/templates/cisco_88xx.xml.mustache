@@ -30,6 +30,7 @@
     {"name": "ntp_server",        "category": "provisioning",  "description": "Primary NTP server hostname or IP.", "example": "0.pool.ntp.org", "default": "0.pool.ntp.org"},
     {"name": "timezone",          "category": "provisioning",  "description": "Cisco time zone string.", "example": "Australia/Sydney", "default": "America/Los_Angeles"},
     {"name": "provisioning_url",  "category": "provisioning",  "description": "Provisioning profile URL.", "example": "http://192.168.1.1:8080", "default": ""},
+    {"name": "firmware_url",      "category": "provisioning",  "description": "Firmware loads URL for auto-upgrade (leave blank to disable).", "example": "http://192.168.1.1:8080/firmware/cisco.loads", "default": ""},
     {"name": "syslog_server",     "category": "diagnostics",   "description": "Remote syslog server hostname or IP.", "example": "192.168.1.50", "default": ""},
     {"name": "debug_level",       "category": "diagnostics",   "description": "Syslog debug level for Cisco MPP (0=none, 1=error, 2=warning, 3=verbose).", "example": "3", "default": "0"},
     {"name": "ringtone_url",      "category": "display",       "description": "Custom ringtone URL (WAV file served by the provisioning server).", "example": "http://192.168.1.1:8080/ringtones/MyRing.wav", "default": ""}
@@ -142,5 +143,8 @@
 {{/has_dial_plan}}
     <provisioning>
         <profile_rule>{{provisioning_url}}/{{mac_address}}.xml</profile_rule>
+{{#has_firmware}}
+        <upgrade_rule>{{firmware_url}}</upgrade_rule>
+{{/has_firmware}}
     </provisioning>
 </device>

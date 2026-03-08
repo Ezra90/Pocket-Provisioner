@@ -8,6 +8,7 @@ import '../data/device_templates.dart';
 import '../services/provisioning_server.dart';
 import '../services/ringtone_service.dart';
 import '../services/wallpaper_service.dart';
+import '../services/firmware_service.dart';
 import '../services/mustache_template_service.dart';
 import 'access_log_screen.dart';
 import 'button_layout_editor.dart';
@@ -33,7 +34,7 @@ class _FileManagerScreenState extends State<FileManagerScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 5, vsync: this);
+    _tabs = TabController(length: 6, vsync: this);
   }
 
   @override
@@ -88,6 +89,7 @@ class _FileManagerScreenState extends State<FileManagerScreen>
             Tab(icon: Icon(Icons.music_note), text: 'Ringtones'),
             Tab(icon: Icon(Icons.article), text: 'Templates'),
             Tab(icon: Icon(Icons.contacts), text: 'Phonebook'),
+            Tab(icon: Icon(Icons.system_update), text: 'Firmware'),
           ],
         ),
       ),
@@ -101,6 +103,7 @@ class _FileManagerScreenState extends State<FileManagerScreen>
             _RingtonesTab(onCopy: _copyToClipboard),
             _TemplatesTab(onCopy: _copyToClipboard),
             _PhonebookTab(onCopy: _copyToClipboard),
+            _FirmwareTab(onCopy: _copyToClipboard),
           ],
         ),
       ),
@@ -1161,6 +1164,177 @@ class _PhonebookTabState extends State<_PhonebookTab>
       floatingActionButton: FloatingActionButton(
         onPressed: _upload,
         tooltip: 'Upload Phonebook',
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tab 6 — Firmware
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _FirmwareTab extends StatefulWidget {
+  final void Function(String) onCopy;
+  const _FirmwareTab({required this.onCopy});
+
+  @override
+  State<_FirmwareTab> createState() => _FirmwareTabState();
+}
+
+class _FirmwareTabState extends State<_FirmwareTab>
+    with AutomaticKeepAliveClientMixin {
+  List<FirmwareInfo> _files = [];
+  bool _loading = true;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    final list = await FirmwareService.listFirmware();
+    if (mounted) setState(() { _files = list; _loading = false; });
+  }
+
+  void _snack(String msg) {
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Future<void> _upload() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.any,
+    );
+    if (result == null) return;
+    try {
+      final src = result.files.single;
+      await FirmwareService.save(src.path!, src.name);
+      _snack('"${src.name}" uploaded');
+      _load();
+    } catch (e) {
+      _snack('Upload failed: $e');
+    }
+  }
+
+  Future<void> _delete(FirmwareInfo info) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Firmware?'),
+        content: Text('Delete "${info.filename}"?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await FirmwareService.deleteFirmware(info.filename);
+      _snack('"${info.filename}" deleted');
+      _load();
+    } catch (e) {
+      _snack('Delete failed: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final serverUrl = ProvisioningServer.serverUrl;
+
+    return Scaffold(
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: _files.isEmpty
+                  ? ListView(children: [
+                      Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Column(
+                          children: [
+                            const Icon(Icons.system_update, size: 48, color: Colors.grey),
+                            const SizedBox(height: 12),
+                            const Text('No firmware files yet', style: TextStyle(color: Colors.grey)),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Upload firmware binaries here to serve them\nto handsets via the provisioning config.',
+                              style: TextStyle(fontSize: 12, color: Colors.grey),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 12),
+                            ElevatedButton.icon(
+                              onPressed: _upload,
+                              icon: const Icon(Icons.upload),
+                              label: const Text('Upload Firmware File'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ])
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(12),
+                      itemCount: _files.length,
+                      itemBuilder: (context, i) {
+                        final info = _files[i];
+                        final fwUrl = serverUrl != null
+                            ? '$serverUrl/firmware/${info.filename}'
+                            : null;
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: Colors.blueGrey.shade100,
+                            child: const Icon(Icons.system_update, color: Colors.blueGrey),
+                          ),
+                          title: Text(info.filename),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(_fmtBytes(info.sizeBytes),
+                                  style: const TextStyle(fontSize: 11)),
+                              if (fwUrl != null)
+                                InkWell(
+                                  onTap: () => widget.onCopy(fwUrl),
+                                  child: Text(fwUrl,
+                                      style: const TextStyle(
+                                          fontSize: 10, color: Colors.blueGrey),
+                                      overflow: TextOverflow.ellipsis),
+                                ),
+                            ],
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (fwUrl != null)
+                                IconButton(
+                                  icon: const Icon(Icons.link, size: 18),
+                                  tooltip: 'Copy URL',
+                                  onPressed: () => widget.onCopy(fwUrl),
+                                ),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline,
+                                    color: Colors.red, size: 18),
+                                tooltip: 'Delete',
+                                onPressed: () => _delete(info),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _upload,
+        tooltip: 'Upload Firmware',
         child: const Icon(Icons.add),
       ),
     );
