@@ -145,6 +145,7 @@ class MustacheRenderer {
     String? firmwareUrl,
     List<ButtonKey>? lineKeys,
     Map<String, String>? extToLabel,
+    String? phonebookUrl,
   }) {
     final bool hasOutboundProxy =
         outboundProxyHost != null && outboundProxyHost.isNotEmpty;
@@ -302,7 +303,15 @@ class MustacheRenderer {
       'has_attendant_keys': attendantKeysList.isNotEmpty,
       'attendant_keys': attendantKeysList,
       'expansion_keys': <Map<String, dynamic>>[],
-      'remote_phonebooks': <Map<String, dynamic>>[],
+      'remote_phonebooks': phonebookUrl != null && phonebookUrl.isNotEmpty
+          ? [
+              {
+                'index': 1,
+                'url': phonebookUrl,
+                'name': displayName.isNotEmpty ? '$displayName Directory' : 'Company Directory',
+              }
+            ]
+          : <Map<String, dynamic>>[],
     };
   }
 }

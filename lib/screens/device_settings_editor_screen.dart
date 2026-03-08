@@ -4,11 +4,13 @@ import 'package:file_picker/file_picker.dart';
 import '../data/device_templates.dart';
 import '../models/button_key.dart';
 import '../models/device_settings.dart';
+import '../models/phonebook_entry.dart';
 import '../services/mustache_renderer.dart';
 import '../services/ringtone_service.dart';
 import '../services/wallpaper_service.dart';
 import '../services/firmware_service.dart';
 import 'per_extension_button_editor.dart';
+import 'per_extension_phonebook_editor.dart';
 
 /// Info about another extension, used in the Copy From... dialog.
 typedef ExtensionCloneInfo = ({
@@ -123,6 +125,9 @@ class _DeviceSettingsEditorScreenState
   // Button Layout
   List<ButtonKey>? _buttonLayout;
 
+  // Phonebook
+  List<PhonebookEntry>? _phonebookEntries;
+
   @override
   void initState() {
     super.initState();
@@ -167,6 +172,7 @@ class _DeviceSettingsEditorScreenState
     _debugLevelCtrl = TextEditingController(text: s?.debugLevel ?? '');
     _dialPlanCtrl = TextEditingController(text: s?.dialPlan ?? '');
     _buttonLayout = s?.buttonLayout?.map((k) => k.clone()).toList();
+    _phonebookEntries = s?.phonebookEntries?.map((e) => e.clone()).toList();
     RingtoneService.listRingtones().then((list) {
       if (mounted) setState(() => _ringtones = list);
     });
@@ -255,6 +261,7 @@ class _DeviceSettingsEditorScreenState
         syslogServer: _nonEmpty(_syslogServerCtrl.text),
         debugLevel: _nonEmpty(_debugLevelCtrl.text),
         buttonLayout: _buttonLayout,
+        phonebookEntries: _phonebookEntries,
       );
 
   void _applyClone(DeviceSettings s, {String? wallpaper}) {
@@ -291,6 +298,7 @@ class _DeviceSettingsEditorScreenState
       _syslogServerCtrl.text = s.syslogServer ?? '';
       _debugLevelCtrl.text = s.debugLevel ?? '';
       _buttonLayout = s.buttonLayout?.map((k) => k.clone()).toList();
+      _phonebookEntries = s.phonebookEntries?.map((e) => e.clone()).toList();
       // Always apply the cloned wallpaper state, even if null
       _wallpaper = wallpaper;
       _wallpaperChanged = true;
@@ -1183,6 +1191,8 @@ class _DeviceSettingsEditorScreenState
           // ── Button Layout — only shown if template uses line_keys ────────
           if (_templateSupports('line_keys'))
             _buildButtonLayoutTile(),
+          // ── Phonebook ─────────────────────────────────────────────────────
+          _buildPhonebookTile(),
         ],
         ),
       ),
@@ -1229,6 +1239,46 @@ class _DeviceSettingsEditorScreenState
           );
           if (result != null) {
             setState(() => _buttonLayout = result);
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildPhonebookTile() {
+    final count = _phonebookEntries?.length ?? 0;
+    final subtitle =
+        count > 0 ? '$count contact${count == 1 ? '' : 's'}' : 'No contacts';
+
+    return Card(
+      margin: const EdgeInsets.only(top: 4, bottom: 4),
+      child: ListTile(
+        leading: const Text('📒',
+            style: TextStyle(fontSize: 24)),
+        title: const Text('Phonebook'),
+        subtitle: Text(subtitle,
+            style: const TextStyle(fontSize: 12)),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+        onTap: () async {
+          final batchExts = widget.otherExtensions
+              .map((e) => (extension: e.extension, label: e.label))
+              .toList();
+
+          final result = await Navigator.push<List<PhonebookEntry>>(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PerExtensionPhonebookEditorScreen(
+                extension: widget.extension,
+                label: widget.label,
+                model: widget.model,
+                initialEntries: _phonebookEntries,
+                batchExtensions: batchExts,
+              ),
+            ),
+          );
+          if (result != null) {
+            setState(() =>
+                _phonebookEntries = result.isEmpty ? null : result);
           }
         },
       ),

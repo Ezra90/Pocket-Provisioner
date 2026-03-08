@@ -11,6 +11,7 @@ import '../data/database_helper.dart';
 import '../models/access_log_entry.dart';
 import 'mustache_renderer.dart';
 import 'mustache_template_service.dart';
+import 'phonebook_service.dart';
 
 class ProvisioningServer {
   static final ProvisioningServer instance = ProvisioningServer._();
@@ -336,6 +337,24 @@ class ProvisioningServer {
               }
             }
 
+            // Generate and persist phonebook XML if the device has entries,
+            // then build the URL the phone will fetch it from.
+            String? devicePhonebookUrl;
+            final phonebookEntries = ds?.phonebookEntries;
+            if (phonebookEntries != null &&
+                phonebookEntries.isNotEmpty &&
+                _serverUrl != null) {
+              final pbFilename = await PhonebookService.saveForExtension(
+                device.extension,
+                phonebookEntries,
+                displayName: device.label,
+                model: device.model,
+              );
+              if (pbFilename != null) {
+                devicePhonebookUrl = '$_serverUrl/phonebook/$pbFilename';
+              }
+            }
+
             final variables = MustacheRenderer.buildVariables(
               macAddress: device.macAddress ?? mac,
               extension: device.extension,
@@ -374,6 +393,7 @@ class ProvisioningServer {
               dstEnable: ds?.dstEnable,
               debugLevel: ds?.debugLevel,
               firmwareUrl: deviceFirmwareUrl.isNotEmpty ? deviceFirmwareUrl : null,
+              phonebookUrl: devicePhonebookUrl,
             );
 
             final content = await MustacheRenderer.render(templateKey, variables);
