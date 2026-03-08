@@ -11,6 +11,7 @@ import 'package:path/path.dart' as p;
 import 'package:package_info_plus/package_info_plus.dart';
 import '../data/database_helper.dart';
 import '../data/device_templates.dart';
+import '../services/app_directories.dart';
 import '../services/mustache_renderer.dart';
 import '../services/mustache_template_service.dart';
 import '../services/provisioning_server.dart';
@@ -91,8 +92,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _checkPermissions() async {
+    // Request storage permission so the self-contained Pocket Provisioner/
+    // folder can be created at the root of external storage.
+    await AppDirectories.ensureStoragePermission();
+
     final statuses = await [
-      Permission.camera, 
+      Permission.camera,
       Permission.location, // Critical for getting Local IP on Android
     ].request();
     final denied = statuses.values.any((s) => s.isDenied || s.isPermanentlyDenied);
