@@ -108,6 +108,83 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  // --- IMPORT FORMAT HELP ---
+  void _showImportFormatHelp() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Import File Format'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'The app reads the first row as column headers (case-insensitive). '
+                'Supported column names for each field:',
+                style: TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              _buildFormatRow(
+                field: 'Extension *',
+                headers: '"Extension", "Device Username", "Username", "User"',
+              ),
+              _buildFormatRow(
+                field: 'Secret / Password',
+                headers: '"Secret", "DMS Password", or any column containing "pass"',
+              ),
+              _buildFormatRow(
+                field: 'Label / Name',
+                headers: '"Name", "Label", "Description", "Display Name", "Device Name", "Caller ID Name"',
+              ),
+              _buildFormatRow(
+                field: 'Model',
+                headers: '"Model", "Device Type", "Phone Model", "Handset"',
+              ),
+              _buildFormatRow(
+                field: 'Phone / DID',
+                headers: '"Phone", "User ID", "DN", "DID", or any column containing "direct"',
+              ),
+              _buildFormatRow(
+                field: 'MAC Address',
+                headers: 'Any column containing "mac"',
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                '* Extension column is required. All other columns are optional — '
+                'the app will use sensible defaults when they are missing.\n\n'
+                'If a Phone / DID value is found, it is prepended to the label '
+                '(e.g. "0755551234 - Reception").',
+                style: TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFormatRow({required String field, required String headers}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(field,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          Text(headers,
+              style: const TextStyle(fontSize: 12, color: Colors.black87)),
+        ],
+      ),
+    );
+  }
+
   // --- SMART CSV / EXCEL IMPORT ---
   Future<void> _importFile() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
@@ -584,7 +661,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
                   ),
                 ),
-                const SizedBox(width: 10),
+                IconButton(
+                  icon: const Icon(Icons.info_outline, color: Colors.blueGrey),
+                  tooltip: 'View expected column headers',
+                  onPressed: _showImportFormatHelp,
+                ),
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: _toggleServer,
