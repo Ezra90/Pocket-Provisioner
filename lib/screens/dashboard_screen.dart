@@ -4,6 +4,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:csv/csv.dart';
+import 'package:excel/excel.dart' as xl;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
@@ -102,33 +103,87 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  // --- SMART CSV IMPORT ---
-  Future<void> _importCSV() async {
+  // --- SMART CSV / EXCEL IMPORT ---
+  Future<void> _importFile() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['csv', 'txt'],
+      allowedExtensions: ['csv', 'txt', 'xlsx'],
     );
 
     if (result == null) return;
 
     try {
       final File file = File(result.files.single.path!);
-      final String rawContent = await file.readAsString();
-      
-      List<List<dynamic>> rows = const CsvToListConverter().convert(rawContent, eol: "\n");
+      final String fileName = result.files.single.name.toLowerCase();
+
+      List<List<dynamic>> rows;
+
+      if (fileName.endsWith('.xlsx')) {
+        // ── Excel (.xlsx) parsing ──────────────────────────────────────────
+        final bytes = await file.readAsBytes();
+        final excel = xl.Excel.decodeBytes(bytes);
+        final sheetName = excel.tables.keys.first;
+        final sheet = excel.tables[sheetName];
+        if (sheet == null || sheet.rows.isEmpty) throw "Empty Excel file";
+
+        rows = sheet.rows.map((row) {
+          return row.map((cell) {
+            if (cell == null) return '';
+            final v = cell.value;
+            if (v == null) return '';
+            if (v is xl.TextCellValue) return v.value;
+            if (v is xl.IntCellValue) return v.value.toString();
+            if (v is xl.DoubleCellValue) {
+              final d = v.value;
+              // Format whole-number doubles as integers (e.g. 101.0 → "101")
+              return d == d.truncateToDouble() ? d.toInt().toString() : d.toString();
+            }
+            if (v is xl.BoolCellValue) return v.value.toString();
+            return v.toString();
+          }).toList();
+        }).toList();
+      } else {
+        // ── CSV / TXT parsing ─────────────────────────────────────────────
+        final String rawContent = await file.readAsString();
+        rows = const CsvToListConverter().convert(rawContent, eol: "\n");
+      }
+
       if (rows.isEmpty) throw "Empty file";
 
       List<dynamic> headers = rows[0].map((e) => e.toString().toLowerCase().trim()).toList();
       
-      // Smart Header Matching
-      int extIndex = headers.indexWhere((h) => h.contains('device username') || h.contains('extension') || h == 'user' || h == 'username');
-      int passIndex = headers.indexWhere((h) => h.contains('dms password') || h.contains('secret') || h.contains('pass'));
-      int nameIndex = headers.indexWhere((h) => h == 'name' || h.contains('device name') || h.contains('label') || h.contains('description'));
-      int modelIndex = headers.indexWhere((h) => h.contains('device type') || h.contains('model'));
-      int phoneIndex = headers.indexWhere((h) => h.contains('user id') || h.contains('phone') || h == 'dn');
+      // Smart Header Matching — supports Telstra qsetup, Carrier/Broadworks,
+      // FreePBX, and generic CSV/Excel exports.
+      int extIndex = headers.indexWhere((h) =>
+          h.contains('device username') ||
+          h.contains('extension') ||
+          h == 'user' ||
+          h == 'username');
+      int passIndex = headers.indexWhere((h) =>
+          h.contains('dms password') ||
+          h.contains('secret') ||
+          h.contains('pass'));
+      int nameIndex = headers.indexWhere((h) =>
+          h == 'name' ||
+          h.contains('device name') ||
+          h.contains('label') ||
+          h.contains('description') ||
+          h.contains('display name') ||
+          h.contains('caller id name'));
+      int modelIndex = headers.indexWhere((h) =>
+          h.contains('device type') ||
+          h.contains('model') ||
+          h.contains('phone model') ||
+          h.contains('handset'));
+      int phoneIndex = headers.indexWhere((h) =>
+          h.contains('user id') ||
+          h.contains('phone') ||
+          h == 'dn' ||
+          h.contains('did') ||
+          h.contains('direct'));
       int macIndex = headers.indexWhere((h) => h.contains('mac'));
 
-      if (extIndex == -1) throw "Could not find 'Device Username' or 'Extension' column";
+      if (extIndex == -1) throw "Could not find an Extension / Device Username column. Expected a column named 'Extension', 'Device Username', 'Username', or 'User'.";
 
       final prefs = await SharedPreferences.getInstance();
       final lastModel = prefs.getString('last_used_model');
@@ -146,7 +201,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (extension.isEmpty) continue;
         String secret = (passIndex != -1 && row.length > passIndex) ? row[passIndex].toString().trim() : "1234";
         
-        // Use CSV model if available and recognised, otherwise fall back to default
+        // Use CSV/Excel model if available and recognised, otherwise fall back to default
         String rawModel = (modelIndex != -1 && row.length > modelIndex) ? row[modelIndex].toString().trim() : '';
         String model = DeviceTemplates.supportedModels.contains(rawModel) ? rawModel : defaultModel;
         
@@ -170,7 +225,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ));
       }
 
-      if (parsedDevices.isEmpty) throw "No valid rows found in CSV";
+      if (parsedDevices.isEmpty) throw "No valid rows found in the file";
 
       if (!mounted) return;
       final imported = await Navigator.push<int>(
@@ -504,9 +559,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: _importCSV,
+                    onPressed: _importFile,
                     icon: const Icon(Icons.file_upload),
-                    label: const Text("Import CSV"),
+                    label: const Text("Import CSV / Excel"),
                     style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
                   ),
                 ),

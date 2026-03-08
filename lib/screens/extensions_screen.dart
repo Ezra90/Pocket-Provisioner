@@ -290,7 +290,7 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
                             child: Padding(
                               padding: EdgeInsets.all(32),
                               child: Text(
-                                'No extensions yet.\nTap + to add one, or import a CSV from the dashboard.',
+                                'No extensions yet.\nTap + to add one, or import a CSV or Excel file from the dashboard.',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(color: Colors.grey),
                               ),
