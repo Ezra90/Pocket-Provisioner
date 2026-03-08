@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'button_key.dart';
+import 'phonebook_entry.dart';
 
 /// Per-device override settings for provisioning configuration.
 /// All fields default to null meaning "inherited / use global default".
@@ -54,6 +55,9 @@ class DeviceSettings {
   /// Per-device button layout.  null = use model-default from ButtonLayoutService.
   List<ButtonKey>? buttonLayout;
 
+  /// Per-device phonebook contacts.  null / empty = no remote phonebook pushed.
+  List<PhonebookEntry>? phonebookEntries;
+
   DeviceSettings({
     this.sipServer,
     this.sipPort,
@@ -87,6 +91,7 @@ class DeviceSettings {
     this.debugLevel,
     this.dialPlan,
     this.buttonLayout,
+    this.phonebookEntries,
   });
 
   /// True if any field has been set (i.e. not all inherited).
@@ -122,7 +127,8 @@ class DeviceSettings {
       syslogServer != null ||
       debugLevel != null ||
       dialPlan != null ||
-      (buttonLayout != null && buttonLayout!.any((k) => k.type != 'none'));
+      (buttonLayout != null && buttonLayout!.any((k) => k.type != 'none')) ||
+      (phonebookEntries != null && phonebookEntries!.isNotEmpty);
 
   /// Deep-copies this object.
   DeviceSettings clone() => DeviceSettings(
@@ -158,6 +164,7 @@ class DeviceSettings {
         debugLevel: debugLevel,
         dialPlan: dialPlan,
         buttonLayout: buttonLayout?.map((k) => k.clone()).toList(),
+        phonebookEntries: phonebookEntries?.map((e) => e.clone()).toList(),
       );
 
   Map<String, dynamic> toJson() => {
@@ -194,6 +201,9 @@ class DeviceSettings {
         if (dialPlan != null) 'dial_plan': dialPlan,
         if (buttonLayout != null && buttonLayout!.isNotEmpty)
           'button_layout': buttonLayout!.map((k) => k.toJson()).toList(),
+        if (phonebookEntries != null && phonebookEntries!.isNotEmpty)
+          'phonebook_entries':
+              phonebookEntries!.map((e) => e.toJson()).toList(),
       };
 
   factory DeviceSettings.fromJson(Map<String, dynamic> m) => DeviceSettings(
@@ -231,6 +241,11 @@ class DeviceSettings {
         buttonLayout: m['button_layout'] != null
             ? (m['button_layout'] as List<dynamic>)
                 .map((e) => ButtonKey.fromJson(e as Map<String, dynamic>))
+                .toList()
+            : null,
+        phonebookEntries: m['phonebook_entries'] != null
+            ? (m['phonebook_entries'] as List<dynamic>)
+                .map((e) => PhonebookEntry.fromJson(e as Map<String, dynamic>))
                 .toList()
             : null,
       );
