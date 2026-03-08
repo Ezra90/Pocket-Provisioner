@@ -107,8 +107,10 @@ class TemplateMetadata {
 /// Mustache template comment.
 class TemplateMetadataParser {
   /// Regex that matches `{{! META: <json> }}` (whitespace-tolerant).
+  /// Uses a greedy inner match so the full JSON object is captured rather than
+  /// stopping at the first closing brace inside the JSON content.
   static final _metaRegex =
-      RegExp(r'\{\{!\s*META:\s*(\{[\s\S]*?\})\s*\}\}', multiLine: true);
+      RegExp(r'\{\{!\s*META:\s*(\{[\s\S]*\})\s*\}\}', multiLine: true);
 
   /// Loads [templateKey] and extracts its embedded META block.
   /// Returns [TemplateMetadata.empty] if no block is found or parsing fails.

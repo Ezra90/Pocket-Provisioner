@@ -3,12 +3,23 @@ import '../models/button_key.dart';
 import 'mustache_template_service.dart';
 
 class MustacheRenderer {
+  /// Regex that matches the `{{! META: {...} }}` comment block for stripping
+  /// before template compilation (the embedded JSON confuses some parsers).
+  /// The lazy `*?` quantifier is intentional: it stops at the first `}}`,
+  /// which is the Mustache comment closing delimiter. Using greedy `*` would
+  /// consume the entire template body up to its last `}}`.
+  static final _metaCommentRegex =
+      RegExp(r'\{\{!\s*META:[\s\S]*?\}\}', multiLine: true);
+
   /// Renders [templateKey] using [variables].
   /// [htmlEscapeValues] is false so XML/CFG output is not double-escaped.
   static Future<String> render(
       String templateKey, Map<String, dynamic> variables) async {
-    final source =
+    String source =
         await MustacheTemplateService.instance.loadTemplate(templateKey);
+    // Strip the META metadata comment before compiling: it contains raw JSON
+    // with curly-brace characters that can confuse the Mustache tokeniser.
+    source = source.replaceFirst(_metaCommentRegex, '');
     final template = Template(source, htmlEscapeValues: false);
     return template.renderString(variables);
   }

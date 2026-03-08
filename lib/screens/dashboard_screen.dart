@@ -323,6 +323,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
           }
         }
 
+        // Resolve per-device firmware URL
+        String deviceFirmwareUrl = '';
+        final rawFirmwareUrl = ds?.firmwareUrl;
+        if (rawFirmwareUrl != null && rawFirmwareUrl.isNotEmpty) {
+          final serverUrl = ProvisioningServer.serverUrl;
+          if (rawFirmwareUrl.startsWith('LOCAL:') && serverUrl != null) {
+            final filename = rawFirmwareUrl.substring('LOCAL:'.length);
+            deviceFirmwareUrl = '$serverUrl/firmware/$filename';
+          } else {
+            deviceFirmwareUrl = rawFirmwareUrl;
+          }
+        }
+
         final variables = MustacheRenderer.buildVariables(
           macAddress: device.macAddress!,
           extension: device.extension,
@@ -361,6 +374,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           dialPlan: ds?.dialPlan,
           dstEnable: ds?.dstEnable,
           debugLevel: ds?.debugLevel,
+          firmwareUrl: deviceFirmwareUrl.isNotEmpty ? deviceFirmwareUrl : null,
           lineKeys: lineKeys,
         );
         final rendered = await MustacheRenderer.render(templateKey, variables);
