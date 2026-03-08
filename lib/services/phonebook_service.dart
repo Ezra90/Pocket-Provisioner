@@ -1,7 +1,7 @@
 import 'dart:io';
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../models/phonebook_entry.dart';
+import 'app_directories.dart';
 
 /// Handles generation and persistence of per-device phonebook XML files.
 ///
@@ -48,12 +48,7 @@ class PhonebookService {
 
   /// Returns the directory where phonebook XML files are stored,
   /// creating it if necessary.
-  static Future<Directory> _phonebookDir() async {
-    final appDir = await getApplicationDocumentsDirectory();
-    final dir = Directory(p.join(appDir.path, 'phonebook'));
-    if (!await dir.exists()) await dir.create(recursive: true);
-    return dir;
-  }
+  static Future<Directory> _phonebookDir() => AppDirectories.phonebookDir();
 
   // ─────────────────────────────────────────────────────────────────────────
   // XML generators

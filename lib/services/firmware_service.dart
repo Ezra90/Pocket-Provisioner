@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import 'app_directories.dart';
 
 /// Metadata about a locally stored firmware file.
 class FirmwareInfo {
@@ -22,12 +22,7 @@ class FirmwareInfo {
 class FirmwareService {
   // ── Directory helpers ────────────────────────────────────────────────────
 
-  static Future<Directory> _firmwareDir() async {
-    final appDir = await getApplicationDocumentsDirectory();
-    final dir = Directory(p.join(appDir.path, 'firmware'));
-    if (!await dir.exists()) await dir.create(recursive: true);
-    return dir;
-  }
+  static Future<Directory> _firmwareDir() => AppDirectories.firmwareDir();
 
   // ── Public API ────────────────────────────────────────────────────────────
 

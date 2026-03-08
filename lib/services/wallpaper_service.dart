@@ -1,9 +1,9 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../data/device_templates.dart';
+import 'app_directories.dart';
 
 /// Holds metadata about a processed wallpaper entry.
 class WallpaperInfo {
@@ -31,20 +31,10 @@ class WallpaperService {
   static final RegExp dimensionPattern = RegExp(r'_(\d+)x(\d+)\.');
 
   /// Directory for resized (served) wallpapers
-  static Future<Directory> _mediaDir() async {
-    final appDir = await getApplicationDocumentsDirectory();
-    final dir = Directory(p.join(appDir.path, 'media'));
-    if (!await dir.exists()) await dir.create(recursive: true);
-    return dir;
-  }
+  static Future<Directory> _mediaDir() => AppDirectories.mediaDir();
 
   /// Directory for original source images
-  static Future<Directory> _originalDir() async {
-    final appDir = await getApplicationDocumentsDirectory();
-    final dir = Directory(p.join(appDir.path, 'media', 'original'));
-    if (!await dir.exists()) await dir.create(recursive: true);
-    return dir;
-  }
+  static Future<Directory> _originalDir() => AppDirectories.mediaOriginalDir();
 
   /// Process and save a wallpaper with a custom name.
   /// Stores the original in media/original/{name}_original.{ext}
