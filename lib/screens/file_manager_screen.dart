@@ -81,9 +81,10 @@ class _FileManagerScreenState extends State<FileManagerScreen>
             ),
           ),
         ],
-        bottom: const TabBar(
+        bottom: TabBar(
+          controller: _tabs,
           isScrollable: true,
-          tabs: [
+          tabs: const [
             Tab(icon: Icon(Icons.description), text: 'Configs'),
             Tab(icon: Icon(Icons.image), text: 'Wallpapers'),
             Tab(icon: Icon(Icons.music_note), text: 'Ringtones'),
@@ -1213,7 +1214,12 @@ class _FirmwareTabState extends State<_FirmwareTab>
     if (result == null) return;
     try {
       final src = result.files.single;
-      await FirmwareService.save(src.path!, src.name);
+      if (src.path != null) {
+        await FirmwareService.save(src.path!, src.name);
+      } else {
+        _snack('Cannot access file — try a different location');
+        return;
+      }
       _snack('"${src.name}" uploaded');
       _load();
     } catch (e) {

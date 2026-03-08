@@ -235,7 +235,14 @@ class _ModelAssignmentScreenState extends State<ModelAssignmentScreen> {
           initialSettings: first.deviceSettings,
           initialWallpaper: first.wallpaper,
           wallpapers: _wallpapers,
-          otherExtensions: [],
+          otherExtensions: selected
+              .map((r) => (
+                    extension: r.device.extension,
+                    label: r.device.label,
+                    settings: r.deviceSettings,
+                    wallpaper: r.wallpaper,
+                  ) as ExtensionCloneInfo)
+              .toList(),
         ),
       ),
     );
@@ -947,11 +954,13 @@ class _MacScannerSheetState extends State<_MacScannerSheet> {
     if (_cameraStopped) return;
     final raw = capture.barcodes.firstOrNull?.rawValue;
     if (raw == null) return;
-    final clean = raw.replaceAll(':', '').toUpperCase();
-    if (clean.length < 12) return;
+    final cleaned =
+        raw.replaceAll(RegExp(r'[^0-9A-Fa-f]'), '').toUpperCase();
+    if (cleaned.length < 12) return;
+    final mac = cleaned.substring(0, 12);
     setState(() {
       _cameraStopped = true;
-      _macCtrl.text = clean;
+      _macCtrl.text = mac;
     });
     _controller.stop();
   }
