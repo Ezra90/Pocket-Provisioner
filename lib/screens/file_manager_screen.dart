@@ -19,7 +19,8 @@ import 'file_editor_screen.dart';
 ///   2. Wallpapers — resized wallpaper images
 ///   3. Ringtones  — WAV ringtone files (max 1 MB)
 ///   4. Templates  — Mustache provisioning templates
-///   5. Phonebook  — XML phonebook files (NEW)
+///   5. Phonebook  — XML phonebook files
+///   6. Firmware   — binary firmware files for OTA updates
 class FileManagerScreen extends StatefulWidget {
   const FileManagerScreen({super.key});
 
@@ -1210,12 +1211,15 @@ class _FirmwareTabState extends State<_FirmwareTab>
   Future<void> _upload() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.any,
+      withData: true,
     );
     if (result == null) return;
     try {
       final src = result.files.single;
       if (src.path != null) {
         await FirmwareService.save(src.path!, src.name);
+      } else if (src.bytes != null) {
+        await FirmwareService.saveBytes(src.bytes!, src.name);
       } else {
         _snack('Cannot access file — try a different location');
         return;
