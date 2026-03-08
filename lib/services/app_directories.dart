@@ -238,11 +238,7 @@ class AppDirectories {
 
     final dest = Directory(destPath);
     if (await dest.exists()) {
-      final existing =
-          await dest.list(recursive: true).whereType<File>().first.then(
-                (_) => true,
-                onError: (_) => false,
-              );
+      final existing = await dest.list(recursive: true).any((e) => e is File);
       if (existing) return; // already has files — skip migration
     }
 
