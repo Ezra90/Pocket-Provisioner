@@ -5,6 +5,7 @@ import '../data/device_templates.dart';
 import '../models/button_key.dart';
 import '../models/device_settings.dart';
 import '../models/phonebook_entry.dart';
+import '../services/global_settings.dart';
 import '../services/mustache_renderer.dart';
 import '../services/ringtone_service.dart';
 import '../services/wallpaper_service.dart';
@@ -128,6 +129,9 @@ class _DeviceSettingsEditorScreenState
   // Phonebook
   List<PhonebookEntry>? _phonebookEntries;
 
+  // Global mode (loaded for hints)
+  String _globalMode = GlobalSettings.modeDms;
+
   @override
   void initState() {
     super.initState();
@@ -183,6 +187,9 @@ class _DeviceSettingsEditorScreenState
       MustacheRenderer.extractAllTags(templateKey).then((tags) {
         if (mounted) setState(() => _templateTags = tags);
       });
+    });
+    GlobalSettings.getMode().then((mode) {
+      if (mounted) setState(() => _globalMode = mode);
     });
   }
 
@@ -747,13 +754,25 @@ class _DeviceSettingsEditorScreenState
             leading: const Text('📞',
                 style: TextStyle(fontSize: 20)),
             title: const Text('SIP & Registration'),
+            subtitle: _globalMode == GlobalSettings.modeDms
+                ? const Text(
+                    'DMS mode – SIP is supplied by the DMS server',
+                    style: TextStyle(fontSize: 11, color: Colors.purple),
+                  )
+                : null,
             children: [
               Padding(
                 padding:
                     const EdgeInsets.fromLTRB(16, 8, 16, 8),
                 child: Column(
                   children: [
-                    _field(_sipServerCtrl, 'SIP Server Override'),
+                    _field(_sipServerCtrl,
+                        _globalMode == GlobalSettings.modeDms
+                            ? 'SIP Server Override (DMS mode: leave blank)'
+                            : 'SIP Server Override',
+                        hint: _globalMode == GlobalSettings.modeDms
+                            ? 'Inherited from DMS – blank for most jobs'
+                            : 'Inherited from Global Settings'),
                     _field(_sipPortCtrl, 'SIP Port',
                         hint: '5060',
                         keyboard: TextInputType.number),
@@ -1053,6 +1072,12 @@ class _DeviceSettingsEditorScreenState
             leading: const Text('🔧',
                 style: TextStyle(fontSize: 20)),
             title: const Text('Provisioning'),
+            subtitle: _globalMode == GlobalSettings.modeDms
+                ? const Text(
+                    'DMS mode – target URL is inherited from Global Settings',
+                    style: TextStyle(fontSize: 11, color: Colors.purple),
+                  )
+                : null,
             children: [
               Padding(
                 padding:
@@ -1060,8 +1085,12 @@ class _DeviceSettingsEditorScreenState
                 child: Column(
                   children: [
                     _field(_provisioningUrlCtrl,
-                        'Provisioning URL Override',
-                        hint: 'Inherited from server settings'),
+                        _globalMode == GlobalSettings.modeDms
+                            ? 'Target DMS / EPM URL Override'
+                            : 'Provisioning URL Override',
+                        hint: _globalMode == GlobalSettings.modeDms
+                            ? 'Inherited from Global Settings (DMS URL)'
+                            : 'Inherited from server settings'),
                     // ── Firmware Upgrade URL ──────────────────────────────
                     if (_templateSupports('firmware_url')) ...[
                       const Text('Firmware Upgrade',

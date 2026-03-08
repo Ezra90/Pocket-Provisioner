@@ -11,6 +11,7 @@ import '../models/access_log_entry.dart';
 import '../models/button_key.dart';
 import 'app_directories.dart';
 import 'button_layout_service.dart';
+import 'global_settings.dart';
 import 'mustache_renderer.dart';
 import 'mustache_template_service.dart';
 import 'phonebook_service.dart';
@@ -379,28 +380,31 @@ class ProvisioningServer {
               }
             }
 
+            final gs = await GlobalSettings.load();
+
             final variables = MustacheRenderer.buildVariables(
               macAddress: device.macAddress ?? mac,
               extension: device.extension,
               displayName: device.label,
               secret: device.secret,
               model: device.model,
-              sipServer: ds?.sipServer ?? '',
-              provisioningUrl: ds?.provisioningUrl ?? _serverUrl ?? '',
-              sipPort: ds?.sipPort,
-              transport: ds?.transport,
+              sipServer: gs.resolveSipServer(ds?.sipServer),
+              provisioningUrl: gs.resolveProvisioningUrl(
+                  ds?.provisioningUrl, serverUrl: _serverUrl),
+              sipPort: ds?.sipPort ?? (gs.isDmsMode ? null : gs.sipPort),
+              transport: ds?.transport ?? (gs.isDmsMode ? null : gs.transport),
               regExpiry: ds?.regExpiry,
               outboundProxyHost: ds?.outboundProxyHost,
               outboundProxyPort: ds?.outboundProxyPort,
               backupServer: ds?.backupServer,
               backupPort: ds?.backupPort,
-              voiceVlanId: ds?.voiceVlanId,
+              voiceVlanId: ds?.voiceVlanId ?? gs.voiceVlanId,
               dataVlanId: ds?.dataVlanId,
               wallpaperUrl: deviceWallpaperUrl,
               ringtoneUrl: deviceRingtoneUrl,
-              ntpServer: ds?.ntpServer,
-              timezone: ds?.timezone,
-              adminPassword: ds?.adminPassword,
+              ntpServer: ds?.ntpServer ?? gs.ntpServer,
+              timezone: ds?.timezone ?? gs.timezone,
+              adminPassword: ds?.adminPassword ?? gs.adminPassword,
               voicemailNumber: ds?.voicemailNumber,
               screensaverTimeout: ds?.screensaverTimeout,
               webUiEnabled: ds?.webUiEnabled,
