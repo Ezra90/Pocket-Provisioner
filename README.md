@@ -4,10 +4,35 @@
 
 **Pocket Provisioner** is a mobile field utility for Telecommunications Technicians. It turns an Android/iOS device into a temporary **Provisioning Server**, allowing for rapid deployment of VoIP handsets (Yealink, Polycom, Cisco) without needing a laptop or complex on-site infrastructure.
 
+---
+
+## 🔀 Two Operating Modes
+
+The app supports two distinct provisioning workflows, selectable via the **⚙ Global Settings** screen:
+
+### ☁️ Mode 1 — DMS / Carrier Mode *(Telstra / Broadworks)*
+
+The app acts as a **bootstrap server**. It generates a minimal config that:
+1. Injects the handset's **auth credentials** (extension + password from your CSV / Broadworks export).
+2. Sets the **Target DMS / EPM URL** so the phone auto-provisions from the carrier DMS server on first boot.
+3. Disables the handset's built-in **qsetup wizard** so it goes straight to DMS provisioning.
+
+On next boot, the handset fetches its **full configuration** (SIP server, features, voicemail, etc.) directly from the DMS. This is the recommended mode for **Telstra / Broadworks** deployments where all service configuration lives in the carrier platform.
+
+> **Use this mode when:** You are deploying handsets for a carrier-hosted Broadworks / Telstra service and DMS handles all phone configuration.
+
+### 🏢 Mode 2 — Standalone / FreePBX Mode
+
+The app generates a **complete, self-contained config** for each handset — including all SIP registration details, features, and optional wallpaper/buttons. The phone connects directly to your on-premise PBX in a **single provisioning pass** with no secondary DMS hop.
+
+> **Use this mode when:** You are deploying handsets on a local FreePBX, Asterisk, or other on-premise PBX that does **not** have DMS / EPM integration.
+
+---
+
 ## 🚀 Core Features
 
-* **Server Hop Architecture:** Provisions a handset with local settings (Wallpaper, Buttons) and then automatically hands it off to your production **DMS / EPM** (Endpoint Manager).
-* **Smart CSV Import:** Automatically detects Carrier/Broadworks headers and generic exports.
+* **Dual-Mode Provisioning:** DMS / Carrier bootstrap *or* full Standalone config — switch modes in Global Settings.
+* **Smart CSV Import:** Automatically detects Carrier/Broadworks headers and generic FreePBX exports.
 * **Auto-Advance Scanning:** Rapidly map MAC addresses to Extensions using the camera.
 * **Smart Wallpaper Tool:** Pick any image from your gallery; the app auto-resizes and formats it for the specific handset model (e.g., Yealink T54W) and hosts it locally.
 * **Button Layout Editor:** Configure BLF, Speed Dial, and Line keys before the phone even boots.
@@ -16,20 +41,16 @@
 
 ## 🛠 Usage Workflow
 
-### 1. Categorized Settings
-Tap the **Gear Icon [⚙]** to configure your job environment using the new categorized layout:
+### 1. Global Settings ⚙
+Tap the **Settings icon [⚙]** in the top-right of the dashboard to configure your job environment:
 
-* **Network & SIP:**
-    * **Primary SIP Server:** Leave Blank for Cloud/DMS jobs. Enter IP (e.g., `192.168.1.10`) for manual On-Premise PBX jobs.
-    * **Voice VLAN ID:** Configure the network VLAN for voice traffic.
-* **Preferences:**
-    * Configure **NTP Server**, **Timezone Offset**, and **Default Ringtone**.
-    * **Wallpaper Source:** Use the **Smart Tool [🪄]** to pick an image. It auto-resizes for your models.
-    * **Carry-Over Settings:** Enable global toggles to reuse Wallpaper, Button Layouts, Ringtone, and Volume across an entire deployment batch.
+* **Provisioning Mode:**
+    * **DMS / Carrier Mode** — for Telstra / Broadworks jobs. Set the **Target DMS / EPM URL** here.
+    * **Standalone / FreePBX Mode** — for on-premise PBX jobs. Set the **SIP Server address** here.
+* **Common Settings:**
+    * Configure **NTP Server**, **Timezone Offset**, **Voice VLAN ID**, and **Default Admin Password**.
 * **Management:**
-    * **Target DMS / EPM Server:** Enter the URL where the phone should go *after* initial setup.
-    * **Local Admin Password:** Set a global administrative password for the phones.
-    * Use links here to manage Device Templates, Line Keys, and Hosted Files.
+    * Links to manage Device Templates, Button Layouts, and Hosted Files (wallpapers, ringtones, firmware).
 
 ### 2. Import Data (CSV / Excel)
 Tap **Import CSV / Excel**. The app accepts `.csv`, `.txt`, and `.xlsx` files. It reads the first row as column headers (case-insensitive) and maps them to the following fields:
@@ -64,11 +85,9 @@ The app supports two common export formats out of the box:
 2.  Set your Router's **DHCP Option 66** to the URL displayed (e.g., `http://192.168.1.50:8080`).
 3.  Tap **Start Scanning**.
 4.  Scan the barcode on the phone box. The app matches it to the user and auto-advances.
-5.  Boot the phone. It will:
-    * Download Config from App.
-    * Apply Wallpaper & Buttons.
-    * Read the "Target DMS" URL.
-    * Reboot and connect to your Carrier/PBX using the injected credentials.
+5.  Boot the phone. It will download config from the app and either:
+    * **(DMS mode)** — Reboot and auto-provision from the carrier DMS server.
+    * **(Standalone mode)** — Register directly with your PBX using the injected credentials.
 
 ---
 

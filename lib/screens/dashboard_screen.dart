@@ -17,9 +17,11 @@ import '../services/mustache_template_service.dart';
 import '../services/provisioning_server.dart';
 import '../services/button_layout_service.dart';
 import '../services/update_service.dart';
+import '../services/global_settings.dart';
 import '../models/button_key.dart';
 import '../models/device.dart';
 import 'access_log_screen.dart';
+import 'global_settings_screen.dart';
 import 'model_assignment_screen.dart';
 import 'extensions_screen.dart';
 import 'file_manager_screen.dart';
@@ -37,6 +39,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Color _statusColor = Colors.red.shade100;
   String _appVersion = "v0.0.4";
 
+  // Global provisioning mode (loaded from SharedPreferences)
+  String _globalMode = GlobalSettings.modeDms;
+
   // Update state
   UpdateInfo? _pendingUpdate;
   bool _checkingUpdate = false;
@@ -47,6 +52,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _checkPermissions();
     _loadAppVersion();
     _autoCheckForUpdate();
+    _loadGlobalMode();
+  }
+
+  Future<void> _loadGlobalMode() async {
+    final mode = await GlobalSettings.getMode();
+    if (mounted) setState(() => _globalMode = mode);
   }
 
   Future<void> _loadAppVersion() async {
@@ -354,6 +365,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         await outputDir.create(recursive: true);
       }
 
+      // Load global settings once for the whole batch
+      final gs = await GlobalSettings.load();
+
       int generated = 0;
 
       for (final device in devices) {
@@ -424,23 +438,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
           displayName: device.label,
           secret: device.secret,
           model: device.model,
-          // All per-device settings; empty string = not configured
-          sipServer: ds?.sipServer ?? '',
-          provisioningUrl: ds?.provisioningUrl ?? '',
-          sipPort: ds?.sipPort,
-          transport: ds?.transport,
+          sipServer: gs.resolveSipServer(ds?.sipServer),
+          provisioningUrl: gs.resolveProvisioningUrl(
+              ds?.provisioningUrl, serverUrl: ProvisioningServer.serverUrl),
+          sipPort: ds?.sipPort ?? (gs.isDmsMode ? null : gs.sipPort),
+          transport: ds?.transport ?? (gs.isDmsMode ? null : gs.transport),
           regExpiry: ds?.regExpiry,
           outboundProxyHost: ds?.outboundProxyHost,
           outboundProxyPort: ds?.outboundProxyPort,
           backupServer: ds?.backupServer,
           backupPort: ds?.backupPort,
-          voiceVlanId: ds?.voiceVlanId,
+          voiceVlanId: ds?.voiceVlanId ?? gs.voiceVlanId,
           dataVlanId: ds?.dataVlanId,
           wallpaperUrl: deviceWallpaperUrl,
           ringtoneUrl: deviceRingtoneUrl,
-          ntpServer: ds?.ntpServer,
-          timezone: ds?.timezone,
-          adminPassword: ds?.adminPassword,
+          ntpServer: ds?.ntpServer ?? gs.ntpServer,
+          timezone: ds?.timezone ?? gs.timezone,
+          adminPassword: ds?.adminPassword ?? gs.adminPassword,
           voicemailNumber: ds?.voicemailNumber,
           screensaverTimeout: ds?.screensaverTimeout,
           webUiEnabled: ds?.webUiEnabled,
@@ -532,6 +546,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onPressed: () => Navigator.push(
                 context, MaterialPageRoute(builder: (c) => const FileManagerScreen())),
           ),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: 'Global Settings',
+            onPressed: () async {
+              final changed = await Navigator.push<bool>(
+                context,
+                MaterialPageRoute(
+                    builder: (c) => const GlobalSettingsScreen()),
+              );
+              if (changed == true) _loadGlobalMode();
+            },
+          ),
           // Update indicator: spinning while checking, badge when update ready.
           if (_checkingUpdate)
             const Padding(
@@ -619,6 +645,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     const Icon(Icons.router, size: 48, color: Colors.black54),
                     const SizedBox(height: 10),
                     Text(_serverStatus, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    // Mode badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _globalMode == GlobalSettings.modeDms
+                            ? Colors.purple.shade100
+                            : Colors.teal.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _globalMode == GlobalSettings.modeDms
+                              ? Colors.purple.shade300
+                              : Colors.teal.shade300,
+                        ),
+                      ),
+                      child: Text(
+                        _globalMode == GlobalSettings.modeDms
+                            ? '☁️  DMS / Carrier Mode'
+                            : '🏢  Standalone / FreePBX Mode',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: _globalMode == GlobalSettings.modeDms
+                              ? Colors.purple.shade800
+                              : Colors.teal.shade800,
+                        ),
+                      ),
+                    ),
                     if (_isServerRunning)
                       Padding(
                         padding: const EdgeInsets.only(top: 8.0),
