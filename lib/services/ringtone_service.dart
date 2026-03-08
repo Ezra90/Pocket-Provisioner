@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import 'app_directories.dart';
 
 /// Parsed WAV header metadata returned after a file is imported.
 class WavInfo {
@@ -83,20 +83,10 @@ class RingtoneService {
 
   // ── Directory helpers ──────────────────────────────────────────────────────
 
-  static Future<Directory> _ringtonesDir() async {
-    final appDir = await getApplicationDocumentsDirectory();
-    final dir = Directory(p.join(appDir.path, 'ringtones'));
-    if (!await dir.exists()) await dir.create(recursive: true);
-    return dir;
-  }
+  static Future<Directory> _ringtonesDir() => AppDirectories.ringtoneDir();
 
   /// Originals sub-folder — untouched source files cached for re-processing.
-  static Future<Directory> _originalsDir() async {
-    final appDir = await getApplicationDocumentsDirectory();
-    final dir = Directory(p.join(appDir.path, 'ringtones', 'original'));
-    if (!await dir.exists()) await dir.create(recursive: true);
-    return dir;
-  }
+  static Future<Directory> _originalsDir() => AppDirectories.ringtoneOriginalDir();
 
   // ── WAV header parsing ─────────────────────────────────────────────────────
 

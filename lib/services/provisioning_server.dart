@@ -5,11 +5,11 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 import 'package:network_info_plus/network_info_plus.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../data/database_helper.dart';
 import '../models/access_log_entry.dart';
 import '../models/button_key.dart';
+import 'app_directories.dart';
 import 'button_layout_service.dart';
 import 'mustache_renderer.dart';
 import 'mustache_template_service.dart';
@@ -216,8 +216,8 @@ class ProvisioningServer {
 
     // --- MEDIA HANDLER (original files) ---
     router.get('/media/original/<file>', (Request request, String file) async {
-      final directory = await getApplicationDocumentsDirectory();
-      final filePath = p.join(directory.path, 'media', 'original', p.basename(file));
+      final dir = await AppDirectories.mediaOriginalDir();
+      final filePath = p.join(dir.path, p.basename(file));
       final imageFile = File(filePath);
 
       if (await imageFile.exists()) {
@@ -233,8 +233,8 @@ class ProvisioningServer {
 
     // --- MEDIA HANDLER ---
     router.get('/media/<file>', (Request request, String file) async {
-      final directory = await getApplicationDocumentsDirectory();
-      final filePath = p.join(directory.path, 'media', p.basename(file));
+      final dir = await AppDirectories.mediaDir();
+      final filePath = p.join(dir.path, p.basename(file));
       final imageFile = File(filePath);
 
       if (await imageFile.exists()) {
@@ -249,8 +249,8 @@ class ProvisioningServer {
 
     // --- RINGTONE HANDLER ---
     router.get('/ringtones/<file>', (Request request, String file) async {
-      final directory = await getApplicationDocumentsDirectory();
-      final filePath = p.join(directory.path, 'ringtones', p.basename(file));
+      final dir = await AppDirectories.ringtoneDir();
+      final filePath = p.join(dir.path, p.basename(file));
       final audioFile = File(filePath);
       if (await audioFile.exists()) {
         final bytes = await audioFile.readAsBytes();
@@ -263,8 +263,8 @@ class ProvisioningServer {
 
     // --- PHONEBOOK HANDLER ---
     router.get('/phonebook/<file>', (Request request, String file) async {
-      final directory = await getApplicationDocumentsDirectory();
-      final filePath = p.join(directory.path, 'phonebook', p.basename(file));
+      final dir = await AppDirectories.phonebookDir();
+      final filePath = p.join(dir.path, p.basename(file));
       final pbFile = File(filePath);
       if (await pbFile.exists()) {
         final content = await pbFile.readAsString();
@@ -277,8 +277,8 @@ class ProvisioningServer {
 
     // --- FIRMWARE HANDLER ---
     router.get('/firmware/<file>', (Request request, String file) async {
-      final directory = await getApplicationDocumentsDirectory();
-      final filePath = p.join(directory.path, 'firmware', p.basename(file));
+      final dir = await AppDirectories.firmwareDir();
+      final filePath = p.join(dir.path, p.basename(file));
       final fwFile = File(filePath);
       if (await fwFile.exists()) {
         final bytes = await fwFile.readAsBytes();
@@ -433,12 +433,7 @@ class ProvisioningServer {
       }
 
       // --- Fallback to static generated files ---
-      final directory = await getApplicationDocumentsDirectory();
-      final configDir = Directory(p.join(directory.path, 'generated_configs'));
-
-      if (!await configDir.exists()) {
-        return Response.notFound('Config directory not found');
-      }
+      final configDir = await AppDirectories.configsDir();
 
       // Direct file lookups instead of blocking listSync()
       File match = File(p.join(configDir.path, p.basename(filename)));

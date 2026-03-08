@@ -2,9 +2,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../data/device_templates.dart';
+import '../services/app_directories.dart';
 import '../services/provisioning_server.dart';
 import '../services/ringtone_service.dart';
 import '../services/wallpaper_service.dart';
@@ -21,6 +21,9 @@ import 'file_editor_screen.dart';
 ///   4. Templates  — Mustache provisioning templates
 ///   5. Phonebook  — XML phonebook files
 ///   6. Firmware   — binary firmware files for OTA updates
+///
+/// Tabs 3, 5, and 6 display a storage-path banner showing the directory
+/// where files can be dropped directly via the Android file manager app.
 class FileManagerScreen extends StatefulWidget {
   const FileManagerScreen({super.key});
 
@@ -141,8 +144,7 @@ class _ConfigsTabState extends State<_ConfigsTab>
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final appDir = await getApplicationDocumentsDirectory();
-    final dir = Directory(p.join(appDir.path, 'generated_configs'));
+    final dir = await AppDirectories.configsDir();
     final entries = <_FileEntry>[];
     if (await dir.exists()) {
       final files = (await dir.list().toList()).whereType<File>().toList();
@@ -707,29 +709,37 @@ class _RingtonesTabState extends State<_RingtonesTab>
           : RefreshIndicator(
               onRefresh: _load,
               child: _ringtones.isEmpty
-                  ? ListView(children: [
-                      Padding(
-                        padding: const EdgeInsets.all(32),
-                        child: Column(
-                          children: [
-                            const Icon(Icons.music_off, size: 48, color: Colors.grey),
-                            const SizedBox(height: 12),
-                            const Text('No ringtones yet', style: TextStyle(color: Colors.grey)),
-                            const SizedBox(height: 8),
-                            ElevatedButton.icon(
-                              onPressed: _upload,
-                              icon: const Icon(Icons.upload),
-                              label: const Text('Upload Ringtone'),
-                            ),
-                          ],
+                  ? ListView(
+                      padding: const EdgeInsets.all(12),
+                      children: [
+                        _StoragePathBanner(
+                            directoryGetter: AppDirectories.ringtoneDir),
+                        Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Column(
+                            children: [
+                              const Icon(Icons.music_off, size: 48, color: Colors.grey),
+                              const SizedBox(height: 12),
+                              const Text('No ringtones yet', style: TextStyle(color: Colors.grey)),
+                              const SizedBox(height: 8),
+                              ElevatedButton.icon(
+                                onPressed: _upload,
+                                icon: const Icon(Icons.upload),
+                                label: const Text('Upload Ringtone'),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ])
+                      ])
                   : ListView.builder(
                       padding: const EdgeInsets.all(12),
-                      itemCount: _ringtones.length,
+                      itemCount: _ringtones.length + 1,
                       itemBuilder: (context, i) {
-                        final info = _ringtones[i];
+                        if (i == 0) {
+                          return _StoragePathBanner(
+                              directoryGetter: AppDirectories.ringtoneDir);
+                        }
+                        final info = _ringtones[i - 1];
                         final ringtoneUrl = serverUrl != null ? '$serverUrl/ringtones/${info.filename}' : null;
                         return Dismissible(
                           key: ValueKey(info.filename),
@@ -1024,8 +1034,7 @@ class _PhonebookTabState extends State<_PhonebookTab>
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final appDir = await getApplicationDocumentsDirectory();
-    final dir = Directory(p.join(appDir.path, 'phonebook'));
+    final dir = await AppDirectories.phonebookDir();
     final entries = <_FileEntry>[];
     if (await dir.exists()) {
       final files = (await dir.list().toList()).whereType<File>().toList();
@@ -1049,9 +1058,7 @@ class _PhonebookTabState extends State<_PhonebookTab>
     );
     if (result == null) return;
     try {
-      final appDir = await getApplicationDocumentsDirectory();
-      final dir = Directory(p.join(appDir.path, 'phonebook'));
-      if (!await dir.exists()) await dir.create(recursive: true);
+      final dir = await AppDirectories.phonebookDir();
       final dest = File(p.join(dir.path, result.files.single.name));
       await File(result.files.single.path!).copy(dest.path);
       _snack('Phonebook uploaded');
@@ -1092,29 +1099,37 @@ class _PhonebookTabState extends State<_PhonebookTab>
           : RefreshIndicator(
               onRefresh: _load,
               child: _files.isEmpty
-                  ? ListView(children: [
-                      Padding(
-                        padding: const EdgeInsets.all(32),
-                        child: Column(
-                          children: [
-                            const Icon(Icons.contacts, size: 48, color: Colors.grey),
-                            const SizedBox(height: 12),
-                            const Text('No phonebook files yet', style: TextStyle(color: Colors.grey)),
-                            const SizedBox(height: 8),
-                            ElevatedButton.icon(
-                              onPressed: _upload,
-                              icon: const Icon(Icons.upload),
-                              label: const Text('Upload Phonebook XML'),
-                            ),
-                          ],
+                  ? ListView(
+                      padding: const EdgeInsets.all(12),
+                      children: [
+                        _StoragePathBanner(
+                            directoryGetter: AppDirectories.phonebookDir),
+                        Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Column(
+                            children: [
+                              const Icon(Icons.contacts, size: 48, color: Colors.grey),
+                              const SizedBox(height: 12),
+                              const Text('No phonebook files yet', style: TextStyle(color: Colors.grey)),
+                              const SizedBox(height: 8),
+                              ElevatedButton.icon(
+                                onPressed: _upload,
+                                icon: const Icon(Icons.upload),
+                                label: const Text('Upload Phonebook XML'),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ])
+                      ])
                   : ListView.builder(
                       padding: const EdgeInsets.all(12),
-                      itemCount: _files.length,
+                      itemCount: _files.length + 1,
                       itemBuilder: (context, i) {
-                        final e = _files[i];
+                        if (i == 0) {
+                          return _StoragePathBanner(
+                              directoryGetter: AppDirectories.phonebookDir);
+                        }
+                        final e = _files[i - 1];
                         final name = p.basename(e.file.path);
                         final pbUrl = serverUrl != null ? '$serverUrl/phonebook/$name' : null;
                         return ListTile(
@@ -1268,35 +1283,43 @@ class _FirmwareTabState extends State<_FirmwareTab>
           : RefreshIndicator(
               onRefresh: _load,
               child: _files.isEmpty
-                  ? ListView(children: [
-                      Padding(
-                        padding: const EdgeInsets.all(32),
-                        child: Column(
-                          children: [
-                            const Icon(Icons.system_update, size: 48, color: Colors.grey),
-                            const SizedBox(height: 12),
-                            const Text('No firmware files yet', style: TextStyle(color: Colors.grey)),
-                            const SizedBox(height: 4),
-                            const Text(
-                              'Upload firmware binaries here to serve them\nto handsets via the provisioning config.',
-                              style: TextStyle(fontSize: 12, color: Colors.grey),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 12),
-                            ElevatedButton.icon(
-                              onPressed: _upload,
-                              icon: const Icon(Icons.upload),
-                              label: const Text('Upload Firmware File'),
-                            ),
-                          ],
+                  ? ListView(
+                      padding: const EdgeInsets.all(12),
+                      children: [
+                        _StoragePathBanner(
+                            directoryGetter: AppDirectories.firmwareDir),
+                        Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Column(
+                            children: [
+                              const Icon(Icons.system_update, size: 48, color: Colors.grey),
+                              const SizedBox(height: 12),
+                              const Text('No firmware files yet', style: TextStyle(color: Colors.grey)),
+                              const SizedBox(height: 4),
+                              const Text(
+                                'Upload firmware binaries here to serve them\nto handsets via the provisioning config.',
+                                style: TextStyle(fontSize: 12, color: Colors.grey),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 12),
+                              ElevatedButton.icon(
+                                onPressed: _upload,
+                                icon: const Icon(Icons.upload),
+                                label: const Text('Upload Firmware File'),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ])
+                      ])
                   : ListView.builder(
                       padding: const EdgeInsets.all(12),
-                      itemCount: _files.length,
+                      itemCount: _files.length + 1,
                       itemBuilder: (context, i) {
-                        final info = _files[i];
+                        if (i == 0) {
+                          return _StoragePathBanner(
+                              directoryGetter: AppDirectories.firmwareDir);
+                        }
+                        final info = _files[i - 1];
                         final fwUrl = serverUrl != null
                             ? '$serverUrl/firmware/${info.filename}'
                             : null;
@@ -1354,6 +1377,70 @@ class _FirmwareTabState extends State<_FirmwareTab>
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared helpers
 // ─────────────────────────────────────────────────────────────────────────────
+
+/// Displays the filesystem path of the given directory so users know exactly
+/// where to place files using the Android file manager (or any external tool).
+/// Includes a copy-to-clipboard button for convenience.
+class _StoragePathBanner extends StatelessWidget {
+  final Future<Directory> Function() directoryGetter;
+  const _StoragePathBanner({required this.directoryGetter});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Directory>(
+      future: directoryGetter(),
+      builder: (context, snap) {
+        if (!snap.hasData) return const SizedBox.shrink();
+        final path = snap.data!.path;
+        return Card(
+          color: Colors.indigo.shade50,
+          margin: const EdgeInsets.only(bottom: 8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Row(
+              children: [
+                const Icon(Icons.folder_open, color: Colors.indigo, size: 16),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Drop files here via file manager:',
+                        style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.indigo),
+                      ),
+                      Text(
+                        path,
+                        style: const TextStyle(
+                            fontSize: 10, color: Colors.blueGrey),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.copy, size: 14),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  tooltip: 'Copy path',
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: path));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('Path copied to clipboard')));
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
 
 class _ServerBanner extends StatelessWidget {
   final String? serverUrl;
