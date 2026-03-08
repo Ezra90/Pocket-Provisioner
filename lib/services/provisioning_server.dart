@@ -9,6 +9,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../data/database_helper.dart';
 import '../models/access_log_entry.dart';
+import '../models/button_key.dart';
+import 'button_layout_service.dart';
 import 'mustache_renderer.dart';
 import 'mustache_template_service.dart';
 import 'phonebook_service.dart';
@@ -337,6 +339,28 @@ class ProvisioningServer {
               }
             }
 
+            // Resolve button layout: per-device override, then model default
+            List<ButtonKey>? lineKeys;
+            if (ds?.buttonLayout != null &&
+                ds!.buttonLayout!.any((k) => k.type != 'none')) {
+              lineKeys = ds.buttonLayout!.map((k) => k.clone()).toList();
+            } else {
+              final modelLayout =
+                  await ButtonLayoutService.getLayoutForModel(device.model);
+              if (modelLayout.isNotEmpty &&
+                  modelLayout.any((k) => k.type != 'none')) {
+                lineKeys = modelLayout;
+              }
+            }
+            if (lineKeys != null) {
+              final overrides =
+                  await ButtonLayoutService.getLabelOverrides(mac);
+              for (final key in lineKeys) {
+                final override = overrides[key.id.toString()];
+                if (override != null) key.label = override;
+              }
+            }
+
             // Generate and persist phonebook XML if the device has entries,
             // then build the URL the phone will fetch it from.
             String? devicePhonebookUrl;
@@ -393,6 +417,7 @@ class ProvisioningServer {
               dstEnable: ds?.dstEnable,
               debugLevel: ds?.debugLevel,
               firmwareUrl: deviceFirmwareUrl.isNotEmpty ? deviceFirmwareUrl : null,
+              lineKeys: lineKeys,
               phonebookUrl: devicePhonebookUrl,
             );
 
