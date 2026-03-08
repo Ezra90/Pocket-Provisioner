@@ -7,6 +7,7 @@ import '../models/device_settings.dart';
 import '../services/mustache_renderer.dart';
 import '../services/ringtone_service.dart';
 import '../services/wallpaper_service.dart';
+import '../services/firmware_service.dart';
 import 'per_extension_button_editor.dart';
 
 /// Info about another extension, used in the Copy From... dialog.
@@ -103,6 +104,11 @@ class _DeviceSettingsEditorScreenState
 
   // Provisioning
   late final TextEditingController _provisioningUrlCtrl;
+  /// Holds the "LOCAL:<filename>" value when a server-hosted file is selected.
+  String? _firmwareLocalFile;
+  /// Holds a custom direct URL when the user types one manually.
+  late final TextEditingController _firmwareCustomUrlCtrl;
+  List<FirmwareInfo> _firmwareFiles = [];
   late final TextEditingController _ntpServerCtrl;
   late final TextEditingController _timezoneCtrl;
   late final TextEditingController _dstEnableCtrl;
@@ -151,6 +157,9 @@ class _DeviceSettingsEditorScreenState
     _voicemailCtrl = TextEditingController(text: s?.voicemailNumber ?? '');
     _provisioningUrlCtrl =
         TextEditingController(text: s?.provisioningUrl ?? '');
+    // Initialise controller first, then populate via helper to avoid duplication
+    _firmwareCustomUrlCtrl = TextEditingController();
+    _applyFirmwareUrl(s?.firmwareUrl);
     _ntpServerCtrl = TextEditingController(text: s?.ntpServer ?? '');
     _timezoneCtrl = TextEditingController(text: s?.timezone ?? '');
     _dstEnableCtrl = TextEditingController(text: s?.dstEnable ?? '');
@@ -160,6 +169,9 @@ class _DeviceSettingsEditorScreenState
     _buttonLayout = s?.buttonLayout?.map((k) => k.clone()).toList();
     RingtoneService.listRingtones().then((list) {
       if (mounted) setState(() => _ringtones = list);
+    });
+    FirmwareService.listFirmware().then((list) {
+      if (mounted) setState(() => _firmwareFiles = list);
     });
     MustacheRenderer.resolveTemplateKey(widget.model).then((templateKey) {
       MustacheRenderer.extractAllTags(templateKey).then((tags) {
@@ -186,6 +198,7 @@ class _DeviceSettingsEditorScreenState
     _cfwNoAnswerCtrl.dispose();
     _voicemailCtrl.dispose();
     _provisioningUrlCtrl.dispose();
+    _firmwareCustomUrlCtrl.dispose();
     _ntpServerCtrl.dispose();
     _timezoneCtrl.dispose();
     _dstEnableCtrl.dispose();
@@ -196,6 +209,18 @@ class _DeviceSettingsEditorScreenState
   }
 
   String? _nonEmpty(String s) => s.trim().isEmpty ? null : s.trim();
+
+  /// Splits [rawFw] into (_firmwareLocalFile, customUrl) and applies both.
+  /// A `LOCAL:` prefixed value goes to the dropdown; anything else to the text field.
+  void _applyFirmwareUrl(String? rawFw) {
+    if (rawFw != null && rawFw.startsWith('LOCAL:')) {
+      _firmwareLocalFile = rawFw;
+      _firmwareCustomUrlCtrl.clear();
+    } else {
+      _firmwareLocalFile = null;
+      _firmwareCustomUrlCtrl.text = rawFw ?? '';
+    }
+  }
 
   DeviceSettings _buildSettings() => DeviceSettings(
         sipServer: _nonEmpty(_sipServerCtrl.text),
@@ -223,6 +248,7 @@ class _DeviceSettingsEditorScreenState
         voicemailNumber: _nonEmpty(_voicemailCtrl.text),
         dialPlan: _nonEmpty(_dialPlanCtrl.text),
         provisioningUrl: _nonEmpty(_provisioningUrlCtrl.text),
+        firmwareUrl: _firmwareLocalFile ?? _nonEmpty(_firmwareCustomUrlCtrl.text),
         ntpServer: _nonEmpty(_ntpServerCtrl.text),
         timezone: _nonEmpty(_timezoneCtrl.text),
         dstEnable: _nonEmpty(_dstEnableCtrl.text),
@@ -258,6 +284,7 @@ class _DeviceSettingsEditorScreenState
       _voicemailCtrl.text = s.voicemailNumber ?? '';
       _dialPlanCtrl.text = s.dialPlan ?? '';
       _provisioningUrlCtrl.text = s.provisioningUrl ?? '';
+      _applyFirmwareUrl(s.firmwareUrl);
       _ntpServerCtrl.text = s.ntpServer ?? '';
       _timezoneCtrl.text = s.timezone ?? '';
       _dstEnableCtrl.text = s.dstEnable ?? '';
@@ -1027,6 +1054,64 @@ class _DeviceSettingsEditorScreenState
                     _field(_provisioningUrlCtrl,
                         'Provisioning URL Override',
                         hint: 'Inherited from server settings'),
+                    // ── Firmware Upgrade URL ──────────────────────────────
+                    if (_templateSupports('firmware_url')) ...[
+                      const Text('Firmware Upgrade',
+                          style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      const SizedBox(height: 4),
+                      // ① Pick a server-hosted file
+                      DropdownButtonFormField<String?>(
+                        value: _firmwareLocalFile,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Server-hosted file',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: [
+                          const DropdownMenuItem<String?>(
+                              value: null,
+                              child: Text('None (no firmware push)')),
+                          ..._firmwareFiles.map((f) =>
+                              DropdownMenuItem<String?>(
+                                value: 'LOCAL:${f.filename}',
+                                child: Text(f.filename,
+                                    overflow: TextOverflow.ellipsis),
+                              )),
+                        ],
+                        onChanged: (v) => setState(() {
+                          _firmwareLocalFile = v;
+                          // Clear custom URL so only one source is active
+                          _firmwareCustomUrlCtrl.clear();
+                        }),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 6),
+                        child: Row(children: [
+                          Expanded(child: Divider()),
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 8),
+                            child: Text('or', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                          ),
+                          Expanded(child: Divider()),
+                        ]),
+                      ),
+                      // ② Enter a direct URL
+                      TextField(
+                        controller: _firmwareCustomUrlCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Custom firmware URL',
+                          hintText: 'http://server/firmware/T54W.rom',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        onChanged: (v) => setState(() {
+                          // Clear dropdown so only one source is active
+                          if (v.isNotEmpty) _firmwareLocalFile = null;
+                        }),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     _field(_ntpServerCtrl, 'NTP Server',
                         hint: 'e.g. pool.ntp.org'),
                     _field(_timezoneCtrl, 'Timezone',

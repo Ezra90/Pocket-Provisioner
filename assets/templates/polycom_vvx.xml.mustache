@@ -30,6 +30,7 @@
     {"name": "ntp_server",       "category": "provisioning",  "description": "Primary NTP time server hostname or IP.", "example": "0.pool.ntp.org", "default": "0.pool.ntp.org"},
     {"name": "gmt_offset",       "category": "provisioning",  "description": "GMT offset in seconds for the SNTP client.", "example": "36000", "default": "0"},
     {"name": "provisioning_url", "category": "provisioning",  "description": "Provisioning server base URL.", "example": "http://192.168.1.1:8080", "default": ""},
+    {"name": "firmware_url",     "category": "provisioning",  "description": "Firmware application URL for auto-upgrade (leave blank to disable).", "example": "http://192.168.1.1:8080/firmware/sip.ld", "default": ""},
     {"name": "syslog_server",    "category": "diagnostics",   "description": "Remote syslog server hostname or IP.", "example": "192.168.1.50", "default": ""},
     {"name": "ringtone_url",     "category": "display",       "description": "Custom ringtone URL (WAV file served by the provisioning server).", "example": "http://192.168.1.1:8080/ringtones/MyRing.wav", "default": ""}
   ]
@@ -157,4 +158,9 @@
     device.web.enabled="{{web_ui_enabled}}"
 {{/has_web_ui}}
   />
+{{#has_firmware}}
+  <UPDATER
+    updater.application.url="{{firmware_url}}"
+  />
+{{/has_firmware}}
 </PHONE_CONFIG>

@@ -142,6 +142,7 @@ class MustacheRenderer {
     String? dialPlan,
     String? dstEnable,
     String? debugLevel,
+    String? firmwareUrl,
     List<ButtonKey>? lineKeys,
     Map<String, String>? extToLabel,
   }) {
@@ -166,6 +167,7 @@ class MustacheRenderer {
     final bool hasCfwNoAnswer = cfwNoAnswer != null && cfwNoAnswer.isNotEmpty;
     final bool hasSyslog = syslogServer != null && syslogServer.isNotEmpty;
     final bool hasDialPlan = dialPlan != null && dialPlan.isNotEmpty;
+    final bool hasFirmware = firmwareUrl != null && firmwareUrl.isNotEmpty;
 
     final keys = lineKeys ?? <ButtonKey>[];
     final labels = extToLabel ?? <String, String>{};
@@ -262,6 +264,8 @@ class MustacheRenderer {
       'dial_plan': dialPlan ?? '',
       'dst_enable': dstEnable ?? '0',
       'debug_level': debugLevel ?? '0',
+      'has_firmware': hasFirmware,
+      'firmware_url': firmwareUrl ?? '',
       'lines': [
         {
           'line_index': 1,
