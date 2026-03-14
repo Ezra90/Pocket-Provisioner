@@ -1,9 +1,13 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path/path.dart' as p;
 import '../data/database_helper.dart';
 import '../data/device_templates.dart';
 import '../models/device.dart';
 import '../models/device_settings.dart';
+import '../services/app_directories.dart';
 import '../services/wallpaper_service.dart';
 import 'device_settings_editor_screen.dart';
 
@@ -271,6 +275,12 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
           title: Text('Device Settings'),
           dense: true,
         )),
+        if (device.macAddress != null)
+          const PopupMenuItem(value: 'download', child: ListTile(
+            leading: Icon(Icons.download),
+            title: Text('Download Config File'),
+            dense: true,
+          )),
         const PopupMenuItem(value: 'delete', child: ListTile(
           leading: Icon(Icons.delete, color: Colors.red),
           title: Text('Delete', style: TextStyle(color: Colors.red)),
@@ -286,6 +296,9 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
         case 'settings':
           await _openSettings(device);
           break;
+        case 'download':
+          await _downloadConfigFile(device);
+          break;
         case 'delete':
           if (device.id != null && await _confirmDelete(device)) {
             await DatabaseHelper.instance.deleteDevice(device.id!);
@@ -294,6 +307,55 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
           break;
       }
     });
+  }
+
+  // ── download config file ──────────────────────────────────────────────────
+
+  Future<void> _downloadConfigFile(Device device) async {
+    if (device.macAddress == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No MAC address assigned - generate configs first')),
+      );
+      return;
+    }
+
+    try {
+      final configsDir = await AppDirectories.configsDir();
+      final mac = device.macAddress!.replaceAll(':', '').toUpperCase();
+      
+      // Try both .cfg and .xml extensions
+      File? configFile;
+      final cfgPath = p.join(configsDir.path, '$mac.cfg');
+      final xmlPath = p.join(configsDir.path, '$mac.xml');
+      
+      if (await File(cfgPath).exists()) {
+        configFile = File(cfgPath);
+      } else if (await File(xmlPath).exists()) {
+        configFile = File(xmlPath);
+      }
+
+      if (configFile == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Config file not found - generate configs first')),
+          );
+        }
+        return;
+      }
+
+      // Share the file using share_plus
+      await Share.shareXFiles(
+        [XFile(configFile.path)],
+        subject: 'Config for Ext ${device.extension} (${device.label})',
+        text: 'Provisioning config file for ${device.label}',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Download failed: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   // ── "Add Extension" FAB ───────────────────────────────────────────────────
@@ -402,14 +464,71 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
     await _load();
   }
 
+  // ── mass download all configs ─────────────────────────────────────────────
+
+  Future<void> _downloadAllConfigs() async {
+    final readyDevices = _devices.where((d) => d.macAddress != null).toList();
+    if (readyDevices.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No devices with MAC addresses - generate configs first')),
+      );
+      return;
+    }
+
+    try {
+      final configsDir = await AppDirectories.configsDir();
+      final files = <XFile>[];
+
+      for (final device in readyDevices) {
+        final mac = device.macAddress!.replaceAll(':', '').toUpperCase();
+        final cfgPath = p.join(configsDir.path, '$mac.cfg');
+        final xmlPath = p.join(configsDir.path, '$mac.xml');
+        
+        if (await File(cfgPath).exists()) {
+          files.add(XFile(cfgPath));
+        } else if (await File(xmlPath).exists()) {
+          files.add(XFile(xmlPath));
+        }
+      }
+
+      if (files.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No config files found - generate configs first')),
+          );
+        }
+        return;
+      }
+
+      await Share.shareXFiles(
+        files,
+        subject: 'All provisioning config files (${files.length})',
+        text: 'Provisioning config files for ${files.length} devices',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Download failed: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   // ── build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
+    final readyCount = _devices.where((d) => d.macAddress != null).length;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Extensions'),
         actions: [
+          if (readyCount > 0)
+            IconButton(
+              icon: const Icon(Icons.download),
+              tooltip: 'Download All Configs ($readyCount)',
+              onPressed: _downloadAllConfigs,
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',

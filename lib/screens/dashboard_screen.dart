@@ -388,10 +388,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           h.contains('device username') ||
           h.contains('extension') ||
           h == 'user' ||
-          h == 'username');
+          h == 'username' ||
+          h == 'ext');
       int passIndex = headers.indexWhere((h) =>
           h.contains('dms password') ||
+          h.contains('sip password') ||
           h.contains('secret') ||
+          h == 'password' ||
           h.contains('pass'));
       int nameIndex = headers.indexWhere((h) =>
           h == 'name' ||
