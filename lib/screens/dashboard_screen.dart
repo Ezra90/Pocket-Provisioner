@@ -60,6 +60,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _detectLocalIp();
   }
 
+  /// Detects the local IP address for display purposes without starting the
+  /// server.  Tries WiFi IP first via [NetworkInfo], then falls back to
+  /// enumerating network interfaces, prioritising physical adapters (wlan/eth/en)
+  /// over virtual or VPN interfaces.
   Future<void> _detectLocalIp() async {
     try {
       final info = NetworkInfo();
@@ -240,13 +244,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _dhcpRow(String option, String description, String value) {
+  Widget _dhcpRow(String dhcpOption, String description, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(option,
+          Text(dhcpOption,
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
           Text(description,
               style: const TextStyle(fontSize: 12, color: Colors.black87)),
