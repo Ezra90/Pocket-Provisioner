@@ -128,7 +128,7 @@ class VisualEditorMeta {
   /// Number of distinct pages the keys span.
   int get pageCount {
     if (keys.isEmpty) return 1;
-    return keys.map((k) => k.page).reduce((a, b) => a > b ? a : b);
+    return keys.fold<int>(1, (max, k) => k.page > max ? k.page : max);
   }
 
   /// Returns keys for a specific [page] (1-based).
