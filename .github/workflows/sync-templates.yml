@@ -51,8 +51,8 @@ jobs:
       - name: Detect repo and configure paths
         id: config
         run: |
-          if [ "${{ github.repository }}" = "Ezra90/freepbx-quickprovisioner" ]; then
-            echo "this_checkout=freepbx-quickprovisioner" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.repository }}" = "Ezra90/Quick-Provisioner" ]; then
+            echo "this_checkout=quick-provisioner" >> "$GITHUB_OUTPUT"
             echo "this_template_dir=templates" >> "$GITHUB_OUTPUT"
             echo "other_repo=Ezra90/Pocket-Provisioner" >> "$GITHUB_OUTPUT"
             echo "other_checkout=pocket-provisioner" >> "$GITHUB_OUTPUT"
@@ -60,8 +60,8 @@ jobs:
           else
             echo "this_checkout=pocket-provisioner" >> "$GITHUB_OUTPUT"
             echo "this_template_dir=assets/templates" >> "$GITHUB_OUTPUT"
-            echo "other_repo=Ezra90/freepbx-quickprovisioner" >> "$GITHUB_OUTPUT"
-            echo "other_checkout=freepbx-quickprovisioner" >> "$GITHUB_OUTPUT"
+            echo "other_repo=Ezra90/Quick-Provisioner" >> "$GITHUB_OUTPUT"
+            echo "other_checkout=quick-provisioner" >> "$GITHUB_OUTPUT"
             echo "other_template_dir=templates" >> "$GITHUB_OUTPUT"
           fi
 
