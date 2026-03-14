@@ -132,6 +132,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _logSubscription = null;
   }
 
+  /// Returns a user-friendly description of the current network status.
+  String get _networkStatusText {
+    if (_localIp == null) return 'No network detected';
+    if (_isServerRunning) return 'Server: http://$_localIp:8080';
+    return 'Network IP: $_localIp (ready to start)';
+  }
+
   /// Detects the local IP address for display purposes without starting the
   /// server.  Tries WiFi IP first via [NetworkInfo], then falls back to
   /// enumerating network interfaces, prioritising physical adapters (wlan/eth/en)
@@ -833,14 +840,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ),
                     // Always show network info (even when offline)
-                    if (_localIp != null && !_isServerRunning)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8.0),
-                        child: Text(
-                          'Detected IP: $_localIp (port 8080)',
-                          style: const TextStyle(fontSize: 12, color: Colors.black54),
-                        ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.wifi, size: 14, color: _localIp != null ? Colors.green : Colors.grey),
+                          const SizedBox(width: 4),
+                          Text(
+                            _networkStatusText,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: _localIp != null ? Colors.black54 : Colors.red,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          InkWell(
+                            onTap: _detectLocalIp,
+                            child: const Icon(Icons.refresh, size: 14, color: Colors.blue),
+                          ),
+                        ],
                       ),
+                    ),
                     // DHCP options guidance — always shown
                     Padding(
                       padding: const EdgeInsets.only(top: 8.0),

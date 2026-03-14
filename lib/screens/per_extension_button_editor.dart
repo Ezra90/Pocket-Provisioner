@@ -91,6 +91,7 @@ class _PerExtensionButtonEditorScreenState
     final allDevices = await DatabaseHelper.instance.getAllDevices();
     final devicesWithLayouts = allDevices.where((d) =>
         d.deviceSettings?.buttonLayout != null &&
+        d.deviceSettings!.buttonLayout!.isNotEmpty &&
         d.deviceSettings!.buttonLayout!.any((k) => k.type != 'none') &&
         d.extension != widget.extension).toList();
 

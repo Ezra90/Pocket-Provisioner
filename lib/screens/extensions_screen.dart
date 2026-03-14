@@ -639,11 +639,13 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
                                 ],
                               ),
                               onTap: () => _openSettings(device),
-                              onLongPress: () async {
+                              onLongPress: () {
                                 // Show context menu on long press
-                                final RenderBox box = context.findRenderObject() as RenderBox;
-                                final position = box.localToGlobal(Offset.zero);
-                                _showDeviceMenu(device, TapDownDetails(globalPosition: position + const Offset(50, 30)));
+                                final renderObject = context.findRenderObject();
+                                if (renderObject is RenderBox) {
+                                  final position = renderObject.localToGlobal(Offset.zero);
+                                  _showDeviceMenu(device, TapDownDetails(globalPosition: position + const Offset(50, 30)));
+                                }
                               },
                             ),
                             ),
