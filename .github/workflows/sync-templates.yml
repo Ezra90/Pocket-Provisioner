@@ -1,11 +1,16 @@
 name: Sync Shared Templates
+# This workflow is repo-agnostic: it works identically in both
+# Pocket-Provisioner and freepbx-quickprovisioner.
+# The sync-workflows.yml in freepbx-quickprovisioner keeps this file
+# in sync across repos, so it MUST stay repo-agnostic.
 
 on:
-  # Run when templates change on main
+  # Run when templates change on main (both path variants for portability)
   push:
     branches: [ "main", "master" ]
     paths:
       - 'assets/templates/**'
+      - 'templates/**'
   # Allow manual trigger
   workflow_dispatch:
     inputs:
@@ -20,7 +25,7 @@ on:
   # Allow other repos to trigger via repository_dispatch
   repository_dispatch:
     types: [ template-sync ]
-  # Scheduled sync: pull from freepbx-quickprovisioner weekly
+  # Scheduled sync: pull from the other repo weekly
   schedule:
     - cron: '0 3 * * 1'   # Every Monday at 03:00 UTC
 
@@ -31,16 +36,40 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout Pocket-Provisioner
-        uses: actions/checkout@v4
-        with:
-          path: pocket-provisioner
+      - name: Validate sync token
+        run: |
+          if [ -z "${{ secrets.TEMPLATE_SYNC_TOKEN }}" ]; then
+            echo "::error::TEMPLATE_SYNC_TOKEN secret is not configured. Add a PAT with 'repo' scope to both repositories' secrets."
+            exit 1
+          fi
 
-      - name: Checkout freepbx-quickprovisioner
+      - name: Set repo context
+        id: context
+        run: |
+          if [ "${{ github.repository }}" = "Ezra90/Pocket-Provisioner" ]; then
+            echo "self_name=pocket-provisioner" >> "$GITHUB_OUTPUT"
+            echo "self_dir=assets/templates" >> "$GITHUB_OUTPUT"
+            echo "other_repo=Ezra90/freepbx-quickprovisioner" >> "$GITHUB_OUTPUT"
+            echo "other_name=freepbx-quickprovisioner" >> "$GITHUB_OUTPUT"
+            echo "other_dir=templates" >> "$GITHUB_OUTPUT"
+          else
+            echo "self_name=freepbx-quickprovisioner" >> "$GITHUB_OUTPUT"
+            echo "self_dir=templates" >> "$GITHUB_OUTPUT"
+            echo "other_repo=Ezra90/Pocket-Provisioner" >> "$GITHUB_OUTPUT"
+            echo "other_name=pocket-provisioner" >> "$GITHUB_OUTPUT"
+            echo "other_dir=assets/templates" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout self
         uses: actions/checkout@v4
         with:
-          repository: Ezra90/freepbx-quickprovisioner
-          path: freepbx-quickprovisioner
+          path: ${{ steps.context.outputs.self_name }}
+
+      - name: Checkout other repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.context.outputs.other_repo }}
+          path: ${{ steps.context.outputs.other_name }}
           token: ${{ secrets.TEMPLATE_SYNC_TOKEN }}
 
       - name: Determine sync direction
@@ -57,39 +86,90 @@ jobs:
       - name: Sync templates
         run: |
           DIRECTION="${{ steps.direction.outputs.dir }}"
+          SELF="${{ steps.context.outputs.self_name }}"
+          SELF_DIR="${{ steps.context.outputs.self_dir }}"
+          OTHER="${{ steps.context.outputs.other_name }}"
+          OTHER_DIR="${{ steps.context.outputs.other_dir }}"
 
           if [ "$DIRECTION" = "push" ]; then
-            echo "Pushing templates from Pocket-Provisioner → freepbx-quickprovisioner"
-            cp pocket-provisioner/assets/templates/*.mustache freepbx-quickprovisioner/templates/
+            echo "Pushing templates from $SELF → $OTHER"
+            mkdir -p "$OTHER/$OTHER_DIR"
+            cp "$SELF/$SELF_DIR"/*.mustache "$OTHER/$OTHER_DIR/"
           else
-            echo "Pulling templates from freepbx-quickprovisioner → Pocket-Provisioner"
-            cp freepbx-quickprovisioner/templates/*.mustache pocket-provisioner/assets/templates/
+            echo "Pulling templates from $OTHER → $SELF"
+            mkdir -p "$SELF/$SELF_DIR"
+            cp "$OTHER/$OTHER_DIR"/*.mustache "$SELF/$SELF_DIR/"
           fi
 
-      - name: Push to freepbx-quickprovisioner
+      - name: Update template versions
+        # Version tracker always lives in freepbx-quickprovisioner (the web
+        # provisioner that serves templates). The checkout directory name is
+        # the same regardless of which repo triggers this workflow.
+        run: |
+          VERSION_FILE="freepbx-quickprovisioner/templates/template-versions.json"
+          TEMPLATE_DIR="freepbx-quickprovisioner/templates"
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          echo '{' > "$VERSION_FILE"
+          echo '  "schema_version": "1.0",' >> "$VERSION_FILE"
+          echo "  \"last_sync\": \"$TIMESTAMP\"," >> "$VERSION_FILE"
+          echo "  \"sync_direction\": \"${{ steps.direction.outputs.dir }}\"," >> "$VERSION_FILE"
+          echo '  "templates": {' >> "$VERSION_FILE"
+
+          FIRST=true
+          for f in "$TEMPLATE_DIR"/*.mustache; do
+            [ -f "$f" ] || continue
+            NAME=$(basename "$f")
+            HASH=$(sha256sum "$f" | awk '{print $1}')
+            if [ "$FIRST" = true ]; then
+              FIRST=false
+            else
+              echo ',' >> "$VERSION_FILE"
+            fi
+            printf '    "%s": {"sha256": "%s", "updated": "%s"}' "$NAME" "$HASH" "$TIMESTAMP" >> "$VERSION_FILE"
+          done
+
+          echo '' >> "$VERSION_FILE"
+          echo '  }' >> "$VERSION_FILE"
+          echo '}' >> "$VERSION_FILE"
+
+      - name: Push to other repo
         if: ${{ steps.direction.outputs.dir != 'pull' }}
+        working-directory: ${{ steps.context.outputs.other_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ${{ steps.context.outputs.other_dir }}/
+          if git diff --cached --quiet; then
+            echo "No template changes to sync"
+          else
+            git commit -m "sync: update shared templates from ${{ steps.context.outputs.self_name }}"
+            git push
+          fi
+
+      - name: Push to self
+        if: ${{ steps.direction.outputs.dir == 'pull' }}
+        working-directory: ${{ steps.context.outputs.self_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ${{ steps.context.outputs.self_dir }}/
+          if git diff --cached --quiet; then
+            echo "No template changes to sync"
+          else
+            git commit -m "sync: update shared templates from ${{ steps.context.outputs.other_name }}"
+            git push
+          fi
+
+      - name: Commit version tracker update
         working-directory: freepbx-quickprovisioner
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add templates/
+          git add templates/template-versions.json
           if git diff --cached --quiet; then
-            echo "No template changes to sync"
+            echo "No version tracker changes"
           else
-            git commit -m "sync: update shared templates from Pocket-Provisioner"
-            git push
-          fi
-
-      - name: Push to Pocket-Provisioner
-        if: ${{ steps.direction.outputs.dir == 'pull' }}
-        working-directory: pocket-provisioner
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add assets/templates/
-          if git diff --cached --quiet; then
-            echo "No template changes to sync"
-          else
-            git commit -m "sync: update shared templates from freepbx-quickprovisioner"
+            git commit -m "sync: update template version tracker"
             git push
           fi
