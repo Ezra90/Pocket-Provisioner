@@ -314,6 +314,39 @@ class _AccessLogScreenState extends State<AccessLogScreen> {
         title: const Text('Access Log'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.delete_sweep),
+            tooltip: 'Clear Log',
+            onPressed: () async {
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Clear Access Log?'),
+                  content: const Text(
+                      'This will remove all logged requests and device '
+                      'connection history. The server will continue running.'),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Cancel')),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red),
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('Clear',
+                          style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ),
+              );
+              if (ok == true) {
+                ProvisioningServer.clearLog();
+                setState(() {
+                  _log = [];
+                });
+              }
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',
             onPressed: () {

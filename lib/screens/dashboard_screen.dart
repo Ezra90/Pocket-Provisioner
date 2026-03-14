@@ -8,6 +8,7 @@ import 'package:excel/excel.dart' as xl;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path/path.dart' as p;
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:network_info_plus/network_info_plus.dart';
 import '../data/database_helper.dart';
 import '../data/device_templates.dart';
 import '../services/app_directories.dart';
@@ -42,6 +43,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Global provisioning mode (loaded from SharedPreferences)
   String _globalMode = GlobalSettings.modeDms;
 
+  // Detected local IP — updated on init and on network changes
+  String? _localIp;
+
   // Update state
   UpdateInfo? _pendingUpdate;
   bool _checkingUpdate = false;
@@ -53,6 +57,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _loadAppVersion();
     _autoCheckForUpdate();
     _loadGlobalMode();
+    _detectLocalIp();
+  }
+
+  Future<void> _detectLocalIp() async {
+    try {
+      final info = NetworkInfo();
+      String? ip = await info.getWifiIP();
+      if (ip == null) {
+        final interfaces = await NetworkInterface.list(
+            type: InternetAddressType.IPv4);
+        final sorted = interfaces.toList()
+          ..sort((a, b) {
+            final aName = a.name.toLowerCase();
+            final bName = b.name.toLowerCase();
+            final aPhy = aName.startsWith('wlan') ||
+                aName.startsWith('eth') ||
+                aName.startsWith('en');
+            final bPhy = bName.startsWith('wlan') ||
+                bName.startsWith('eth') ||
+                bName.startsWith('en');
+            if (aPhy && !bPhy) return -1;
+            if (!aPhy && bPhy) return 1;
+            return aName.compareTo(bName);
+          });
+        for (final iface in sorted) {
+          for (final addr in iface.addresses) {
+            if (!addr.isLoopback) {
+              ip = addr.address;
+              break;
+            }
+          }
+          if (ip != null) break;
+        }
+      }
+      if (mounted && ip != null) setState(() => _localIp = ip);
+    } catch (_) {
+      // Non-fatal: IP detection failure should not break the UI
+    }
   }
 
   Future<void> _loadGlobalMode() async {
@@ -193,6 +235,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
           Text(headers,
               style: const TextStyle(fontSize: 12, color: Colors.black87)),
+        ],
+      ),
+    );
+  }
+
+  Widget _dhcpRow(String option, String description, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(option,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          Text(description,
+              style: const TextStyle(fontSize: 12, color: Colors.black87)),
+          SelectableText(value,
+              style: const TextStyle(fontSize: 12, fontFamily: 'monospace', color: Colors.blue)),
         ],
       ),
     );
@@ -528,7 +587,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _isServerRunning = false;
         _statusColor = Colors.red.shade100;
       });
-      WakelockPlus.disable(); 
+      WakelockPlus.disable();
+      _detectLocalIp(); // Refresh local IP after stopping
     } else {
       try {
         String url = await ProvisioningServer.instance.start(8080);
@@ -691,32 +751,82 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                       ),
                     ),
-                    if (_isServerRunning)
+                    // Always show network info (even when offline)
+                    if (_localIp != null && !_isServerRunning)
                       Padding(
                         padding: const EdgeInsets.only(top: 8.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Text("Set Router DHCP Option 66 to this URL", style: TextStyle(fontSize: 12)),
-                            const SizedBox(width: 4),
-                            InkWell(
-                              onTap: () {
-                                showDialog(
-                                  context: context,
-                                  builder: (ctx) => AlertDialog(
-                                    title: const Text("Router Configuration Info"),
-                                    content: const Text("Don't forget to configure Option 66 on your local router to point to this URL. Also, ensure the handset is factory reset so it pulls the configuration on boot."),
-                                    actions: [
-                                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Got it"))
-                                    ],
-                                  )
-                                );
-                              },
-                              child: const Icon(Icons.info_outline, size: 16, color: Colors.blue),
-                            )
-                          ],
+                        child: Text(
+                          'Detected IP: $_localIp (port 8080)',
+                          style: const TextStyle(fontSize: 12, color: Colors.black54),
                         ),
                       ),
+                    // DHCP options guidance — always shown
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              _isServerRunning
+                                  ? "Set Router DHCP Option 66 to this URL"
+                                  : "Configure DHCP Options before starting",
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          InkWell(
+                            onTap: () {
+                              final ip = _isServerRunning
+                                  ? ProvisioningServer.serverUrl ?? _localIp ?? '<your-ip>'
+                                  : 'http://${_localIp ?? '<your-ip>'}:8080';
+                              showDialog(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text("DHCP Configuration Guide"),
+                                  content: SingleChildScrollView(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Text(
+                                          'Configure your router\'s DHCP options so handsets '
+                                          'automatically find this provisioning server on boot:\n',
+                                          style: TextStyle(fontSize: 13),
+                                        ),
+                                        _dhcpRow('Option 66',
+                                            'TFTP / HTTP server URL',
+                                            ip),
+                                        _dhcpRow('Option 160',
+                                            'Alternative HTTP provisioning URL (some vendors)',
+                                            ip),
+                                        const SizedBox(height: 12),
+                                        const Text(
+                                          'Tips:',
+                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                        ),
+                                        const Text(
+                                          '• Option 66 is the standard for most Yealink, Polycom, and Cisco phones.\n'
+                                          '• Option 160 is used by some vendors as an alternative.\n'
+                                          '• Factory reset handsets so they pull configuration on boot.\n'
+                                          '• In DMS / Carrier mode the handset contacts the DMS first, '
+                                          'which then redirects to this server.',
+                                          style: TextStyle(fontSize: 12, color: Colors.black54),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Got it"))
+                                  ],
+                                ),
+                              );
+                            },
+                            child: const Icon(Icons.info_outline, size: 16, color: Colors.blue),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),

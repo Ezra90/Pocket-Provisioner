@@ -104,6 +104,7 @@ class _DeviceSettingsEditorScreenState
   // Security
   late final TextEditingController _adminPasswordCtrl;
   bool? _webUiEnabled;
+  bool _showAdminPassword = false;
 
   // Network
   late final TextEditingController _voiceVlanCtrl;
@@ -673,56 +674,82 @@ class _DeviceSettingsEditorScreenState
   Widget _field(TextEditingController ctrl, String label,
       {String? hint,
       bool obscure = false,
+      bool? showPassword,
+      VoidCallback? onTogglePassword,
       TextInputType? keyboard,
       List<TextInputFormatter>? inputFormatters,
       String? varName}) {
     final helperText = varName != null ? _varHelper(varName) : null;
+    final isObscured = obscure && !(showPassword ?? false);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextField(
         controller: ctrl,
-        obscureText: obscure,
+        obscureText: isObscured,
         keyboardType: keyboard,
         inputFormatters: inputFormatters,
         decoration: InputDecoration(
           labelText: label,
-          hintText: hint ?? 'Inherited (global default)',
+          hintText: hint ?? 'Default (from global settings)',
           helperText: helperText,
           helperMaxLines: 2,
           border: const OutlineInputBorder(),
           isDense: true,
+          suffixIcon: obscure && onTogglePassword != null
+              ? IconButton(
+                  icon: Icon(
+                    isObscured ? Icons.visibility_off : Icons.visibility,
+                    size: 20,
+                  ),
+                  tooltip: isObscured ? 'Show password' : 'Hide password',
+                  onPressed: onTogglePassword,
+                )
+              : null,
         ),
       ),
     );
   }
 
-  /// A SwitchListTile that supports a tri-state: null (inherited), true, false.
+  /// A SwitchListTile that supports a tri-state: null (default), true, false.
+  /// When [subtitle] is provided it is shown below the title for extra context.
   Widget _optSwitch(
-      String title, bool? value, void Function(bool?) onChanged) {
+      String title, bool? value, void Function(bool?) onChanged,
+      {String? subtitle}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(child: Text(title, style: const TextStyle(fontSize: 14))),
-          if (value == null)
-            TextButton(
-              onPressed: () => onChanged(false),
-              style: TextButton.styleFrom(
-                  visualDensity: VisualDensity.compact),
-              child: const Text('Set', style: TextStyle(fontSize: 12)),
-            )
-          else ...[
-            Switch(value: value, onChanged: onChanged),
-            IconButton(
-              icon: const Icon(Icons.close, size: 16),
-              tooltip: 'Reset to inherited',
-              onPressed: () => onChanged(null),
-              visualDensity: VisualDensity.compact,
+          Row(
+            children: [
+              Expanded(child: Text(title, style: const TextStyle(fontSize: 14))),
+              if (value == null)
+                TextButton(
+                  onPressed: () => onChanged(false),
+                  style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact),
+                  child: const Text('Set', style: TextStyle(fontSize: 12)),
+                )
+              else ...[
+                Switch(value: value, onChanged: onChanged),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 16),
+                  tooltip: 'Reset to default',
+                  onPressed: () => onChanged(null),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+              if (value == null)
+                const Text('Default',
+                    style: TextStyle(fontSize: 11, color: Colors.grey)),
+            ],
+          ),
+          if (subtitle != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 4),
+              child: Text(subtitle,
+                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
             ),
-          ],
-          if (value == null)
-            const Text('Inherited',
-                style: TextStyle(fontSize: 11, color: Colors.grey)),
         ],
       ),
     );
@@ -793,8 +820,8 @@ class _DeviceSettingsEditorScreenState
                             ? 'SIP Server Override (DMS mode: leave blank)'
                             : 'SIP Server Override',
                         hint: _globalMode == GlobalSettings.modeDms
-                            ? 'Inherited from DMS – blank for most jobs'
-                            : 'Inherited from Global Settings',
+                            ? 'Default from DMS – blank for most jobs'
+                            : 'Default (from global settings)',
                         varName: 'sip_server'),
                     _field(_sipPortCtrl, 'SIP Port',
                         hint: '5060',
@@ -807,7 +834,7 @@ class _DeviceSettingsEditorScreenState
                         isExpanded: true,
                         decoration: InputDecoration(
                           labelText: 'Transport',
-                          hintText: 'Inherited (UDP)',
+                          hintText: 'Default (UDP)',
                           helperText: _varHelper('transport'),
                           helperMaxLines: 2,
                           border: const OutlineInputBorder(),
@@ -816,7 +843,7 @@ class _DeviceSettingsEditorScreenState
                         items: const [
                           DropdownMenuItem<String?>(
                               value: null,
-                              child: Text('Inherited (UDP)')),
+                              child: Text('Default (UDP)')),
                           DropdownMenuItem(
                               value: 'UDP', child: Text('UDP')),
                           DropdownMenuItem(
@@ -986,12 +1013,16 @@ class _DeviceSettingsEditorScreenState
                     _field(_adminPasswordCtrl,
                         'Admin Password Override',
                         obscure: true,
+                        showPassword: _showAdminPassword,
+                        onTogglePassword: () => setState(
+                            () => _showAdminPassword = !_showAdminPassword),
                         varName: 'admin_password'),
                     _optSwitch(
                         'Web UI Access',
                         _webUiEnabled,
                         (v) =>
-                            setState(() => _webUiEnabled = v)),
+                            setState(() => _webUiEnabled = v),
+                        subtitle: 'Enable or disable the phone\'s built-in web management interface'),
                   ],
                 ),
               ),
@@ -1023,7 +1054,10 @@ class _DeviceSettingsEditorScreenState
                         'CDP / LLDP',
                         _cdpLldpEnabled,
                         (v) => setState(
-                            () => _cdpLldpEnabled = v)),
+                            () => _cdpLldpEnabled = v),
+                        subtitle: 'Cisco Discovery Protocol / Link Layer Discovery Protocol — '
+                            'auto-discovers VLAN and network policy from the switch. '
+                            'Enable if your network switch broadcasts VLAN tags via CDP or LLDP'),
                   ],
                 ),
               ),
@@ -1045,7 +1079,8 @@ class _DeviceSettingsEditorScreenState
                         'Auto Answer',
                         _autoAnswer,
                         (v) =>
-                            setState(() => _autoAnswer = v)),
+                            setState(() => _autoAnswer = v),
+                        subtitle: 'Automatically answer incoming calls (useful for intercom/paging)'),
                     if (_autoAnswer == true)
                       Padding(
                         padding:
@@ -1078,12 +1113,14 @@ class _DeviceSettingsEditorScreenState
                         'Do Not Disturb (default on)',
                         _dndDefault,
                         (v) =>
-                            setState(() => _dndDefault = v)),
+                            setState(() => _dndDefault = v),
+                        subtitle: 'When enabled, the phone rejects all incoming calls by default'),
                     _optSwitch(
                         'Call Waiting',
                         _callWaiting,
                         (v) =>
-                            setState(() => _callWaiting = v)),
+                            setState(() => _callWaiting = v),
+                        subtitle: 'Allow a second incoming call while already on a call'),
                     _field(_cfwAlwaysCtrl,
                         'Call Forward Always',
                         hint: 'e.g. +61400000000',
@@ -1114,7 +1151,7 @@ class _DeviceSettingsEditorScreenState
             title: const Text('Provisioning'),
             subtitle: _globalMode == GlobalSettings.modeDms
                 ? const Text(
-                    'DMS mode – target URL is inherited from Global Settings',
+                    'DMS mode – target URL is set in Global Settings',
                     style: TextStyle(fontSize: 11, color: Colors.purple),
                   )
                 : null,
@@ -1129,8 +1166,8 @@ class _DeviceSettingsEditorScreenState
                             ? 'Target DMS / EPM URL Override'
                             : 'Provisioning URL Override',
                         hint: _globalMode == GlobalSettings.modeDms
-                            ? 'Inherited from Global Settings (DMS URL)'
-                            : 'Inherited from server settings',
+                            ? 'Default (from Global Settings DMS URL)'
+                            : 'Default (from server settings)',
                         varName: 'provisioning_url'),
                     // ── Firmware Upgrade URL ──────────────────────────────
                     if (_templateSupports('firmware_url')) ...[
