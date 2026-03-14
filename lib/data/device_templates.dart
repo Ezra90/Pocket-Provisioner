@@ -347,7 +347,8 @@ class DeviceTemplates {
     final upper = model.toUpperCase().trim();
     if (upper == 'T54W' || upper == 'T46U') return 'Yealink T54W / T46U';
     if (upper == 'T48G' || upper == 'T57W') return 'Yealink T48G / T57W';
-    if (upper == 'T58W' || upper == 'T58G') return 'Yealink T58W';
+    if (upper == 'T58W') return 'Yealink T58W';
+    if (upper == 'T58G') return 'Yealink T48G / T57W';
     if (upper == 'EDGE E450') return 'Poly Edge E450';
     if (upper == 'EDGE E350') return 'Poly Edge E350';
     if (upper == 'VVX1500') return 'Poly VVX 1500';
