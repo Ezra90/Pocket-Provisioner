@@ -4,12 +4,12 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:permission_handler/permission_handler.dart';
 
-/// Centralised directory resolution for all Pocket Provisioner file stores.
+/// Centralised directory resolution for all Pocket-Provisioner file stores.
 ///
 /// All user-facing content (ringtones, wallpapers, phonebook, firmware) lives
 /// in one self-contained folder at the root of Android external storage:
 ///
-///   /storage/emulated/0/Pocket Provisioner/
+///   /storage/emulated/0/Pocket-Provisioner/
 ///     firmware/          ← served at  /firmware/<file>
 ///     media/             ← served at  /media/<file>
 ///     phonebook/         ← served at  /phonebook/<file>
@@ -28,12 +28,15 @@ import 'package:permission_handler/permission_handler.dart';
 ///   "All files access" settings screen when not yet granted.
 ///
 /// If permission is denied the implementation falls back to the app-specific
-/// external path (`Android/data/<pkg>/files/Pocket Provisioner/`), which still
+/// external path (`Android/data/<pkg>/files/Pocket-Provisioner/`), which still
 /// uses the same named subfolder and is accessible without special permissions.
 class AppDirectories {
   // ── Folder name ───────────────────────────────────────────────────────────
 
-  static const String _folderName = 'Pocket Provisioner';
+  static const String _folderName = 'Pocket-Provisioner';
+
+  /// Previous folder name used before the rename — needed for migration.
+  static const String _legacyFolderName = 'Pocket Provisioner';
 
   // ── Base-directory cache ──────────────────────────────────────────────────
 
@@ -74,8 +77,8 @@ class AppDirectories {
   /// Resolves (and caches) the base directory for all user-facing stores.
   ///
   /// Resolution order:
-  ///   1. `/storage/emulated/0/Pocket Provisioner/`      — broad permission OK
-  ///   2. `<appSpecificExternal>/Pocket Provisioner/`    — no permission needed
+  ///   1. `/storage/emulated/0/Pocket-Provisioner/`      — broad permission OK
+  ///   2. `<appSpecificExternal>/Pocket-Provisioner/`    — no permission needed
   ///   3. `<internalDocuments>/`                         — last resort
   static Future<Directory> _userBase() {
     return _userBaseFuture ??= _resolveUserBase();
@@ -84,7 +87,7 @@ class AppDirectories {
   static Future<Directory> _resolveUserBase() async {
     if (!Platform.isAndroid) return _internalBase();
 
-    // ── Attempt 1: external storage root → Pocket Provisioner/ ──────────────
+    // ── Attempt 1: external storage root → Pocket-Provisioner/ ──────────────
     final root = await _externalStorageRoot();
     if (root != null) {
       final ppDir = Directory(p.join(root, _folderName));
@@ -101,7 +104,7 @@ class AppDirectories {
       }
     }
 
-    // ── Attempt 2: app-specific external → Pocket Provisioner/ ──────────────
+    // ── Attempt 2: app-specific external → Pocket-Provisioner/ ──────────────
     final appExt = await _appSpecificExternal();
     if (appExt != null) {
       final ppDir = Directory(p.join(appExt.path, _folderName));
@@ -151,27 +154,27 @@ class AppDirectories {
 
   // ── Named directories (mirrors web-server URL paths) ─────────────────────
 
-  /// `Pocket Provisioner/firmware/` — served at `/firmware/<file>`
+  /// `Pocket-Provisioner/firmware/` — served at `/firmware/<file>`
   static Future<Directory> firmwareDir() async =>
       _ensure(p.join((await _userBase()).path, 'firmware'));
 
-  /// `Pocket Provisioner/ringtones/` — served at `/ringtones/<file>`
+  /// `Pocket-Provisioner/ringtones/` — served at `/ringtones/<file>`
   static Future<Directory> ringtoneDir() async =>
       _ensure(p.join((await _userBase()).path, 'ringtones'));
 
-  /// `Pocket Provisioner/ringtones/original/` — cached pre-conversion sources
+  /// `Pocket-Provisioner/ringtones/original/` — cached pre-conversion sources
   static Future<Directory> ringtoneOriginalDir() async =>
       _ensure(p.join((await _userBase()).path, 'ringtones', 'original'));
 
-  /// `Pocket Provisioner/media/` — served at `/media/<file>`
+  /// `Pocket-Provisioner/media/` — served at `/media/<file>`
   static Future<Directory> mediaDir() async =>
       _ensure(p.join((await _userBase()).path, 'media'));
 
-  /// `Pocket Provisioner/media/original/` — cached pre-resize sources
+  /// `Pocket-Provisioner/media/original/` — cached pre-resize sources
   static Future<Directory> mediaOriginalDir() async =>
       _ensure(p.join((await _userBase()).path, 'media', 'original'));
 
-  /// `Pocket Provisioner/phonebook/` — served at `/phonebook/<file>`
+  /// `Pocket-Provisioner/phonebook/` — served at `/phonebook/<file>`
   static Future<Directory> phonebookDir() async =>
       _ensure(p.join((await _userBase()).path, 'phonebook'));
 
@@ -188,18 +191,20 @@ class AppDirectories {
   // ── Migration ─────────────────────────────────────────────────────────────
 
   /// One-time migration of existing files to the canonical
-  /// `Pocket Provisioner/` location.  Safe to call on every startup — skips
+  /// `Pocket-Provisioner/` location.  Safe to call on every startup — skips
   /// any destination that already contains files.
   ///
-  /// Migrates from two possible legacy locations:
+  /// Migrates from three possible legacy locations:
   ///   • `<internalDocuments>/<subdir>/`        — original internal storage
   ///   • `<appSpecificExternal>/<subdir>/`      — intermediate app-external
+  ///   • Old `Pocket Provisioner/` folder       — previous folder name
   static Future<void> migrateToExternal() async {
     if (!Platform.isAndroid) return;
 
     final target = await _userBase();
     final internal = await _internalBase();
     final appExt = await _appSpecificExternal();
+    final root = await _externalStorageRoot();
 
     const subdirs = ['firmware', 'ringtones', 'media', 'phonebook'];
 
@@ -214,12 +219,21 @@ class AppDirectories {
         final oldExt = p.join(appExt.path, sub);
         if (oldExt != dest) await _migrateDirectory(oldExt, dest);
 
-        // Also handle the previous PR's "Pocket Provisioner" subfolder inside
+        // Also handle the previous "Pocket Provisioner" subfolder inside
         // app-specific external (if it was ever written there).
         if (appExt.path != target.path) {
           await _migrateDirectory(
               p.join(appExt.path, _folderName, sub), dest);
+          await _migrateDirectory(
+              p.join(appExt.path, _legacyFolderName, sub), dest);
         }
+      }
+
+      // Migrate from the old "Pocket Provisioner" folder at the external
+      // storage root (renamed to "Pocket-Provisioner").
+      if (root != null) {
+        final oldRoot = p.join(root, _legacyFolderName, sub);
+        if (oldRoot != dest) await _migrateDirectory(oldRoot, dest);
       }
     }
   }

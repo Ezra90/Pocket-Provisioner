@@ -76,7 +76,7 @@ class UpdateService {
       final tagName = data['tag_name'] as String? ?? '';
 
       // Extract build number from release name "Build N (abc1234)" or
-      // "Pocket Provisioner vX.Y.Z (Build N)".
+      // "Pocket-Provisioner vX.Y.Z (Build N)".
       final buildMatch = RegExp(r'Build\s+(\d+)').firstMatch(releaseName);
       if (buildMatch == null) return null;
 

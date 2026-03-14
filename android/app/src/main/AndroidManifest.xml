@@ -16,18 +16,18 @@
         tools:targetApi="33" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
 
-    <!-- Storage permissions for the self-contained Pocket Provisioner/ folder -->
+    <!-- Storage permissions for the self-contained Pocket-Provisioner/ folder -->
     <!-- API 23-29: legacy write access to external storage root -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29"/>
-    <!-- API 30+: full external storage manager (lets us write to /Pocket Provisioner/) -->
+    <!-- API 30+: full external storage manager (lets us write to /Pocket-Provisioner/) -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage"/>
 
     <application
-        android:label="Pocket Provisioner"
+        android:label="Pocket-Provisioner"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:requestLegacyExternalStorage="true">

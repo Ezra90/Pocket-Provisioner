@@ -103,7 +103,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _checkPermissions() async {
-    // Request storage permission so the self-contained Pocket Provisioner/
+    // Request storage permission so the self-contained Pocket-Provisioner/
     // folder can be created at the root of external storage.
     await AppDirectories.ensureStoragePermission();
 
@@ -548,7 +548,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Pocket Provisioner $_appVersion"),
+        title: Text("Pocket-Provisioner $_appVersion"),
         actions: [
           if (_isServerRunning)
             IconButton(

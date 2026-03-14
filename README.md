@@ -1,4 +1,4 @@
-# Pocket Provisioner
+# Pocket-Provisioner
 
 <p align="center">
   <strong>Turn your Android phone into a VoIP provisioning server</strong>
@@ -12,7 +12,7 @@
 
 > ⚠️ **Alpha Release** — This app is under active development. Expect frequent updates and breaking changes between versions.
 
-**Pocket Provisioner** is a mobile field utility for Telecommunications Technicians. It transforms your Android device into a fully-functional **HTTP Provisioning Server** for rapid deployment of VoIP handsets — no laptop required.
+**Pocket-Provisioner** is a mobile field utility for Telecommunications Technicians. It transforms your Android device into a fully-functional **HTTP Provisioning Server** for rapid deployment of VoIP handsets — no laptop required.
 
 ---
 
@@ -113,16 +113,16 @@ The provisioning server hosts files at these endpoints:
 | Endpoint | Content | Directory |
 |----------|---------|-----------|
 | `/{MAC}.cfg` or `/{MAC}.xml` | Device configuration | Dynamic or `generated_configs/` |
-| `/media/{file}` | Wallpaper images | `Pocket Provisioner/media/` |
-| `/ringtones/{file}` | Ringtone WAV files | `Pocket Provisioner/ringtones/` |
-| `/phonebook/{file}` | XML phonebook | `Pocket Provisioner/phonebook/` |
-| `/firmware/{file}` | Firmware binaries | `Pocket Provisioner/firmware/` |
+| `/media/{file}` | Wallpaper images | `Pocket-Provisioner/media/` |
+| `/ringtones/{file}` | Ringtone WAV files | `Pocket-Provisioner/ringtones/` |
+| `/phonebook/{file}` | XML phonebook | `Pocket-Provisioner/phonebook/` |
+| `/firmware/{file}` | Firmware binaries | `Pocket-Provisioner/firmware/` |
 
 ### File Storage Location
 
 User files are stored in:
 ```
-/storage/emulated/0/Pocket Provisioner/
+/storage/emulated/0/Pocket-Provisioner/
 ├── firmware/      → Firmware binaries (.rom, .ld, .loads)
 ├── media/         → Wallpaper images (auto-resized PNGs)
 ├── phonebook/     → Per-device XML phonebooks
@@ -266,7 +266,7 @@ Split APKs are generated in `build/app/outputs/flutter-apk/`:
 | `CAMERA` | Barcode scanning for MAC addresses |
 | `ACCESS_FINE_LOCATION` | Required to detect Wi-Fi IP address |
 | `INTERNET` | Host the provisioning server |
-| `MANAGE_EXTERNAL_STORAGE` | Store files in `Pocket Provisioner/` folder |
+| `MANAGE_EXTERNAL_STORAGE` | Store files in `Pocket-Provisioner/` folder |
 
 ---
 

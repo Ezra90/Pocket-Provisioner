@@ -96,7 +96,7 @@ class MustacheTemplateService {
     await tmpFile.writeAsString(content);
     await Share.shareXFiles(
       [XFile(tmpFile.path)],
-      text: 'Pocket Provisioner Template: ${displayNames[templateKey] ?? templateKey}',
+      text: 'Pocket-Provisioner Template: ${displayNames[templateKey] ?? templateKey}',
     );
   }
 
