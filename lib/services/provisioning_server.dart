@@ -144,6 +144,15 @@ class ProvisioningServer {
           _logController.add(entry);
         }
 
+        // Console log for debugging/tracing requests
+        final macDisplay = mac != null ? ' MAC=$mac' : '';
+        final labelDisplay = deviceLabel != null ? ' ($deviceLabel)' : '';
+        debugPrint(
+          '[${entry.timestamp.toIso8601String()}] '
+          '${response.statusCode} ${request.method} $path '
+          'from $clientIp$macDisplay$labelDisplay [$resourceType]'
+        );
+
         return response;
       };
     };
@@ -209,7 +218,10 @@ class ProvisioningServer {
         final content = await MustacheTemplateService.instance.loadTemplate(templateKey);
         final contentType = MustacheTemplateService.instance.getContentType(templateKey);
 
-        return Response.ok(content, headers: {'Content-Type': contentType});
+        return Response.ok(content, headers: {
+          'Content-Type': '$contentType; charset=utf-8',
+          'Cache-Control': 'no-cache',
+        });
       } catch (e) {
         return Response.notFound('Template not found: $e');
       }
@@ -227,6 +239,8 @@ class ProvisioningServer {
         final mime = ext == '.png' ? 'image/png' : 'image/jpeg';
         return Response.ok(bytes, headers: {
           'Content-Type': mime,
+          'Content-Length': bytes.length.toString(),
+          'Cache-Control': 'public, max-age=3600',
         });
       }
       return Response.notFound('Original media file not found');
@@ -243,6 +257,8 @@ class ProvisioningServer {
         final mime = file.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
         return Response.ok(bytes, headers: {
           'Content-Type': mime,
+          'Content-Length': bytes.length.toString(),
+          'Cache-Control': 'public, max-age=3600',
         });
       }
       return Response.notFound('Media file not found');
@@ -257,6 +273,8 @@ class ProvisioningServer {
         final bytes = await audioFile.readAsBytes();
         return Response.ok(bytes, headers: {
           'Content-Type': 'audio/wav',
+          'Content-Length': bytes.length.toString(),
+          'Cache-Control': 'public, max-age=3600',
         });
       }
       return Response.notFound('Ringtone file not found');
@@ -270,7 +288,8 @@ class ProvisioningServer {
       if (await pbFile.exists()) {
         final content = await pbFile.readAsString();
         return Response.ok(content, headers: {
-          'Content-Type': 'application/xml',
+          'Content-Type': 'application/xml; charset=utf-8',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
         });
       }
       return Response.notFound('Phonebook file not found');
@@ -285,6 +304,9 @@ class ProvisioningServer {
         final bytes = await fwFile.readAsBytes();
         return Response.ok(bytes, headers: {
           'Content-Type': 'application/octet-stream',
+          'Content-Length': bytes.length.toString(),
+          'Cache-Control': 'public, max-age=86400',
+          'Content-Disposition': 'attachment; filename="${p.basename(file)}"',
         });
       }
       return Response.notFound('Firmware file not found');
@@ -426,9 +448,13 @@ class ProvisioningServer {
             );
 
             final content = await MustacheRenderer.render(templateKey, variables);
-            final contentType = filename.toLowerCase().endsWith('.xml') ? 'application/xml' : 'text/plain';
+            final isXml = filename.toLowerCase().endsWith('.xml');
+            final contentType = isXml ? 'application/xml; charset=utf-8' : 'text/plain; charset=utf-8';
 
-            return Response.ok(content, headers: {'Content-Type': contentType});
+            return Response.ok(content, headers: {
+              'Content-Type': contentType,
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+            });
           } catch (e) {
             // Dynamic generation failed, fall through to static file lookup
             debugPrint('Dynamic config generation failed for $mac: $e');
@@ -454,9 +480,11 @@ class ProvisioningServer {
 
       final content = await match.readAsString();
       final ext = p.extension(match.path).toLowerCase();
-      final contentType = ext == '.xml' ? 'application/xml' : 'text/plain';
+      final isXml = ext == '.xml';
+      final contentType = isXml ? 'application/xml; charset=utf-8' : 'text/plain; charset=utf-8';
       return Response.ok(content, headers: {
         'Content-Type': contentType,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
       });
     });
 
