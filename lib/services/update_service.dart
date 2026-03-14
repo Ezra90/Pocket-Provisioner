@@ -13,6 +13,7 @@ class UpdateInfo {
   final String downloadUrl;
   final String assetName;
   final String releaseNotes;
+  final int buildNumber;
 
   const UpdateInfo({
     required this.version,
@@ -20,37 +21,67 @@ class UpdateInfo {
     required this.downloadUrl,
     required this.assetName,
     required this.releaseNotes,
+    this.buildNumber = 0,
   });
 }
 
 /// Service that checks the GitHub Releases API for a newer version of the app
 /// and, if one exists, downloads and installs it.
+///
+/// Version tracking uses git commit count as the build number. The build
+/// workflow creates a rolling "dev" pre-release on every push to main with
+/// raw APK assets attached, so the app can self-update without manual tagging.
 class UpdateService {
   static const String _repoOwner = 'Ezra90';
   static const String _repoName = 'Pocket-Provisioner';
 
   /// Returns [UpdateInfo] if a newer release is available, otherwise null.
+  ///
+  /// Checks the rolling "dev" release first (created by the build workflow on
+  /// every push to main), then falls back to recent tagged releases.
   static Future<UpdateInfo?> checkForUpdate() async {
     try {
       final packageInfo = await PackageInfo.fromPlatform();
-      final currentVersion = packageInfo.version; // e.g. "0.0.4"
+      final currentBuild = int.tryParse(packageInfo.buildNumber) ?? 0;
 
+      // 1. Check the rolling "dev" pre-release first (most common update path).
+      final devUpdate = await _checkRelease(
+        'https://api.github.com/repos/$_repoOwner/$_repoName/releases/tags/dev',
+        currentBuild,
+      );
+      if (devUpdate != null) return devUpdate;
+
+      // 2. Fall back to the latest non-prerelease (tagged releases like v1.0.0).
+      return _checkRelease(
+        'https://api.github.com/repos/$_repoOwner/$_repoName/releases/latest',
+        currentBuild,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Checks a single release endpoint for a newer build.
+  static Future<UpdateInfo?> _checkRelease(String url, int currentBuild) async {
+    try {
       final response = await http
-          .get(
-            Uri.parse(
-              'https://api.github.com/repos/$_repoOwner/$_repoName/releases/latest',
-            ),
-            headers: {'Accept': 'application/vnd.github.v3+json'},
-          )
+          .get(Uri.parse(url),
+              headers: {'Accept': 'application/vnd.github.v3+json'})
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) return null;
 
       final data = json.decode(response.body) as Map<String, dynamic>;
-      final tagName = (data['tag_name'] as String? ?? '').trim();
-      final latestVersion = tagName.startsWith('v') ? tagName.substring(1) : tagName;
+      final releaseName = data['name'] as String? ?? '';
+      final tagName = data['tag_name'] as String? ?? '';
 
-      if (!_isNewerVersion(latestVersion, currentVersion)) return null;
+      // Extract build number from release name "Build N (abc1234)" or
+      // "Pocket Provisioner vX.Y.Z (Build N)".
+      final buildMatch = RegExp(r'Build\s+(\d+)').firstMatch(releaseName);
+      if (buildMatch == null) return null;
+
+      final releaseBuild = int.tryParse(buildMatch.group(1)!) ?? 0;
+      if (releaseBuild <= currentBuild) return null;
 
       // Find the best APK asset: prefer arm64-v8a, fall back to any .apk.
       final assets = (data['assets'] as List<dynamic>? ?? []);
@@ -72,11 +103,12 @@ class UpdateService {
       if (downloadUrl == null || assetName == null) return null;
 
       return UpdateInfo(
-        version: latestVersion,
+        version: 'Build $releaseBuild',
         tagName: tagName,
         downloadUrl: downloadUrl,
         assetName: assetName,
         releaseNotes: (data['body'] as String? ?? '').trim(),
+        buildNumber: releaseBuild,
       );
     } catch (_) {
       return null;
@@ -131,23 +163,4 @@ class UpdateService {
       onError('Download failed: $e');
     }
   }
-
-  // ── helpers ──────────────────────────────────────────────────────────────
-
-  /// Returns true when [latest] is strictly greater than [current] using
-  /// major.minor.patch comparison.
-  static bool _isNewerVersion(String latest, String current) {
-    final latestParts = _versionParts(latest);
-    final currentParts = _versionParts(current);
-    for (int i = 0; i < 3; i++) {
-      final l = i < latestParts.length ? latestParts[i] : 0;
-      final c = i < currentParts.length ? currentParts[i] : 0;
-      if (l > c) return true;
-      if (l < c) return false;
-    }
-    return false;
-  }
-
-  static List<int> _versionParts(String version) =>
-      version.split('.').map((s) => int.tryParse(s) ?? 0).toList();
 }

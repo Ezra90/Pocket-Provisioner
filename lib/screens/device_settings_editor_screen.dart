@@ -7,6 +7,7 @@ import '../models/device_settings.dart';
 import '../models/phonebook_entry.dart';
 import '../services/global_settings.dart';
 import '../services/mustache_renderer.dart';
+import '../services/template_metadata_parser.dart';
 import '../services/ringtone_service.dart';
 import '../services/wallpaper_service.dart';
 import '../services/firmware_service.dart';
@@ -81,10 +82,24 @@ class _DeviceSettingsEditorScreenState
   // Template capability flags (null = still loading)
   Set<String>? _templateTags;
 
+  // Template metadata for showing variable descriptions/examples in the UI.
+  TemplateMetadata? _templateMeta;
+
   /// Returns true when the loaded template contains [tag] (or while still
   /// loading — fail-open so fields are not permanently hidden).
   bool _templateSupports(String tag) =>
       _templateTags == null || _templateTags!.contains(tag);
+
+  /// Returns a helper text string for a template variable (description + example).
+  String? _varHelper(String varName) {
+    final meta = _templateMeta?.variables[varName];
+    if (meta == null) return null;
+    final desc = meta.description;
+    final example = meta.example;
+    if (desc.isEmpty && example.isEmpty) return null;
+    if (example.isEmpty) return desc;
+    return '$desc (e.g. $example)';
+  }
 
   // Security
   late final TextEditingController _adminPasswordCtrl;
@@ -186,6 +201,9 @@ class _DeviceSettingsEditorScreenState
     MustacheRenderer.resolveTemplateKey(widget.model).then((templateKey) {
       MustacheRenderer.extractAllTags(templateKey).then((tags) {
         if (mounted) setState(() => _templateTags = tags);
+      });
+      TemplateMetadataParser.parse(templateKey).then((meta) {
+        if (mounted) setState(() => _templateMeta = meta);
       });
     });
     GlobalSettings.getMode().then((mode) {
@@ -656,7 +674,9 @@ class _DeviceSettingsEditorScreenState
       {String? hint,
       bool obscure = false,
       TextInputType? keyboard,
-      List<TextInputFormatter>? inputFormatters}) {
+      List<TextInputFormatter>? inputFormatters,
+      String? varName}) {
+    final helperText = varName != null ? _varHelper(varName) : null;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextField(
@@ -667,6 +687,8 @@ class _DeviceSettingsEditorScreenState
         decoration: InputDecoration(
           labelText: label,
           hintText: hint ?? 'Inherited (global default)',
+          helperText: helperText,
+          helperMaxLines: 2,
           border: const OutlineInputBorder(),
           isDense: true,
         ),
@@ -772,19 +794,23 @@ class _DeviceSettingsEditorScreenState
                             : 'SIP Server Override',
                         hint: _globalMode == GlobalSettings.modeDms
                             ? 'Inherited from DMS – blank for most jobs'
-                            : 'Inherited from Global Settings'),
+                            : 'Inherited from Global Settings',
+                        varName: 'sip_server'),
                     _field(_sipPortCtrl, 'SIP Port',
                         hint: '5060',
-                        keyboard: TextInputType.number),
+                        keyboard: TextInputType.number,
+                        varName: 'sip_port'),
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: DropdownButtonFormField<String?>(
                         value: _transport,
                         isExpanded: true,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Transport',
                           hintText: 'Inherited (UDP)',
-                          border: OutlineInputBorder(),
+                          helperText: _varHelper('transport'),
+                          helperMaxLines: 2,
+                          border: const OutlineInputBorder(),
                           isDense: true,
                         ),
                         items: const [
@@ -807,14 +833,17 @@ class _DeviceSettingsEditorScreenState
                     ),
                     _field(_regExpiryCtrl, 'Registration Expiry (s)',
                         hint: '3600',
-                        keyboard: TextInputType.number),
+                        keyboard: TextInputType.number,
+                        varName: 'reg_expiry'),
                     _field(_outboundProxyHostCtrl,
-                        'Outbound Proxy Host'),
+                        'Outbound Proxy Host',
+                        varName: 'outbound_proxy_host'),
                     _field(_outboundProxyPortCtrl,
                         'Outbound Proxy Port',
                         hint: '5060',
                         keyboard: TextInputType.number),
-                    _field(_backupServerCtrl, 'Backup Server'),
+                    _field(_backupServerCtrl, 'Backup Server',
+                        varName: 'backup_server'),
                     _field(_backupPortCtrl, 'Backup Port',
                         hint: '5060',
                         keyboard: TextInputType.number),
@@ -933,7 +962,8 @@ class _DeviceSettingsEditorScreenState
 
                     _field(_screensaverTimeoutCtrl,
                         'Screensaver Timeout (s)',
-                        keyboard: TextInputType.number),
+                        keyboard: TextInputType.number,
+                        varName: 'screensaver_timeout'),
                   ],
                 ),
               ),
@@ -953,7 +983,8 @@ class _DeviceSettingsEditorScreenState
                   children: [
                     _field(_adminPasswordCtrl,
                         'Admin Password Override',
-                        obscure: true),
+                        obscure: true,
+                        varName: 'admin_password'),
                     _optSwitch(
                         'Web UI Access',
                         _webUiEnabled,
@@ -980,9 +1011,11 @@ class _DeviceSettingsEditorScreenState
                     if (_templateSupports('vlan_enabled') ||
                         _templateSupports('voice_vlan_id')) ...[
                       _field(_voiceVlanCtrl, 'Voice VLAN ID',
-                          keyboard: TextInputType.number),
+                          keyboard: TextInputType.number,
+                          varName: 'voice_vlan_id'),
                       _field(_dataVlanCtrl, 'Data VLAN ID',
-                          keyboard: TextInputType.number),
+                          keyboard: TextInputType.number,
+                          varName: 'data_vlan_id'),
                     ],
                     _optSwitch(
                         'CDP / LLDP',
@@ -1051,13 +1084,18 @@ class _DeviceSettingsEditorScreenState
                             setState(() => _callWaiting = v)),
                     _field(_cfwAlwaysCtrl,
                         'Call Forward Always',
-                        hint: 'e.g. +61400000000'),
-                    _field(_cfwBusyCtrl, 'Call Forward Busy'),
+                        hint: 'e.g. +61400000000',
+                        varName: 'cfw_always'),
+                    _field(_cfwBusyCtrl, 'Call Forward Busy',
+                        varName: 'cfw_busy'),
                     _field(_cfwNoAnswerCtrl,
-                        'Call Forward No Answer'),
-                    _field(_voicemailCtrl, 'Voicemail Number'),
+                        'Call Forward No Answer',
+                        varName: 'cfw_no_answer'),
+                    _field(_voicemailCtrl, 'Voicemail Number',
+                        varName: 'voicemail_number'),
                     _field(_dialPlanCtrl, 'Dial Plan',
                         hint: 'e.g. (x+|\\+x+|xxx|xx+)',
+                        varName: 'dial_plan',
                         inputFormatters: [
                           FilteringTextInputFormatter.deny(RegExp(r'"')),
                         ]),
@@ -1090,7 +1128,8 @@ class _DeviceSettingsEditorScreenState
                             : 'Provisioning URL Override',
                         hint: _globalMode == GlobalSettings.modeDms
                             ? 'Inherited from Global Settings (DMS URL)'
-                            : 'Inherited from server settings'),
+                            : 'Inherited from server settings',
+                        varName: 'provisioning_url'),
                     // ── Firmware Upgrade URL ──────────────────────────────
                     if (_templateSupports('firmware_url')) ...[
                       const Text('Firmware Upgrade',
@@ -1150,9 +1189,11 @@ class _DeviceSettingsEditorScreenState
                       const SizedBox(height: 12),
                     ],
                     _field(_ntpServerCtrl, 'NTP Server',
-                        hint: 'e.g. pool.ntp.org'),
+                        hint: 'e.g. pool.ntp.org',
+                        varName: 'ntp_server'),
                     _field(_timezoneCtrl, 'Timezone',
-                        hint: 'e.g. +10'),
+                        hint: 'e.g. +10',
+                        varName: 'timezone'),
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: DropdownButtonFormField<String?>(
@@ -1190,7 +1231,8 @@ class _DeviceSettingsEditorScreenState
                 child: Column(
                   children: [
                     _field(_syslogServerCtrl, 'Syslog Server',
-                        hint: 'e.g. 192.168.1.100'),
+                        hint: 'e.g. 192.168.1.100',
+                        varName: 'syslog_server'),
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: DropdownButtonFormField<String?>(

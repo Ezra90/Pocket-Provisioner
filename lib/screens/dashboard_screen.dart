@@ -37,7 +37,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _serverStatus = "OFFLINE";
   bool _isServerRunning = false;
   Color _statusColor = Colors.red.shade100;
-  String _appVersion = "v0.0.4";
+  String _appVersion = "Build 1";
 
   // Global provisioning mode (loaded from SharedPreferences)
   String _globalMode = GlobalSettings.modeDms;
@@ -62,7 +62,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _loadAppVersion() async {
     final info = await PackageInfo.fromPlatform();
-    if (mounted) setState(() => _appVersion = "v${info.version}");
+    if (mounted) setState(() => _appVersion = "Build ${info.buildNumber}");
   }
 
   Future<void> _autoCheckForUpdate() async {
@@ -597,7 +597,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 IconButton(
                   icon: const Icon(Icons.system_update),
                   tooltip: _pendingUpdate != null
-                      ? 'Update available: v${_pendingUpdate!.version}'
+                      ? 'Update available: ${_pendingUpdate!.version}'
                       : 'Check for Updates',
                   onPressed: _pendingUpdate != null
                       ? () => _showUpdateDialog(_pendingUpdate!)
@@ -645,7 +645,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Update available: v${_pendingUpdate!.version} — Tap to install',
+                          'Update available: ${_pendingUpdate!.version} — Tap to install',
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ),
@@ -850,7 +850,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Version ${widget.info.version} is available.',
+          Text('${widget.info.version} is available.',
               style: const TextStyle(fontWeight: FontWeight.bold)),
           if (widget.info.releaseNotes.isNotEmpty) ...[
             const SizedBox(height: 8),
