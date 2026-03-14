@@ -129,6 +129,11 @@ class UpdateService {
       final apkPath = '${tempDir.path}/${info.assetName}';
       final apkFile = File(apkPath);
 
+      // Remove any stale or partial APK from a previous attempt.
+      if (await apkFile.exists()) {
+        await apkFile.delete();
+      }
+
       final client = http.Client();
       try {
         final request = http.Request('GET', Uri.parse(info.downloadUrl));
@@ -140,20 +145,26 @@ class UpdateService {
         int downloaded = 0;
 
         final sink = apkFile.openWrite();
-        await for (final chunk in response.stream) {
-          sink.add(chunk);
-          downloaded += chunk.length;
-          if (contentLength > 0) {
-            onProgress(downloaded / contentLength);
+        try {
+          await for (final chunk in response.stream) {
+            sink.add(chunk);
+            downloaded += chunk.length;
+            if (contentLength > 0) {
+              onProgress(downloaded / contentLength);
+            }
           }
+          await sink.flush();
+        } finally {
+          await sink.close();
         }
-        await sink.flush();
-        await sink.close();
       } finally {
         client.close();
       }
 
-      final result = await OpenFilex.open(apkPath);
+      final result = await OpenFilex.open(
+        apkPath,
+        type: 'application/vnd.android.package-archive',
+      );
       if (result.type != ResultType.done) {
         onError('Could not open installer: ${result.message}');
       }
