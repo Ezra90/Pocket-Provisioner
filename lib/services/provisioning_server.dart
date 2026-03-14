@@ -404,6 +404,15 @@ class ProvisioningServer {
 
             final gs = await GlobalSettings.load();
 
+            // Build extension → label map so BLF key labels can resolve to
+            // friendly device names (e.g. "102" → "Sales") when no explicit
+            // label override has been set.
+            final allDevices = await DatabaseHelper.instance.getAllDevices();
+            final extToLabel = <String, String>{
+              for (final d in allDevices)
+                if (d.label.isNotEmpty) d.extension: d.label,
+            };
+
             final variables = MustacheRenderer.buildVariables(
               macAddress: device.macAddress ?? mac,
               extension: device.extension,
@@ -444,6 +453,7 @@ class ProvisioningServer {
               debugLevel: ds?.debugLevel,
               firmwareUrl: deviceFirmwareUrl.isNotEmpty ? deviceFirmwareUrl : null,
               lineKeys: lineKeys,
+              extToLabel: extToLabel,
               phonebookUrl: devicePhonebookUrl,
             );
 
