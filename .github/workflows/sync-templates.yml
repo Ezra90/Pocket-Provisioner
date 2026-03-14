@@ -1,0 +1,78 @@
+name: Sync Shared Templates
+
+on:
+  # Run when templates change on main
+  push:
+    branches: [ "main", "master" ]
+    paths:
+      - 'assets/templates/**'
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      direction:
+        description: 'Sync direction'
+        required: true
+        default: 'push'
+        type: choice
+        options:
+          - push
+          - pull
+
+jobs:
+  sync-templates:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Pocket-Provisioner
+        uses: actions/checkout@v4
+        with:
+          path: pocket-provisioner
+
+      - name: Checkout freepbx-quickprovisioner
+        uses: actions/checkout@v4
+        with:
+          repository: Ezra90/freepbx-quickprovisioner
+          path: freepbx-quickprovisioner
+          token: ${{ secrets.TEMPLATE_SYNC_TOKEN }}
+
+      - name: Sync templates
+        run: |
+          DIRECTION="${{ github.event.inputs.direction || 'push' }}"
+
+          if [ "$DIRECTION" = "push" ]; then
+            echo "Pushing templates from Pocket-Provisioner → freepbx-quickprovisioner"
+            cp pocket-provisioner/assets/templates/*.mustache freepbx-quickprovisioner/templates/
+          else
+            echo "Pulling templates from freepbx-quickprovisioner → Pocket-Provisioner"
+            cp freepbx-quickprovisioner/templates/*.mustache pocket-provisioner/assets/templates/
+          fi
+
+      - name: Push to freepbx-quickprovisioner
+        if: ${{ github.event.inputs.direction != 'pull' }}
+        working-directory: freepbx-quickprovisioner
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add templates/
+          if git diff --cached --quiet; then
+            echo "No template changes to sync"
+          else
+            git commit -m "sync: update shared templates from Pocket-Provisioner"
+            git push
+          fi
+
+      - name: Push to Pocket-Provisioner
+        if: ${{ github.event.inputs.direction == 'pull' }}
+        working-directory: pocket-provisioner
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add assets/templates/
+          if git diff --cached --quiet; then
+            echo "No template changes to sync"
+          else
+            git commit -m "sync: update shared templates from freepbx-quickprovisioner"
+            git push
+          fi
