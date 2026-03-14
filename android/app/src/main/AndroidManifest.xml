@@ -9,6 +9,11 @@
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
 
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <!-- Android 13+ (API 33+): lets network_info_plus resolve WiFi IP without
+         requiring fine-location permission on newer devices -->
+    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="33" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
 
     <!-- Storage permissions for the self-contained Pocket Provisioner/ folder -->
