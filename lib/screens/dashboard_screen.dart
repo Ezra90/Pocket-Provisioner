@@ -6,7 +6,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:csv/csv.dart';
 import 'package:excel/excel.dart' as xl;
 import 'package:permission_handler/permission_handler.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:package_info_plus/package_info_plus.dart';
 import '../data/database_helper.dart';
@@ -16,6 +15,7 @@ import '../services/mustache_renderer.dart';
 import '../services/mustache_template_service.dart';
 import '../services/provisioning_server.dart';
 import '../services/button_layout_service.dart';
+import '../services/phonebook_service.dart';
 import '../services/update_service.dart';
 import '../services/global_settings.dart';
 import '../models/button_key.dart';
@@ -110,6 +110,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final statuses = await [
       Permission.camera,
       Permission.location, // Critical for getting Local IP on Android
+      // Android 13+ (API 33+): allows WiFi IP lookup without location permission
+      Permission.nearbyWifiDevices,
     ].request();
     final denied = statuses.values.any((s) => s.isDenied || s.isPermanentlyDenied);
     if (denied && mounted) {
@@ -359,11 +361,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return;
       }
 
-      final appDir = await getApplicationDocumentsDirectory();
-      final outputDir = Directory(p.join(appDir.path, 'generated_configs'));
-      if (!await outputDir.exists()) {
-        await outputDir.create(recursive: true);
-      }
+      final outputDir = await AppDirectories.configsDir();
 
       // Load global settings once for the whole batch
       final gs = await GlobalSettings.load();
@@ -432,6 +430,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
           }
         }
 
+        // Generate phonebook XML and resolve URL.
+        // Only included when the provisioning server is running so the config
+        // contains a reachable URL that phones can fetch at boot time.
+        String? devicePhonebookUrl;
+        final phonebookEntries = ds?.phonebookEntries;
+        final activeServerUrl = ProvisioningServer.serverUrl;
+        if (phonebookEntries != null &&
+            phonebookEntries.isNotEmpty &&
+            activeServerUrl != null) {
+          final pbFilename = await PhonebookService.saveForExtension(
+            device.extension,
+            phonebookEntries,
+            displayName: device.label,
+            model: device.model,
+          );
+          if (pbFilename != null) {
+            devicePhonebookUrl = '$activeServerUrl/phonebook/$pbFilename';
+          }
+        }
+
         final variables = MustacheRenderer.buildVariables(
           macAddress: device.macAddress!,
           extension: device.extension,
@@ -472,6 +490,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           debugLevel: ds?.debugLevel,
           firmwareUrl: deviceFirmwareUrl.isNotEmpty ? deviceFirmwareUrl : null,
           lineKeys: lineKeys,
+          phonebookUrl: devicePhonebookUrl,
         );
         final rendered = await MustacheRenderer.render(templateKey, variables);
         final contentType =
