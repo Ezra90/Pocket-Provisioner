@@ -40,6 +40,14 @@ class ProvisioningServer {
 
   static String? get serverUrl => _serverUrl;
 
+  /// Clears the access log, device access map, and IP→MAC cache without
+  /// stopping the server.  Useful for purging old entries during a session.
+  static void clearLog() {
+    _accessLog.clear();
+    _deviceAccessMap.clear();
+    _ipMacMap.clear();
+  }
+
   // ---------------------------------------------------------------------------
   // Classify the requested path into a resource type string.
   // ---------------------------------------------------------------------------

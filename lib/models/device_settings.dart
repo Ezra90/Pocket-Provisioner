@@ -3,7 +3,7 @@ import 'button_key.dart';
 import 'phonebook_entry.dart';
 
 /// Per-device override settings for provisioning configuration.
-/// All fields default to null meaning "inherited / use global default".
+/// All fields default to null meaning "use global default".
 class DeviceSettings {
   // SIP & Registration
   String? sipServer;
@@ -94,7 +94,7 @@ class DeviceSettings {
     this.phonebookEntries,
   });
 
-  /// True if any field has been set (i.e. not all inherited).
+  /// True if any field has been set (i.e. not all using defaults).
   bool get hasOverrides =>
       sipServer != null ||
       sipPort != null ||

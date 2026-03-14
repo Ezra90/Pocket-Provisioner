@@ -88,6 +88,7 @@ class _FileManagerScreenState extends State<FileManagerScreen>
         bottom: TabBar(
           controller: _tabs,
           isScrollable: true,
+          tabAlignment: TabAlignment.start,
           tabs: const [
             Tab(icon: Icon(Icons.description), text: 'Configs'),
             Tab(icon: Icon(Icons.image), text: 'Wallpapers'),
