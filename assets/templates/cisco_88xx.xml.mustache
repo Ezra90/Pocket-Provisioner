@@ -28,11 +28,11 @@
     {"name": "cfw_no_answer",     "category": "call_features", "description": "Call forward no-answer dialing number.", "example": "voicemail", "default": ""},
     {"name": "dial_plan",         "category": "call_features", "description": "Cisco MPP dial plan string.", "example": "(9,8,**xx.|*xx.|[2-9]xxxxxx|1xxxxxxxxxx|xxxxxxxxxxxx)", "default": ""},
     {"name": "ntp_server",        "category": "provisioning",  "description": "Primary NTP server hostname or IP.", "example": "0.pool.ntp.org", "default": "0.pool.ntp.org"},
-    {"name": "timezone",          "category": "provisioning",  "description": "Cisco time zone string (GMT offset).", "example": "GMT+10:00", "default": "GMT-08:00"},
+    {"name": "timezone",          "category": "provisioning",  "description": "Cisco time zone GMT offset (e.g., GMT-08:00, GMT+10:00, GMT+05:30).", "example": "GMT+10:00", "default": "GMT-08:00"},
     {"name": "provisioning_url",  "category": "provisioning",  "description": "Provisioning profile URL.", "example": "http://192.168.1.1:8080", "default": ""},
     {"name": "firmware_url",      "category": "provisioning",  "description": "Firmware loads URL for auto-upgrade (leave blank to disable).", "example": "http://192.168.1.1:8080/firmware/cisco.loads", "default": ""},
     {"name": "syslog_server",     "category": "diagnostics",   "description": "Remote syslog server hostname or IP.", "example": "192.168.1.50", "default": ""},
-    {"name": "debug_level",       "category": "diagnostics",   "description": "Syslog debug level for Cisco MPP (EMERGENCY|ALERT|CRITICAL|ERROR|WARNING|NOTICE|INFO|DEBUG).", "example": "WARNING", "default": "NOTICE"},
+    {"name": "debug_level",       "category": "diagnostics",   "description": "Syslog verbosity: EMERGENCY, ALERT, CRITICAL, ERROR, WARNING, NOTICE, INFO, or DEBUG.", "example": "NOTICE", "default": "NOTICE"},
     {"name": "ringtone_url",      "category": "display",       "description": "Custom ringtone URL (WAV file served by the provisioning server).", "example": "http://192.168.1.1:8080/ringtones/MyRing.wav", "default": ""}
   ]
 } }}
@@ -145,7 +145,7 @@
 <!-- Programmable Line Key {{position}} -->
 <Extension_{{position}}_>{{position}}</Extension_{{position}}_>
 <Short_Name_{{position}}_>{{key_label}}</Short_Name_{{position}}_>
-<Extended_Function_{{position}}_>fnc=sd;ext={{key_value}}@$PROXY;nme={{key_label}}</Extended_Function_{{position}}_>
+<Extended_Function_{{position}}_>fnc=sd;ext={{key_value}}@{{sip_server}};nme={{key_label}}</Extended_Function_{{position}}_>
 {{/line_keys}}
 
 {{#remote_phonebooks}}
