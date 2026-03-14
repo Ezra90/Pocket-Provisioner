@@ -42,9 +42,6 @@ dependencies:
   open_filex: ^4.7.0
   package_info_plus: ^9.0.0
 
-  # UI
-  cupertino_icons: ^1.0.2
-
 dev_dependencies:
   flutter_test:
     sdk: flutter
