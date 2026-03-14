@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -19,6 +20,7 @@ import '../services/button_layout_service.dart';
 import '../services/phonebook_service.dart';
 import '../services/update_service.dart';
 import '../services/global_settings.dart';
+import '../models/access_log_entry.dart';
 import '../models/button_key.dart';
 import '../models/device.dart';
 import 'access_log_screen.dart';
@@ -50,6 +52,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   UpdateInfo? _pendingUpdate;
   bool _checkingUpdate = false;
 
+  // Toast notification settings (loaded from SharedPreferences)
+  bool _toastNotificationsEnabled = true;
+  StreamSubscription<AccessLogEntry>? _logSubscription;
+  // Track MACs that have already triggered a toast in this session
+  final Set<String> _notifiedMacs = {};
+
   @override
   void initState() {
     super.initState();
@@ -58,6 +66,70 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _autoCheckForUpdate();
     _loadGlobalMode();
     _detectLocalIp();
+    _loadToastSettings();
+  }
+
+  @override
+  void dispose() {
+    _logSubscription?.cancel();
+    super.dispose();
+  }
+
+  /// Loads toast notification preference from SharedPreferences.
+  Future<void> _loadToastSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _toastNotificationsEnabled = prefs.getBool('toast_notifications') ?? true;
+      });
+    }
+  }
+
+  /// Toggles toast notifications and persists the setting.
+  Future<void> _toggleToastNotifications(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('toast_notifications', enabled);
+    if (mounted) {
+      setState(() => _toastNotificationsEnabled = enabled);
+    }
+  }
+
+  /// Subscribes to access log stream to show toast notifications when a device
+  /// connects and pulls its config for the first time in this session.
+  void _startLogListener() {
+    _logSubscription?.cancel();
+    _notifiedMacs.clear();
+    _logSubscription = ProvisioningServer.accessLogStream.listen((entry) {
+      if (!_toastNotificationsEnabled) return;
+      if (entry.resourceType != 'config') return;
+      if (entry.resolvedMac == null) return;
+      // Only notify once per MAC per session
+      if (_notifiedMacs.contains(entry.resolvedMac)) return;
+      _notifiedMacs.add(entry.resolvedMac!);
+
+      // Show toast notification
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('📱 ${entry.toastSummary}'),
+            duration: const Duration(seconds: 3),
+            action: SnackBarAction(
+              label: 'View Log',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AccessLogScreen()),
+              ),
+            ),
+          ),
+        );
+      }
+    });
+  }
+
+  /// Stops listening to log events (when server stops).
+  void _stopLogListener() {
+    _logSubscription?.cancel();
+    _logSubscription = null;
   }
 
   /// Detects the local IP address for display purposes without starting the
@@ -586,6 +658,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _toggleServer() async {
     if (_isServerRunning) {
       await ProvisioningServer.instance.stop();
+      _stopLogListener();
       setState(() {
         _serverStatus = "OFFLINE";
         _isServerRunning = false;
@@ -596,6 +669,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } else {
       try {
         String url = await ProvisioningServer.instance.start(8080);
+        _startLogListener();
         setState(() {
           _serverStatus = "ONLINE: $url";
           _isServerRunning = true;
@@ -798,23 +872,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                           'automatically find this provisioning server on boot:\n',
                                           style: TextStyle(fontSize: 13),
                                         ),
-                                        _dhcpRow('Option 66',
-                                            'TFTP / HTTP server URL',
+                                        _dhcpRow('Option 66 (Standard)',
+                                            'Primary provisioning server URL — used by Yealink, Polycom, Cisco, and most other VoIP phones',
                                             ip),
                                         _dhcpRow('Option 160',
-                                            'Alternative HTTP provisioning URL (some vendors)',
+                                            'Alternative provisioning URL — used by some vendors when Option 66 is reserved for TFTP',
                                             ip),
+                                        _dhcpRow('Option 150 (Cisco)',
+                                            'TFTP Server IP(s) — primarily for Cisco IP Phones',
+                                            _localIp ?? '<your-ip>'),
                                         const SizedBox(height: 12),
+                                        const Text(
+                                          'Vendor Requirements:',
+                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                        ),
+                                        const Text(
+                                          '• Yealink: Option 66 (HTTP/HTTPS) or Option 43 (vendor-specific)\n'
+                                          '• Polycom VVX/Edge: Option 66 (HTTP) or provisioning via ZTP\n'
+                                          '• Cisco: Option 66 (TFTP/HTTP) or Option 150 (TFTP)\n'
+                                          '• Grandstream: Option 66 (HTTP/HTTPS)\n',
+                                          style: TextStyle(fontSize: 12, color: Colors.black54),
+                                        ),
+                                        const SizedBox(height: 8),
                                         const Text(
                                           'Tips:',
                                           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                                         ),
                                         const Text(
-                                          '• Option 66 is the standard for most Yealink, Polycom, and Cisco phones.\n'
-                                          '• Option 160 is used by some vendors as an alternative.\n'
-                                          '• Factory reset handsets so they pull configuration on boot.\n'
-                                          '• In DMS / Carrier mode the handset contacts the DMS first, '
-                                          'which then redirects to this server.',
+                                          '• Factory reset handsets so they query DHCP on boot.\n'
+                                          '• Ensure firewall allows HTTP traffic on port 8080.\n'
+                                          '• In DMS / Carrier mode, the handset contacts the DMS first, '
+                                          'which then redirects to this server.\n'
+                                          '• Some routers require Option 66 as plain IP without http:// prefix.',
                                           style: TextStyle(fontSize: 12, color: Colors.black54),
                                         ),
                                       ],

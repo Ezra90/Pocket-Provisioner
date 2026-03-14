@@ -1273,6 +1273,57 @@ class _FirmwareTabState extends State<_FirmwareTab>
     }
   }
 
+  Widget _buildFirmwareRequirementsCard() {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      child: ExpansionTile(
+        leading: const Icon(Icons.info_outline, color: Colors.blue),
+        title: const Text('Firmware Requirements & Download Links',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        children: [
+          _firmwareVendorSection(
+            'Yealink',
+            'File extension: .rom\nNaming: T54W.rom, T46U.rom, etc.',
+            'Download from support.yealink.com',
+          ),
+          const Divider(),
+          _firmwareVendorSection(
+            'Polycom / Poly',
+            'File extension: .sip.ld or .ld\nNaming: sip.ld (shared), or model-specific.',
+            'Download from support.polycom.com',
+          ),
+          const Divider(),
+          _firmwareVendorSection(
+            'Cisco MPP',
+            'File extension: .loads (manifest) or .cop.sgn\nCisco phones reference the .loads manifest.',
+            'Download from software.cisco.com',
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Tip: Set the firmware URL in Global Settings or per-device settings to enable OTA updates.',
+            style: TextStyle(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _firmwareVendorSection(String vendor, String requirements, String downloadInfo) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(vendor, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          const SizedBox(height: 2),
+          Text(requirements, style: const TextStyle(fontSize: 12)),
+          Text(downloadInfo, style: const TextStyle(fontSize: 11, color: Colors.blue)),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -1289,6 +1340,7 @@ class _FirmwareTabState extends State<_FirmwareTab>
                       children: [
                         _StoragePathBanner(
                             directoryGetter: AppDirectories.firmwareDir),
+                        _buildFirmwareRequirementsCard(),
                         Padding(
                           padding: const EdgeInsets.all(32),
                           child: Column(
@@ -1314,13 +1366,16 @@ class _FirmwareTabState extends State<_FirmwareTab>
                       ])
                   : ListView.builder(
                       padding: const EdgeInsets.all(12),
-                      itemCount: _files.length + 1,
+                      itemCount: _files.length + 2, // +2 for banner and requirements card
                       itemBuilder: (context, i) {
                         if (i == 0) {
                           return _StoragePathBanner(
                               directoryGetter: AppDirectories.firmwareDir);
                         }
-                        final info = _files[i - 1];
+                        if (i == 1) {
+                          return _buildFirmwareRequirementsCard();
+                        }
+                        final info = _files[i - 2];
                         final fwUrl = serverUrl != null
                             ? '$serverUrl/firmware/${info.filename}'
                             : null;

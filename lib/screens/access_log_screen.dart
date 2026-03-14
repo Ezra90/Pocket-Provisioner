@@ -84,6 +84,9 @@ class _AccessLogScreenState extends State<AccessLogScreen> {
           final lastEntry = deviceEntries.last;
 
           final formattedMac = lastEntry.formattedMac;
+          final extLabel = lastEntry.deviceExtension != null
+              ? 'Ext ${lastEntry.deviceExtension} - ${lastEntry.deviceLabel ?? ''}'
+              : lastEntry.deviceLabel;
 
           return Card(
             margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -108,9 +111,9 @@ class _AccessLogScreenState extends State<AccessLogScreen> {
                                     fontWeight: FontWeight.bold,
                                     fontFamily: 'monospace'),
                               ),
-                              if (lastEntry.deviceLabel != null)
+                              if (extLabel != null && extLabel.isNotEmpty)
                                 Text(
-                                  lastEntry.deviceLabel!,
+                                  extLabel,
                                   style: const TextStyle(
                                       fontSize: 12, color: Colors.grey),
                                 ),

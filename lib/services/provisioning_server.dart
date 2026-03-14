@@ -117,13 +117,15 @@ class ProvisioningServer {
               _extractMacFromUserAgent(request.headers['user-agent']);
         }
 
-        // --- Look up device label ---
+        // --- Look up device info ---
         String? deviceLabel;
+        String? deviceExtension;
         if (mac != null) {
           try {
             final device = await DatabaseHelper.instance.getDeviceByMac(mac);
             if (device != null) {
-              deviceLabel = 'Ext ${device.extension} - ${device.label}';
+              deviceExtension = device.extension;
+              deviceLabel = device.label;
             }
           } catch (_) {
             // Non-fatal: label lookup failure should not break request handling
@@ -138,6 +140,7 @@ class ProvisioningServer {
           requestedPath: path,
           resolvedMac: mac,
           deviceLabel: deviceLabel,
+          deviceExtension: deviceExtension,
           resourceType: resourceType,
           statusCode: response.statusCode,
           timestamp: DateTime.now(),
@@ -154,11 +157,11 @@ class ProvisioningServer {
 
         // Console log for debugging/tracing requests
         final macDisplay = mac != null ? ' MAC=$mac' : '';
-        final labelDisplay = deviceLabel != null ? ' ($deviceLabel)' : '';
+        final extDisplay = deviceExtension != null ? ' (Ext $deviceExtension - ${deviceLabel ?? ''})' : '';
         debugPrint(
           '[${entry.timestamp.toIso8601String()}] '
           '${response.statusCode} ${request.method} $path '
-          'from $clientIp$macDisplay$labelDisplay [$resourceType]'
+          'from $clientIp$macDisplay$extDisplay [$resourceType]'
         );
 
         return response;

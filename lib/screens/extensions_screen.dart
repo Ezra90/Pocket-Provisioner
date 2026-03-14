@@ -156,6 +156,146 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
         false;
   }
 
+  // ── edit extension name/info ──────────────────────────────────────────────
+
+  Future<void> _editDevice(Device device) async {
+    final labelCtrl = TextEditingController(text: device.label);
+    final secretCtrl = TextEditingController(text: device.secret);
+    String selectedModel = device.model;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDS) => AlertDialog(
+          title: Text('Edit Ext ${device.extension}'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: labelCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Label / Name',
+                    hintText: 'e.g. Reception',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: secretCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'SIP Password',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  value: selectedModel,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Model',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: DeviceTemplates.supportedModels
+                      .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+                      .toList(),
+                  onChanged: (v) => setDS(() => selectedModel = v!),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel')),
+            ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Save')),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true || device.id == null) {
+      labelCtrl.dispose();
+      secretCtrl.dispose();
+      return;
+    }
+
+    final newLabel = labelCtrl.text.trim();
+    final newSecret = secretCtrl.text.trim();
+    labelCtrl.dispose();
+    secretCtrl.dispose();
+
+    if (newLabel.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Label cannot be empty')),
+        );
+      }
+      return;
+    }
+
+    await DatabaseHelper.instance.updateDeviceInfo(
+      device.id!,
+      label: newLabel,
+      secret: newSecret.isNotEmpty ? newSecret : null,
+      model: selectedModel != device.model ? selectedModel : null,
+    );
+    await _load();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Updated Ext ${device.extension}')),
+      );
+    }
+  }
+
+  // ── long-press context menu ───────────────────────────────────────────────
+
+  void _showDeviceMenu(Device device, TapDownDetails details) {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(
+        details.globalPosition & const Size(40, 40),
+        Offset.zero & overlay.size,
+      ),
+      items: [
+        const PopupMenuItem(value: 'edit', child: ListTile(
+          leading: Icon(Icons.edit),
+          title: Text('Edit Name / Password'),
+          dense: true,
+        )),
+        const PopupMenuItem(value: 'settings', child: ListTile(
+          leading: Icon(Icons.settings),
+          title: Text('Device Settings'),
+          dense: true,
+        )),
+        const PopupMenuItem(value: 'delete', child: ListTile(
+          leading: Icon(Icons.delete, color: Colors.red),
+          title: Text('Delete', style: TextStyle(color: Colors.red)),
+          dense: true,
+        )),
+      ],
+    ).then((value) async {
+      if (value == null) return;
+      switch (value) {
+        case 'edit':
+          await _editDevice(device);
+          break;
+        case 'settings':
+          await _openSettings(device);
+          break;
+        case 'delete':
+          if (device.id != null && await _confirmDelete(device)) {
+            await DatabaseHelper.instance.deleteDevice(device.id!);
+            await _load();
+          }
+          break;
+      }
+    });
+  }
+
   // ── "Add Extension" FAB ───────────────────────────────────────────────────
 
   Future<void> _showAddDialog() async {
@@ -322,7 +462,9 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
                               }
                               await _load();
                             },
-                            child: ListTile(
+                            child: GestureDetector(
+                              onSecondaryTapDown: (details) => _showDeviceMenu(device, details),
+                              child: ListTile(
                               leading: CircleAvatar(
                                 backgroundColor:
                                     Theme.of(context)
@@ -357,6 +499,15 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
                                 children: [
                                   _statusBadge(device.status),
                                   const SizedBox(width: 4),
+                                  // Edit button
+                                  IconButton(
+                                    icon: const Icon(
+                                        Icons.edit,
+                                        size: 18),
+                                    tooltip: 'Edit Name / Password',
+                                    onPressed: () =>
+                                        _editDevice(device),
+                                  ),
                                   // Scan/enter MAC button
                                   IconButton(
                                     icon: const Icon(
@@ -369,6 +520,13 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
                                 ],
                               ),
                               onTap: () => _openSettings(device),
+                              onLongPress: () async {
+                                // Show context menu on long press
+                                final RenderBox box = context.findRenderObject() as RenderBox;
+                                final position = box.localToGlobal(Offset.zero);
+                                _showDeviceMenu(device, TapDownDetails(globalPosition: position + const Offset(50, 30)));
+                              },
+                            ),
                             ),
                           );
                         },
