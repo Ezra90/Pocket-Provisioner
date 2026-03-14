@@ -622,11 +622,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       body: SafeArea(
         top: false,
-        child: Padding(
+        child: ListView(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+        children: [
             // Update available banner
             if (_pendingUpdate != null)
               GestureDetector(
@@ -768,9 +766,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
             ),
-            
-            const Spacer(),
-            
+
+            const SizedBox(height: 20),
+
             SizedBox(
               height: 120,
               child: ElevatedButton(
@@ -794,7 +792,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
-      ),
       ),
     );
   }

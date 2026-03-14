@@ -156,10 +156,8 @@ class _ButtonLayoutEditorScreenState extends State<ButtonLayoutEditorScreen> {
       ),
       body: SafeArea(
         top: false,
-        child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: ListView(
+          padding: const EdgeInsets.all(16.0),
           children: [
             TextField(
               controller: _modelController,
@@ -184,40 +182,40 @@ class _ButtonLayoutEditorScreenState extends State<ButtonLayoutEditorScreen> {
             const SizedBox(height: 20),
             const Text("Tap a key to edit • 30 programmable keys (covers most Yealink models)", style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
-            Expanded(
-              child: GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 5,
-                  childAspectRatio: 1.0,
-                  mainAxisSpacing: 8,
-                  crossAxisSpacing: 8,
-                ),
-                itemCount: _layout.length,
-                itemBuilder: (context, index) {
-                  final key = _layout[index];
-                  return GestureDetector(
-                    onTap: () async => _editKey(key),
-                    child: Card(
-                      color: key.type == 'none' ? Colors.grey[300] : Colors.blue[100],
-                      elevation: 3,
-                      child: Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(4.0),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text("${key.id}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                              Text(key.type.toUpperCase(), style: const TextStyle(fontSize: 12)),
-                              if (key.value.isNotEmpty) Text(key.value, style: const TextStyle(fontSize: 11)),
-                              if (key.label.isNotEmpty) Text(key.label, style: const TextStyle(fontSize: 10, color: Colors.black54)),
-                            ],
-                          ),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 5,
+                childAspectRatio: 1.0,
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 8,
+              ),
+              itemCount: _layout.length,
+              itemBuilder: (context, index) {
+                final key = _layout[index];
+                return GestureDetector(
+                  onTap: () async => _editKey(key),
+                  child: Card(
+                    color: key.type == 'none' ? Colors.grey[300] : Colors.blue[100],
+                    elevation: 3,
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(4.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text("${key.id}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                            Text(key.type.toUpperCase(), style: const TextStyle(fontSize: 12)),
+                            if (key.value.isNotEmpty) Text(key.value, style: const TextStyle(fontSize: 11)),
+                            if (key.label.isNotEmpty) Text(key.label, style: const TextStyle(fontSize: 10, color: Colors.black54)),
+                          ],
                         ),
                       ),
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
             const Divider(height: 30),
             const Text("Copy/Paste Layout JSON (share between models/jobs/devices)", style: TextStyle(fontWeight: FontWeight.bold)),
@@ -231,7 +229,6 @@ class _ButtonLayoutEditorScreenState extends State<ButtonLayoutEditorScreen> {
               ),
             ),
           ],
-        ),
         ),
       ),
     );
