@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
+import '../data/database_helper.dart';
 import '../data/device_templates.dart';
 import 'app_directories.dart';
 
@@ -168,8 +169,9 @@ class WallpaperService {
   }
 
   /// Re-process an original file with a (potentially different) spec.
-  /// Removes any existing resized files for [name] before creating the new one,
-  /// so that changing dimensions does not leave stale entries behind.
+  /// Removes any existing resized files for [name] that are not referenced by
+  /// a device in the database, so that changing dimensions does not leave stale
+  /// entries behind while still preserving files that provisioned devices need.
   static Future<String> reprocessFromOriginal(String name, WallpaperSpec newSpec) async {
     final origDir = await _originalDir();
     final origEntries = await origDir.list().toList();
@@ -180,7 +182,16 @@ class WallpaperService {
 
     if (origFiles.isEmpty) throw Exception('No original found for "$name"');
 
-    // Delete any existing resized versions so a dimension change does not
+    // Collect the set of wallpaper filenames still referenced by devices so we
+    // don't remove a file that a provisioned handset still needs.
+    final allDevices = await DatabaseHelper.instance.getAllDevices();
+    final referencedFiles = <String>{
+      for (final d in allDevices)
+        if (d.wallpaper != null && d.wallpaper!.startsWith('LOCAL:'))
+          d.wallpaper!.substring('LOCAL:'.length),
+    };
+
+    // Delete unreferenced resized versions so a dimension change does not
     // leave orphaned files (e.g. switching from 480x272 to 800x480).
     final mediaDir = await _mediaDir();
     final mediaEntries = await mediaDir.list().toList();
@@ -188,7 +199,9 @@ class WallpaperService {
       final fname = p.basename(f.path);
       final nameMatch = _resizedNamePattern.firstMatch(fname);
       if (nameMatch != null && nameMatch.group(1) == name) {
-        await f.delete();
+        if (!referencedFiles.contains(fname)) {
+          await f.delete();
+        }
       }
     }
 
