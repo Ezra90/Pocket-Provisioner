@@ -65,14 +65,18 @@ class PhonebookService {
     String displayName = '',
   }) {
     final m = model.toUpperCase();
-    if (m.startsWith('VVX') || m.startsWith('EDGE') || m.startsWith('OBi')) {
-      return generatePolycomXml(entries, displayName: displayName);
-    }
-    if (m.startsWith('CP') ||
-        m.startsWith('7800') ||
-        m.startsWith('8800') ||
-        m.startsWith('CISCO')) {
+    // Cisco: brand name, CP prefix, or 78xx/88xx model numbers
+    if (m.contains('CISCO') ||
+        m.startsWith('CP') ||
+        RegExp(r'(?:^|[^0-9])(?:78|88)\d{2}(?:[^0-9]|$)').hasMatch(m)) {
       return generateCiscoXml(entries, displayName: displayName);
+    }
+    // Polycom / Poly Edge: brand name, VVX prefix, EDGE prefix, or OBi prefix
+    if (m.contains('POLY') ||
+        m.contains('VVX') ||
+        m.contains('EDGE') ||
+        m.startsWith('OBi')) {
+      return generatePolycomXml(entries, displayName: displayName);
     }
     // Default: Yealink
     return generateYealinkXml(entries, displayName: displayName);

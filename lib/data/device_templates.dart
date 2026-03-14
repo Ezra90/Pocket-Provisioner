@@ -104,6 +104,8 @@ class DeviceTemplates {
     'Yealink T54W / T46U': WallpaperSpec(480, 272, 'Standard Color Screen'),
     'Yealink T48G / T57W': WallpaperSpec(800, 480, 'Touch Screen Large'),
     'Yealink T58W':        WallpaperSpec(1024, 600, 'Flagship Video Phone'),
+    'Poly VVX 150-350':    WallpaperSpec(320, 240, 'VVX Compact'),
+    'Poly VVX 450':        WallpaperSpec(480, 272, 'VVX Full'),
     'Poly Edge E450':      WallpaperSpec(480, 272, 'Edge Series Mid'),
     'Poly Edge E350':      WallpaperSpec(320, 240, 'Edge Series Compact'),
     'Poly VVX 1500':       WallpaperSpec(800, 480, 'Legacy Video'),
@@ -349,9 +351,13 @@ class DeviceTemplates {
     if (upper == 'T48G' || upper == 'T57W') return 'Yealink T48G / T57W';
     if (upper == 'T58W') return 'Yealink T58W';
     if (upper == 'T58G') return 'Yealink T48G / T57W';
+    if (upper == 'VVX450') return 'Poly VVX 450';
+    if (upper == 'VVX150' || upper == 'VVX250' || upper == 'VVX350') {
+      return 'Poly VVX 150-350';
+    }
+    if (upper == 'VVX1500') return 'Poly VVX 1500';
     if (upper == 'EDGE E450') return 'Poly Edge E450';
     if (upper == 'EDGE E350') return 'Poly Edge E350';
-    if (upper == 'VVX1500') return 'Poly VVX 1500';
     if (upper.contains('CISCO') ||
         upper.contains('8851') ||
         upper.contains('8865')) return 'Cisco 8851 / 8865';

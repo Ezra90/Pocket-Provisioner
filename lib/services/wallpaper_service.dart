@@ -84,6 +84,10 @@ class WallpaperService {
         .where((f) => f.path.endsWith('.png') || f.path.endsWith('.jpg') || f.path.endsWith('.jpeg'))
         .toList();
 
+    // List originals once rather than inside the per-file loop.
+    final origEntries = await origDir.list().toList();
+    final origFileList = origEntries.whereType<File>().toList();
+
     final List<WallpaperInfo> result = [];
     for (final file in files) {
       final filename = p.basename(file.path);
@@ -92,12 +96,10 @@ class WallpaperService {
       final name = nameMatch != null ? nameMatch.group(1)! : filename;
 
       // Find matching original
-      final origEntries = await origDir.list().toList();
-      final origFiles = origEntries
-          .whereType<File>()
+      final origPath = origFileList
           .where((f) => p.basename(f.path).startsWith('${name}_original'))
-          .toList();
-      final origPath = origFiles.isNotEmpty ? origFiles.first.path : null;
+          .map((f) => f.path)
+          .firstOrNull;
       final stat = await file.stat();
       result.add(WallpaperInfo(
         name: name,
@@ -166,6 +168,8 @@ class WallpaperService {
   }
 
   /// Re-process an original file with a (potentially different) spec.
+  /// Removes any existing resized files for [name] before creating the new one,
+  /// so that changing dimensions does not leave stale entries behind.
   static Future<String> reprocessFromOriginal(String name, WallpaperSpec newSpec) async {
     final origDir = await _originalDir();
     final origEntries = await origDir.list().toList();
@@ -175,6 +179,18 @@ class WallpaperService {
         .toList();
 
     if (origFiles.isEmpty) throw Exception('No original found for "$name"');
+
+    // Delete any existing resized versions so a dimension change does not
+    // leave orphaned files (e.g. switching from 480x272 to 800x480).
+    final mediaDir = await _mediaDir();
+    final mediaEntries = await mediaDir.list().toList();
+    for (final f in mediaEntries.whereType<File>()) {
+      final fname = p.basename(f.path);
+      final nameMatch = _resizedNamePattern.firstMatch(fname);
+      if (nameMatch != null && nameMatch.group(1) == name) {
+        await f.delete();
+      }
+    }
 
     return processAndSaveWallpaper(origFiles.first.path, newSpec, name);
   }
