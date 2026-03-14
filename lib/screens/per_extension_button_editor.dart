@@ -242,10 +242,8 @@ class _PerExtensionButtonEditorScreenState
       ),
       body: SafeArea(
         top: false,
-        child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: ListView(
+          padding: const EdgeInsets.all(12),
           children: [
             // Action bar
             Wrap(
@@ -279,60 +277,60 @@ class _PerExtensionButtonEditorScreenState
             ),
             const SizedBox(height: 8),
             // Button grid
-            Expanded(
-              child: GridView.builder(
-                gridDelegate:
-                    const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 5,
-                  childAspectRatio: 1.0,
-                  mainAxisSpacing: 6,
-                  crossAxisSpacing: 6,
-                ),
-                itemCount: _layout.length,
-                itemBuilder: (_, i) {
-                  final key = _layout[i];
-                  return GestureDetector(
-                    onTap: () => _editKey(key),
-                    child: Card(
-                      color: key.type == 'none'
-                          ? Colors.grey.shade300
-                          : Colors.blue.shade100,
-                      elevation: 2,
-                      child: Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(3),
-                          child: Column(
-                            mainAxisAlignment:
-                                MainAxisAlignment.center,
-                            children: [
-                              Text('${key.id}',
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate:
+                  const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 5,
+                childAspectRatio: 1.0,
+                mainAxisSpacing: 6,
+                crossAxisSpacing: 6,
+              ),
+              itemCount: _layout.length,
+              itemBuilder: (_, i) {
+                final key = _layout[i];
+                return GestureDetector(
+                  onTap: () => _editKey(key),
+                  child: Card(
+                    color: key.type == 'none'
+                        ? Colors.grey.shade300
+                        : Colors.blue.shade100,
+                    elevation: 2,
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(3),
+                        child: Column(
+                          mainAxisAlignment:
+                              MainAxisAlignment.center,
+                          children: [
+                            Text('${key.id}',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16)),
+                            Text(key.type.toUpperCase(),
+                                style: const TextStyle(
+                                    fontSize: 10)),
+                            if (key.value.isNotEmpty)
+                              Text(key.value,
                                   style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16)),
-                              Text(key.type.toUpperCase(),
+                                      fontSize: 10),
+                                  overflow:
+                                      TextOverflow.ellipsis),
+                            if (key.label.isNotEmpty)
+                              Text(key.label,
                                   style: const TextStyle(
-                                      fontSize: 10)),
-                              if (key.value.isNotEmpty)
-                                Text(key.value,
-                                    style: const TextStyle(
-                                        fontSize: 10),
-                                    overflow:
-                                        TextOverflow.ellipsis),
-                              if (key.label.isNotEmpty)
-                                Text(key.label,
-                                    style: const TextStyle(
-                                        fontSize: 9,
-                                        color: Colors.black54),
-                                    overflow:
-                                        TextOverflow.ellipsis),
-                            ],
-                          ),
+                                      fontSize: 9,
+                                      color: Colors.black54),
+                                  overflow:
+                                      TextOverflow.ellipsis),
+                          ],
                         ),
                       ),
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
             const Divider(height: 12),
             // JSON field
@@ -348,7 +346,6 @@ class _PerExtensionButtonEditorScreenState
               ),
             ),
           ],
-        ),
         ),
       ),
     );

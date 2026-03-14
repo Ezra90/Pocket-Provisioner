@@ -17,6 +17,12 @@ on:
         options:
           - push
           - pull
+  # Allow other repos to trigger via repository_dispatch
+  repository_dispatch:
+    types: [ template-sync ]
+  # Scheduled sync: pull from freepbx-quickprovisioner weekly
+  schedule:
+    - cron: '0 3 * * 1'   # Every Monday at 03:00 UTC
 
 jobs:
   sync-templates:
@@ -37,9 +43,20 @@ jobs:
           path: freepbx-quickprovisioner
           token: ${{ secrets.TEMPLATE_SYNC_TOKEN }}
 
+      - name: Determine sync direction
+        id: direction
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "dir=${{ github.event.inputs.direction }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            echo "dir=pull" >> "$GITHUB_OUTPUT"
+          else
+            echo "dir=push" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Sync templates
         run: |
-          DIRECTION="${{ github.event.inputs.direction || 'push' }}"
+          DIRECTION="${{ steps.direction.outputs.dir }}"
 
           if [ "$DIRECTION" = "push" ]; then
             echo "Pushing templates from Pocket-Provisioner → freepbx-quickprovisioner"
@@ -50,7 +67,7 @@ jobs:
           fi
 
       - name: Push to freepbx-quickprovisioner
-        if: ${{ github.event.inputs.direction != 'pull' }}
+        if: ${{ steps.direction.outputs.dir != 'pull' }}
         working-directory: freepbx-quickprovisioner
         run: |
           git config user.name "github-actions[bot]"
@@ -64,7 +81,7 @@ jobs:
           fi
 
       - name: Push to Pocket-Provisioner
-        if: ${{ github.event.inputs.direction == 'pull' }}
+        if: ${{ steps.direction.outputs.dir == 'pull' }}
         working-directory: pocket-provisioner
         run: |
           git config user.name "github-actions[bot]"

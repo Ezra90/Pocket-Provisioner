@@ -439,8 +439,14 @@ class _MacEntrySheetState extends State<_MacEntrySheet> {
   Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -508,6 +514,7 @@ class _MacEntrySheetState extends State<_MacEntrySheet> {
             ],
             const SizedBox(height: 8),
           ],
+          ),
         ),
       ),
     );
