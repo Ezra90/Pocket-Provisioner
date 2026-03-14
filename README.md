@@ -1,206 +1,315 @@
-# Pocket Provisioner v0.0.4 *(Alpha)*
+# Pocket Provisioner
 
-> ⚠️ **This is an early alpha release.** Versions will stay in the `0.0.x` range while the app is actively being developed. Expect frequent revisions and breaking changes between releases.
+<p align="center">
+  <strong>Turn your Android phone into a VoIP provisioning server</strong>
+</p>
 
-**Pocket Provisioner** is a mobile field utility for Telecommunications Technicians. It turns an Android/iOS device into a temporary **Provisioning Server**, allowing for rapid deployment of VoIP handsets (Yealink, Polycom, Cisco) without needing a laptop or complex on-site infrastructure.
+<p align="center">
+  <img src="https://img.shields.io/badge/Platform-Android-green" alt="Platform: Android">
+  <img src="https://img.shields.io/badge/Flutter-3.0+-blue" alt="Flutter 3.0+">
+  <img src="https://img.shields.io/badge/License-MIT-yellow" alt="License: MIT">
+</p>
 
----
+> ⚠️ **Alpha Release** — This app is under active development. Expect frequent updates and breaking changes between versions.
 
-## 🔀 Two Operating Modes
-
-The app supports two distinct provisioning workflows, selectable via the **⚙ Global Settings** screen:
-
-### ☁️ Mode 1 — DMS / Carrier Mode *(Telstra / Broadworks)*
-
-The app acts as a **bootstrap server**. It generates a minimal config that:
-1. Injects the handset's **auth credentials** (extension + password from your CSV / Broadworks export).
-2. Sets the **Target DMS / EPM URL** so the phone auto-provisions from the carrier DMS server on first boot.
-3. Disables the handset's built-in **qsetup wizard** so it goes straight to DMS provisioning.
-
-On next boot, the handset fetches its **full configuration** (SIP server, features, voicemail, etc.) directly from the DMS. This is the recommended mode for **Telstra / Broadworks** deployments where all service configuration lives in the carrier platform.
-
-> **Use this mode when:** You are deploying handsets for a carrier-hosted Broadworks / Telstra service and DMS handles all phone configuration.
-
-### 🏢 Mode 2 — Standalone / FreePBX Mode
-
-The app generates a **complete, self-contained config** for each handset — including all SIP registration details, features, and optional wallpaper/buttons. The phone connects directly to your on-premise PBX in a **single provisioning pass** with no secondary DMS hop.
-
-> **Use this mode when:** You are deploying handsets on a local FreePBX, Asterisk, or other on-premise PBX that does **not** have DMS / EPM integration.
+**Pocket Provisioner** is a mobile field utility for Telecommunications Technicians. It transforms your Android device into a fully-functional **HTTP Provisioning Server** for rapid deployment of VoIP handsets — no laptop required.
 
 ---
 
-## 🚀 Core Features
+## ✨ Key Features
 
-* **Dual-Mode Provisioning:** DMS / Carrier bootstrap *or* full Standalone config — switch modes in Global Settings.
-* **Smart CSV Import:** Automatically detects Carrier/Broadworks headers and generic FreePBX exports.
-* **Auto-Advance Scanning:** Rapidly map MAC addresses to Extensions using the camera.
-* **Smart Wallpaper Tool:** Pick any image from your gallery; the app auto-resizes and formats it for the specific handset model (e.g., Yealink T54W) and hosts it locally.
-* **Button Layout Editor:** Configure BLF, Speed Dial, and Line keys before the phone even boots.
-
----
-
-## 🛠 Usage Workflow
-
-### 1. Global Settings ⚙
-Tap the **Settings icon [⚙]** in the top-right of the dashboard to configure your job environment:
-
-* **Provisioning Mode:**
-    * **DMS / Carrier Mode** — for Telstra / Broadworks jobs. Set the **Target DMS / EPM URL** here.
-    * **Standalone / FreePBX Mode** — for on-premise PBX jobs. Set the **SIP Server address** here.
-* **Common Settings:**
-    * Configure **NTP Server**, **Timezone Offset**, **Voice VLAN ID**, and **Default Admin Password**.
-* **Management:**
-    * Links to manage Device Templates, Button Layouts, and Hosted Files (wallpapers, ringtones, firmware).
-
-### 2. Import Data (CSV / Excel)
-Tap **Import CSV / Excel**. The app accepts `.csv`, `.txt`, and `.xlsx` files. It reads the first row as column headers (case-insensitive) and maps them to the following fields:
-
-| Field | Accepted column names |
-|---|---|
-| **Extension** *(required)* | `Extension`, `Device Username`, `Username`, `User` |
-| **Secret / Password** | `Secret`, `DMS Password`, or any column containing `pass` |
-| **Label / Name** | `Name`, `Label`, `Description`, `Display Name`, `Device Name`, `Caller ID Name` |
-| **Model** | `Model`, `Device Type`, `Phone Model`, `Handset` |
-| **Phone / DID** *(prepended to label)* | `Phone`, `User ID`, `DN`, `DID`, or any column containing `direct` |
-| **MAC Address** | Any column containing `mac` |
-
-The app supports two common export formats out of the box:
-
-**A. Carrier / Broadworks Bulk Export:**
-* `Device username` → Extension (Auth ID)
-* `DMS password` → Secret (Auth Password)
-* `Device type` → Model
-* `User ID` or `Phone Number` → Combined with Name for the Label (e.g., "0755551234 - Reception")
-
-**B. Standard / FreePBX Export:**
-* `Extension`
-* `Secret`
-* `Model`
-* `Label` or `Name`
-
-> **Tip:** Tap the ℹ️ icon next to the **Import CSV / Excel** button in the app to see the full list of accepted column names at any time.
-
-### 3. Deploy
-1.  Tap **Start Server**. (Android will ask for Location permission to find Wi-Fi IP).
-2.  Set your Router's **DHCP Option 66** to the URL displayed (e.g., `http://192.168.1.50:8080`).
-3.  Tap **Start Scanning**.
-4.  Scan the barcode on the phone box. The app matches it to the user and auto-advances.
-5.  Boot the phone. It will download config from the app and either:
-    * **(DMS mode)** — Reboot and auto-provision from the carrier DMS server.
-    * **(Standalone mode)** — Register directly with your PBX using the injected credentials.
+| Feature | Description |
+|---------|-------------|
+| 📱 **Mobile Provisioning Server** | Host configurations directly from your phone via HTTP |
+| 🔄 **Dual Operating Modes** | DMS/Carrier bootstrap OR complete standalone configs |
+| 📷 **Barcode Scanner** | Rapid MAC address scanning with auto-advance |
+| 🖼️ **Wallpaper Hosting** | Auto-resize images to exact phone model specs |
+| 🔔 **Ringtone Hosting** | Import WAV files with automatic stereo-to-mono conversion |
+| 📚 **Phonebook Generator** | Per-device XML phonebooks (Yealink/Polycom/Cisco formats) |
+| ⚡ **Firmware Hosting** | Serve firmware files for phone auto-upgrade |
+| 🎛️ **Button Layout Editor** | Configure BLF, Speed Dial, and Line keys visually |
+| 📊 **Real-Time Access Log** | Monitor handset connections and file downloads |
 
 ---
 
-## 📦 Supported Hardware
+## 📦 Supported Handsets
 
-* **Yealink:** T54W, T46U, T48G, T57W, T58W (Generic T4x/T5x support)
-* **Poly (Polycom):** Edge E Series (E350, E450), VVX Series
-* **Cisco:** 8851, 8865 (3PCC / MPP)
+### Yealink (T-Series)
+- **T54W** / **T46U** — Color screen desk phones
+- **T48G** / **T57W** — Touchscreen models
+- **T58W** / **T58G** — Video flagship phones
+- Generic T3x/T4x/T5x template support
 
-## 🔧 Template Management
-Missing a model?
-1.  Go to **Settings -> Manage Templates**.
-2.  Import a `.cfg` or `.xml` file.
-3.  Or load a "Base Template" (Yealink/Poly/Cisco), edit it, and save it.
-4.  You can also **Export** templates to share with your team.
+### Poly (Polycom)
+- **VVX Series** — VVX150, VVX250, VVX350, VVX450, VVX1500
+- **Edge E Series** — E350, E450
 
-## 📦 Tech Stack
-
-* **Framework:** Flutter (Dart)
-* **Server:** `shelf` & `shelf_router`
-* **Database:** `sqflite`
-* **Scanner:** `mobile_scanner`
-* **Image Processing:** `image`
+### Cisco MPP (Multiplatform)
+- **8800 Series** — 8851, 8865 (3PCC/MPP firmware)
+- Uses official Cisco `<flat-profile>` XML format
 
 ---
 
-## 🏗 Getting Started / Building from Source
+## 🔀 Operating Modes
+
+### ☁️ Mode 1: DMS / Carrier Bootstrap
+
+For **Telstra**, **Broadworks**, or other hosted PBX deployments:
+
+1. App injects handset credentials from your CSV import
+2. Points phone to your carrier's DMS/EPM URL
+3. Phone reboots and auto-provisions from the carrier server
+
+> **Best for:** Carrier-hosted services where configuration lives in the cloud.
+
+### 🏢 Mode 2: Standalone / FreePBX
+
+For **on-premise** PBX deployments (FreePBX, Asterisk, 3CX, etc.):
+
+1. App generates complete configuration files
+2. Includes SIP registration, features, media URLs
+3. Phone registers directly with your PBX — no DMS hop
+
+> **Best for:** Local PBX installations without DMS integration.
+
+---
+
+## 🚀 Quick Start
+
+### 1. Import Device Data
+
+Tap **Import CSV / Excel** and select your export file. The app auto-detects these formats:
+
+| Format | Example Columns |
+|--------|-----------------|
+| **Broadworks Export** | `Device username`, `DMS password`, `Device type`, `User ID` |
+| **FreePBX Export** | `Extension`, `Secret`, `Name`, `Model` |
+| **Generic CSV** | Any columns containing `extension`, `secret`, `mac`, `model` |
+
+### 2. Configure Settings ⚙️
+
+Open **Global Settings** to configure:
+
+- **Provisioning Mode** — DMS or Standalone
+- **SIP Server** — Your PBX address (Standalone mode)
+- **DMS URL** — Your carrier's provisioning server (DMS mode)
+- **NTP Server** — Time synchronization (default: `0.pool.ntp.org`)
+- **Timezone** — Phone display timezone
+- **Voice VLAN ID** — 802.1Q VLAN tag for voice traffic
+
+### 3. Start Provisioning
+
+1. Tap **Start Server** — displays URL like `http://192.168.1.50:8080`
+2. Configure your **DHCP Option 66** to point to this URL
+3. Tap **Start Scanning** and scan device barcodes
+4. Boot phones — they'll auto-provision from your device
+
+---
+
+## 📁 File Hosting
+
+The provisioning server hosts files at these endpoints:
+
+| Endpoint | Content | Directory |
+|----------|---------|-----------|
+| `/{MAC}.cfg` or `/{MAC}.xml` | Device configuration | Dynamic or `generated_configs/` |
+| `/media/{file}` | Wallpaper images | `Pocket Provisioner/media/` |
+| `/ringtones/{file}` | Ringtone WAV files | `Pocket Provisioner/ringtones/` |
+| `/phonebook/{file}` | XML phonebook | `Pocket Provisioner/phonebook/` |
+| `/firmware/{file}` | Firmware binaries | `Pocket Provisioner/firmware/` |
+
+### File Storage Location
+
+User files are stored in:
+```
+/storage/emulated/0/Pocket Provisioner/
+├── firmware/      → Firmware binaries (.rom, .ld, .loads)
+├── media/         → Wallpaper images (auto-resized PNGs)
+├── phonebook/     → Per-device XML phonebooks
+└── ringtones/     → WAV ringtones (8kHz/16kHz mono)
+```
+
+### HTTP Headers
+
+The server sets appropriate headers for each file type:
+
+| File Type | Content-Type | Cache-Control |
+|-----------|--------------|---------------|
+| Config (XML) | `application/xml; charset=utf-8` | `no-cache, no-store` |
+| Config (CFG) | `text/plain; charset=utf-8` | `no-cache, no-store` |
+| Wallpaper | `image/png` or `image/jpeg` | `max-age=3600` |
+| Ringtone | `audio/wav` | `max-age=3600` |
+| Firmware | `application/octet-stream` | `max-age=86400` |
+
+---
+
+## 📊 Access Logging
+
+Monitor all handset requests in the **Access Log** screen:
+
+- **Real-time updates** as phones connect
+- **MAC address resolution** from config file requests
+- **Device labels** from your imported data
+- **Resource tracking** — see which files each phone downloaded:
+  - ✅ Config · ✅ Wallpaper · ✅ Ringtone · ✅ Phonebook · ✅ Firmware
+
+### Console Debug Output
+
+All requests are logged to the debug console:
+```
+[2024-03-14T10:30:00.000Z] 200 GET /AABBCCDDEEFF.cfg from 192.168.1.100 MAC=AABBCCDDEEFF (Ext 101 - Reception) [config]
+[2024-03-14T10:30:01.000Z] 200 GET /media/logo_480x272.png from 192.168.1.100 MAC=AABBCCDDEEFF (Ext 101 - Reception) [wallpaper]
+```
+
+---
+
+## 🔧 Template System
+
+### Bundled Templates
+
+| Template | File | Handsets |
+|----------|------|----------|
+| Yealink T4x/T5x | `yealink_t4x.cfg.mustache` | T54W, T46U, T48G, T57W, T58W |
+| Polycom VVX | `polycom_vvx.xml.mustache` | VVX series, Edge E series |
+| Cisco 8800 MPP | `cisco_88xx.xml.mustache` | 8851, 8865 (3PCC) |
+
+### Custom Templates
+
+1. Navigate to **Settings → Manage Templates**
+2. Import a `.cfg` or `.xml` file
+3. Or edit a base template using the built-in editor
+4. Export templates to share with your team
+
+Templates use **Mustache** syntax with variables like:
+```mustache
+{{sip_server}}          <!-- SIP registrar address -->
+{{extension}}           <!-- User extension -->
+{{secret}}              <!-- SIP password -->
+{{wallpaper_url}}       <!-- Full URL to wallpaper -->
+{{ringtone_url}}        <!-- Full URL to ringtone -->
+{{firmware_url}}        <!-- Full URL to firmware -->
+{{phonebook_url}}       <!-- Full URL to phonebook -->
+```
+
+---
+
+## 🖼️ Wallpaper Specifications
+
+The app auto-resizes images to match each phone model:
+
+| Phone Model | Resolution | Format |
+|-------------|------------|--------|
+| Yealink T54W / T46U | 480 × 272 | PNG |
+| Yealink T48G / T57W | 800 × 480 | PNG |
+| Yealink T58W | 1024 × 600 | PNG |
+| Poly Edge E350 | 320 × 240 | PNG |
+| Poly Edge E450 | 480 × 272 | PNG |
+| Cisco 8851 / 8865 | 800 × 480 | PNG |
+
+---
+
+## 🔔 Ringtone Specifications
+
+| Requirement | Value |
+|-------------|-------|
+| Format | WAV (PCM) |
+| Sample Rate | 8000 Hz or 16000 Hz |
+| Bit Depth | 16-bit |
+| Channels | Mono |
+| Max Size | 1 MB |
+
+> **Note:** Stereo WAV files are automatically converted to mono on import.
+
+---
+
+## 🏗️ Building from Source
 
 ### Prerequisites
 
-* **Flutter SDK** `>=3.0.0 <4.0.0` — [Install Flutter](https://docs.flutter.dev/get-started/install)
-* **Android Studio** (for Android builds) or **Xcode 14+** (for iOS builds, macOS only)
-* **Git**
+- **Flutter SDK** `>=3.0.0 <4.0.0` — [Install Flutter](https://docs.flutter.dev/get-started/install)
+- **Android Studio** — For Android builds
+- **Git**
 
-### Clone the Repository
+### Build Commands
 
 ```bash
+# Clone repository
 git clone https://github.com/Ezra90/Pocket-Provisioner.git
 cd Pocket-Provisioner
-```
 
-### Install Dependencies
-
-```bash
+# Install dependencies
 flutter pub get
-```
 
-### Run on Device / Emulator
-
-```bash
+# Run in development
 flutter run
-```
 
-### Build Release APK (Android)
-
-The CI pipeline builds a split-per-ABI APK (one file per CPU architecture). To reproduce this locally:
-
-```bash
+# Build release APK (split by architecture)
 flutter build apk --release --split-per-abi
-```
 
-Output files will be in `build/app/outputs/flutter-apk/`:
-- `app-arm64-v8a-release.apk` — most modern Android phones
-- `app-armeabi-v7a-release.apk` — older 32-bit devices
-- `app-x86_64-release.apk` — emulators / Intel devices
-
-To build a single universal APK instead:
-
-```bash
+# Build universal APK
 flutter build apk --release
 ```
 
-### Build App Bundle (Android)
+### Output Files
 
-```bash
-flutter build appbundle --release
-```
-
-### Build Release IPA (iOS)
-
-> Requires Xcode and an Apple Developer account.
-
-```bash
-flutter build ipa --release
-```
-
-### Required Permissions
-
-| Permission | Purpose |
-|---|---|
-| `CAMERA` | Barcode / MAC-address scanning |
-| `ACCESS_FINE_LOCATION` | Detecting the device's Wi-Fi IP address (Android) |
-| `INTERNET` | Hosting the local provisioning server |
-
-### Minimum SDK Versions
-
-| Platform | Version |
-|---|---|
-| Android `minSdkVersion` | 23 (Android 6.0+) |
-| Android `targetSdkVersion` | 36 |
-| iOS `MinimumOSVersion` | 12.0 |
+Split APKs are generated in `build/app/outputs/flutter-apk/`:
+- `app-arm64-v8a-release.apk` — Modern 64-bit devices
+- `app-armeabi-v7a-release.apk` — Older 32-bit devices
+- `app-x86_64-release.apk` — Emulators / x86 devices
 
 ---
 
-## 🔢 Versioning
+## 📋 Required Permissions
 
-This project uses [semantic versioning](https://semver.org/) in the format `MAJOR.MINOR.PATCH+BUILD`:
+| Permission | Purpose |
+|------------|---------|
+| `CAMERA` | Barcode scanning for MAC addresses |
+| `ACCESS_FINE_LOCATION` | Required to detect Wi-Fi IP address |
+| `INTERNET` | Host the provisioning server |
+| `MANAGE_EXTERNAL_STORAGE` | Store files in `Pocket Provisioner/` folder |
 
-- **Version string** (e.g., `0.0.4`) is defined in `pubspec.yaml` and maps to the Android `versionName`.
-- **Build number** (e.g., `+1`) is appended in `pubspec.yaml` and maps to the Android `versionCode`.
+---
 
-Since this is a very early alpha, versions will remain in the `0.0.x` range for the foreseeable future. To release a new version:
+## 📱 Minimum Requirements
 
-1. Update the `version` field in `pubspec.yaml` (e.g., `0.0.4+1` → `0.0.5+1`).
-2. Commit and push to `main` — the CI workflow builds the APK and uploads it as an artifact named `pocket-provisioner-v<version>-apk`.
-3. To create an official GitHub Release, push a matching git tag: `git tag v0.0.5 && git push origin v0.0.5`.
+| Platform | Version |
+|----------|---------|
+| Android | 6.0+ (API 23) |
+| Target SDK | 36 |
+
+---
+
+## 📦 Tech Stack
+
+| Component | Technology |
+|-----------|------------|
+| Framework | Flutter (Dart) |
+| HTTP Server | `shelf` + `shelf_router` |
+| Database | `sqflite` |
+| Barcode Scanner | `mobile_scanner` |
+| Image Processing | `image` |
+| Templating | `mustache_template` |
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+
+---
+
+<p align="center">
+  Made with ❤️ for Telecommunications Technicians
+</p>

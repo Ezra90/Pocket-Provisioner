@@ -143,12 +143,13 @@ class _AccessLogScreenState extends State<AccessLogScreen> {
   }
 
   Widget _buildResourceIndicators(Set<String> types) {
-    const resources = ['config', 'wallpaper', 'template', 'original_media'];
+    const resources = ['config', 'wallpaper', 'ringtone', 'phonebook', 'firmware'];
     const labels = {
       'config': 'Config',
       'wallpaper': 'Wallpaper',
-      'template': 'Template',
-      'original_media': 'Media',
+      'ringtone': 'Ringtone',
+      'phonebook': 'Phonebook',
+      'firmware': 'Firmware',
     };
     return Wrap(
       spacing: 8,
