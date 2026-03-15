@@ -73,12 +73,11 @@ class _DeviceSettingsEditorScreenState
   late final TextEditingController _backupServerCtrl;
   late final TextEditingController _backupPortCtrl;
   
-  // Line-level overrides
+  // Line-level configuration (pre-populated from CSV)
   late final TextEditingController _extensionOverrideCtrl;
   late final TextEditingController _passwordOverrideCtrl;
   late final TextEditingController _displayNameOverrideCtrl;
   late final TextEditingController _authUsernameOverrideCtrl;
-  bool _showPasswordOverride = false;
 
   // Display & Audio
   String? _wallpaper;
@@ -173,11 +172,20 @@ class _DeviceSettingsEditorScreenState
         TextEditingController(text: s?.outboundProxyPort ?? '');
     _backupServerCtrl = TextEditingController(text: s?.backupServer ?? '');
     _backupPortCtrl = TextEditingController(text: s?.backupPort ?? '');
-    // Line-level overrides
-    _extensionOverrideCtrl = TextEditingController(text: s?.extensionOverride ?? '');
-    _passwordOverrideCtrl = TextEditingController(text: s?.passwordOverride ?? '');
-    _displayNameOverrideCtrl = TextEditingController(text: s?.displayNameOverride ?? '');
-    _authUsernameOverrideCtrl = TextEditingController(text: s?.authUsernameOverride ?? '');
+    // Line-level fields - pre-populate with CSV values if no override is saved.
+    // These are editable so users can make last-minute changes before provisioning.
+    _extensionOverrideCtrl = TextEditingController(
+        text: s?.extensionOverride ?? widget.extension);
+    // Note: Password is shown in plaintext intentionally to allow editing before
+    // provisioning. This matches the use case where users need to verify or modify
+    // credentials from the CSV import (e.g., after a last-minute password change).
+    _passwordOverrideCtrl = TextEditingController(
+        text: s?.passwordOverride ?? widget.secret ?? '');
+    _displayNameOverrideCtrl = TextEditingController(
+        text: s?.displayNameOverride ?? 
+            (widget.label.isNotEmpty ? widget.label : widget.extension));
+    _authUsernameOverrideCtrl = TextEditingController(
+        text: s?.authUsernameOverride ?? widget.extension);
     _ringtone = s?.ringtone;
     _screensaverTimeoutCtrl =
         TextEditingController(text: s?.screensaverTimeout ?? '');
@@ -873,7 +881,7 @@ class _DeviceSettingsEditorScreenState
                     const EdgeInsets.fromLTRB(16, 8, 16, 8),
                 child: Column(
                   children: [
-                    // Line-level overrides section
+                    // Line-level configuration section
                     Container(
                       margin: const EdgeInsets.only(bottom: 16),
                       padding: const EdgeInsets.all(12),
@@ -886,7 +894,7 @@ class _DeviceSettingsEditorScreenState
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Line Configuration Overrides',
+                            'Line Configuration',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 13,
@@ -895,25 +903,15 @@ class _DeviceSettingsEditorScreenState
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Override the extension, password, display name, or auth username from the CSV import. '
-                            'Leave any field blank to use the original imported value.',
+                            'Pre-populated from CSV import. '
+                            'Edit any field to make last-minute changes before provisioning.',
                             style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
                           ),
                           const SizedBox(height: 12),
-                          _field(_extensionOverrideCtrl, 'Extension / Username Override',
-                              hint: 'Default: ${widget.extension}'),
-                          _field(_passwordOverrideCtrl, 'SIP Password Override',
-                              hint: widget.secret != null && widget.secret!.isNotEmpty
-                                  ? 'Default: ${'•' * widget.secret!.length.clamp(4, 12)}'
-                                  : 'Default: (not set)',
-                              obscure: true,
-                              showPassword: _showPasswordOverride,
-                              onTogglePassword: () => setState(
-                                  () => _showPasswordOverride = !_showPasswordOverride)),
-                          _field(_displayNameOverrideCtrl, 'Display Name Override',
-                              hint: 'Default: ${widget.label.isNotEmpty ? widget.label : widget.extension}'),
-                          _field(_authUsernameOverrideCtrl, 'Auth Username Override',
-                              hint: 'Default: same as extension'),
+                          _field(_extensionOverrideCtrl, 'Extension / Username'),
+                          _field(_passwordOverrideCtrl, 'SIP Password'),
+                          _field(_displayNameOverrideCtrl, 'Display Name'),
+                          _field(_authUsernameOverrideCtrl, 'Auth Username'),
                         ],
                       ),
                     ),
