@@ -651,10 +651,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final deviceWallpaper = device.wallpaper;
         if (deviceWallpaper != null && deviceWallpaper.isNotEmpty) {
           final serverUrl = ProvisioningServer.serverUrl;
-          if (deviceWallpaper.startsWith('LOCAL:') && serverUrl != null) {
-            final filename = deviceWallpaper.substring('LOCAL:'.length);
-            deviceWallpaperUrl = '$serverUrl/media/$filename';
+          if (deviceWallpaper.startsWith('LOCAL:')) {
+            // LOCAL: prefix means server-hosted file - only resolve when server URL is available
+            if (serverUrl != null) {
+              final filename = deviceWallpaper.substring('LOCAL:'.length);
+              deviceWallpaperUrl = '$serverUrl/media/$filename';
+            }
+            // If serverUrl is null, leave deviceWallpaperUrl empty (don't pass raw LOCAL: prefix)
           } else {
+            // External URL - use as-is
             deviceWallpaperUrl = deviceWallpaper;
           }
         }
@@ -664,10 +669,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final deviceRingtone = ds?.ringtone;
         if (deviceRingtone != null && deviceRingtone.isNotEmpty) {
           final serverUrl = ProvisioningServer.serverUrl;
-          if (deviceRingtone.startsWith('LOCAL:') && serverUrl != null) {
-            final filename = deviceRingtone.substring('LOCAL:'.length);
-            deviceRingtoneUrl = '$serverUrl/ringtones/$filename';
+          if (deviceRingtone.startsWith('LOCAL:')) {
+            // LOCAL: prefix means server-hosted file - only resolve when server URL is available
+            if (serverUrl != null) {
+              final filename = deviceRingtone.substring('LOCAL:'.length);
+              deviceRingtoneUrl = '$serverUrl/ringtones/$filename';
+            }
+            // If serverUrl is null, leave deviceRingtoneUrl empty (don't pass raw LOCAL: prefix)
           } else {
+            // External URL - use as-is
             deviceRingtoneUrl = deviceRingtone;
           }
         }
@@ -677,10 +687,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final rawFirmwareUrl = ds?.firmwareUrl;
         if (rawFirmwareUrl != null && rawFirmwareUrl.isNotEmpty) {
           final serverUrl = ProvisioningServer.serverUrl;
-          if (rawFirmwareUrl.startsWith('LOCAL:') && serverUrl != null) {
-            final filename = rawFirmwareUrl.substring('LOCAL:'.length);
-            deviceFirmwareUrl = '$serverUrl/firmware/$filename';
+          if (rawFirmwareUrl.startsWith('LOCAL:')) {
+            // LOCAL: prefix means server-hosted file - only resolve when server URL is available
+            if (serverUrl != null) {
+              final filename = rawFirmwareUrl.substring('LOCAL:'.length);
+              deviceFirmwareUrl = '$serverUrl/firmware/$filename';
+            }
+            // If serverUrl is null, leave deviceFirmwareUrl empty (don't pass raw LOCAL: prefix)
           } else {
+            // External URL - use as-is
             deviceFirmwareUrl = rawFirmwareUrl;
           }
         }
