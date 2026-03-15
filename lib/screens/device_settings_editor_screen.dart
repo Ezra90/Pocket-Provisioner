@@ -712,16 +712,16 @@ class _DeviceSettingsEditorScreenState
     }
 
     try {
-      final saved = await FirmwareService.copyFirmware(sourcePath, file.name);
+      await FirmwareService.save(sourcePath, file.name);
       final updated = await FirmwareService.listFirmware();
       if (mounted) {
         setState(() {
           _firmwareFiles = updated;
-          _firmwareLocalFile = 'LOCAL:${saved.filename}';
+          _firmwareLocalFile = 'LOCAL:${file.name}';
           _firmwareCustomUrlCtrl.clear();
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Uploaded: ${saved.filename}')),
+          SnackBar(content: Text('Uploaded: ${file.name}')),
         );
       }
     } catch (e) {
