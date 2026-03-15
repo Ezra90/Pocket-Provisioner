@@ -12,10 +12,22 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// wizard.  Typically the SIP server is *not* set here because the DMS
 /// supplies it.
 ///
+/// In DMS mode:
+/// - CSV columns `Device username` and `DMS password` are imported
+/// - These become `provision_user` and `provision_pass` in templates
+/// - The phone uses these qsetup credentials to authenticate with DMS
+/// - SIP accounts are disabled (`has_sip_server` = false) until DMS provides them
+///
 /// **Standalone / FreePBX Mode** – used for on-premise PBX deployments
 /// (FreePBX, Asterisk, etc.) that do not have DMS integration.  The app
 /// generates a *complete* config including all SIP registration details.
 /// The phone connects directly to the PBX without a secondary DMS hop.
+///
+/// In Standalone mode:
+/// - CSV columns `Extension` and `Secret` are imported
+/// - These become both SIP credentials AND provisioning credentials
+/// - The phone registers directly with the configured SIP server
+/// - SIP accounts are enabled (`has_sip_server` = true) with full credentials
 class GlobalSettings {
   // ── Mode constants ──────────────────────────────────────────────────────────
 
