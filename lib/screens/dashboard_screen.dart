@@ -809,7 +809,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Pocket-Provisioner $_appVersion"),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Pocket-Provisioner',
+                style: TextStyle(fontSize: 18)),
+            Text(
+              _appVersion,
+              style: const TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.normal),
+            ),
+          ],
+        ),
         actions: [
           if (_isServerRunning)
             IconButton(
