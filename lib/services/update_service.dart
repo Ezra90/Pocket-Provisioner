@@ -26,6 +26,30 @@ class UpdateInfo {
   });
 }
 
+/// Status information about the current vs latest build.
+class UpdateStatus {
+  final int currentBuild;
+  final int? latestBuild;
+  final bool updateAvailable;
+  final String? error;
+
+  const UpdateStatus({
+    required this.currentBuild,
+    required this.latestBuild,
+    this.updateAvailable = false,
+    this.error,
+  });
+
+  String get message {
+    if (error != null) return error!;
+    if (latestBuild == null) return 'Could not determine latest version';
+    if (updateAvailable) return 'Update available: Build $latestBuild';
+    if (currentBuild == latestBuild) return 'You have the latest version (Build $currentBuild)';
+    if (currentBuild > latestBuild!) return 'You have a newer build ($currentBuild) than released ($latestBuild)';
+    return 'You have the latest version';
+  }
+}
+
 /// Service that checks the GitHub Releases API for a newer version of the app
 /// and, if one exists, downloads and installs it.
 ///
@@ -59,6 +83,59 @@ class UpdateService {
       );
     } catch (_) {
       return null;
+    }
+  }
+
+  /// Returns detailed update status for debugging/display purposes.
+  /// 
+  /// Unlike [checkForUpdate], this returns info even when already on the latest
+  /// version, so users can see their current build vs the latest available.
+  static Future<UpdateStatus> getUpdateStatus() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      final currentBuild = int.tryParse(packageInfo.buildNumber) ?? 0;
+
+      // Check the dev release
+      final response = await http
+          .get(Uri.parse('https://api.github.com/repos/$_repoOwner/$_repoName/releases/tags/dev'),
+              headers: {'Accept': 'application/vnd.github.v3+json'})
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) {
+        return UpdateStatus(
+          currentBuild: currentBuild,
+          latestBuild: null,
+          error: 'Could not reach update server (${response.statusCode})',
+        );
+      }
+
+      final data = json.decode(response.body) as Map<String, dynamic>;
+      final releaseName = data['name'] as String? ?? '';
+      final buildMatch = RegExp(r'Build\s+(\d+)').firstMatch(releaseName);
+      
+      if (buildMatch == null) {
+        return UpdateStatus(
+          currentBuild: currentBuild,
+          latestBuild: null,
+          error: 'Could not parse release version from "$releaseName"',
+        );
+      }
+
+      final latestBuild = int.tryParse(buildMatch.group(1)!) ?? 0;
+      
+      return UpdateStatus(
+        currentBuild: currentBuild,
+        latestBuild: latestBuild,
+        updateAvailable: latestBuild > currentBuild,
+      );
+    } catch (e) {
+      final packageInfo = await PackageInfo.fromPlatform();
+      final currentBuild = int.tryParse(packageInfo.buildNumber) ?? 0;
+      return UpdateStatus(
+        currentBuild: currentBuild,
+        latestBuild: null,
+        error: 'Update check failed: $e',
+      );
     }
   }
 
