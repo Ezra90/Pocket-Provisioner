@@ -1404,8 +1404,12 @@ class _DeviceSettingsEditorScreenState
             ],
           ),
 
-          // ── Button Layout — only shown if template uses line_keys ────────
-          if (_templateSupports('line_keys'))
+          // ── Button Layout — shown if template supports line keys ────────
+          // Check metadata first (maxLineKeys > 0), fall back to tag check
+          // for both line_keys (Yealink/Cisco) and attendant_keys (Polycom)
+          if ((_templateMeta?.maxLineKeys ?? 0) > 0 ||
+              _templateSupports('line_keys') ||
+              _templateSupports('attendant_keys'))
             _buildButtonLayoutTile(),
           // ── Phonebook ─────────────────────────────────────────────────────
           _buildPhonebookTile(),
