@@ -312,9 +312,10 @@ class _AccessLogScreenState extends State<AccessLogScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final serverRunning = ProvisioningServer.serverUrl != null;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Access Log'),
+        title: const Text('App Logs'),
         actions: [
           IconButton(
             icon: const Icon(Icons.delete_sweep),
@@ -361,22 +362,26 @@ class _AccessLogScreenState extends State<AccessLogScreen> {
         ],
       ),
       body: _log.isEmpty && ProvisioningServer.deviceAccessMap.isEmpty
-          ? const Center(
+          ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.monitor_heart_outlined,
                       size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   Text(
-                    'Waiting for handsets to connect…',
-                    style: TextStyle(color: Colors.grey, fontSize: 16),
+                    serverRunning
+                        ? 'Waiting for handsets to connect…'
+                        : 'No logs yet',
+                    style: const TextStyle(color: Colors.grey, fontSize: 16),
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   Text(
-                    'Make sure the provisioning server is running\nand DHCP Option 66 is configured.',
+                    serverRunning
+                        ? 'The provisioning server is running.\nDevices will appear here when they connect.'
+                        : 'Start the provisioning server from the dashboard\nto see device connections and file access logs.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey, fontSize: 13),
+                    style: const TextStyle(color: Colors.grey, fontSize: 13),
                   ),
                 ],
               ),

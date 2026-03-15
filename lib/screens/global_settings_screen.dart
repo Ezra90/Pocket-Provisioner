@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
 import '../services/global_settings.dart';
-import 'template_manager.dart';
-import 'button_layout_editor.dart';
-import 'file_manager_screen.dart';
 
 /// Global job-environment settings screen, accessible from the dashboard
 /// via the ⚙ icon.
@@ -324,47 +321,6 @@ class _GlobalSettingsScreenState extends State<GlobalSettingsScreen> {
               hint: 'Leave blank to use handset default',
             ),
 
-            const SizedBox(height: 8),
-
-            // ── Management Links ──────────────────────────────────────────
-            _SectionHeader(
-              icon: '🗂️',
-              title: 'Management',
-              subtitle: 'Templates, button layouts, and hosted files.',
-            ),
-            _ManagementTile(
-              icon: Icons.description,
-              title: 'Manage Device Templates',
-              subtitle: 'Import, edit, or export Mustache config templates',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => const TemplateManagerScreen()),
-              ),
-            ),
-            _ManagementTile(
-              icon: Icons.grid_view,
-              title: 'Manage Button Layouts',
-              subtitle:
-                  'Configure default BLF / Speed Dial keys per model',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => const ButtonLayoutEditorScreen()),
-              ),
-            ),
-            _ManagementTile(
-              icon: Icons.folder_open,
-              title: 'File Manager',
-              subtitle:
-                  'Manage wallpapers, ringtones, firmware, and phonebook files',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => const FileManagerScreen()),
-              ),
-            ),
-
             const SizedBox(height: 32),
           ],
         ),
@@ -412,35 +368,6 @@ class _SectionHeader extends StatelessWidget {
           ),
           const SizedBox(height: 6),
         ],
-      ),
-    );
-  }
-}
-
-class _ManagementTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  const _ManagementTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
-        title: Text(title),
-        subtitle: Text(subtitle,
-            style: const TextStyle(fontSize: 12)),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: onTap,
       ),
     );
   }

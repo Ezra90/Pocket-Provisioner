@@ -28,16 +28,66 @@ class AccessLogEntry {
         '${m.substring(6, 8)}:${m.substring(8, 10)}:${m.substring(10, 12)}';
   }
 
+  /// Returns a user-friendly resource type label for display.
+  String get resourceTypeLabel {
+    switch (resourceType) {
+      case 'config':
+        return 'Config';
+      case 'wallpaper':
+        return 'Wallpaper';
+      case 'ringtone':
+        return 'Ringtone';
+      case 'phonebook':
+        return 'Phonebook';
+      case 'firmware':
+        return 'Firmware';
+      default:
+        return resourceType;
+    }
+  }
+
   /// Returns a formatted summary string for toast notifications.
-  /// Format: "MAC: AA:BB:CC:DD:EE:FF | Ext 101 - Reception | 192.168.1.100"
+  /// Format: "fetched Config | Ext 101 | Reception | 192.168.1.100"
   String get toastSummary {
     final parts = <String>[];
-    if (resolvedMac != null) parts.add('MAC: $formattedMac');
-    if (deviceExtension != null) parts.add('Ext $deviceExtension');
+    
+    // Add what was accessed
+    parts.add('fetched $resourceTypeLabel');
+    
+    // Add device identification info (in order of specificity)
+    if (deviceExtension != null) {
+      parts.add('Ext $deviceExtension');
+    }
     if (deviceLabel != null && deviceLabel!.isNotEmpty) {
       parts.add(deviceLabel!);
     }
+    if (resolvedMac != null) {
+      parts.add(formattedMac);
+    }
+    
+    // Always include IP
     parts.add(clientIp);
+    
+    return parts.join(' | ');
+  }
+
+  /// Returns a detailed summary showing all available device info and the path accessed.
+  /// Format: "IP: 192.168.1.100 | MAC: AA:BB:.. | Ext 101 | Label | Path: /file.cfg"
+  String get detailedSummary {
+    final parts = <String>[];
+    
+    parts.add('IP: $clientIp');
+    if (resolvedMac != null) {
+      parts.add('MAC: $formattedMac');
+    }
+    if (deviceExtension != null) {
+      parts.add('Ext: $deviceExtension');
+    }
+    if (deviceLabel != null && deviceLabel!.isNotEmpty) {
+      parts.add('Name: $deviceLabel');
+    }
+    parts.add('File: $requestedPath');
+    
     return parts.join(' | ');
   }
 }
