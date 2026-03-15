@@ -14,6 +14,7 @@ import 'package:network_info_plus/network_info_plus.dart';
 import '../data/database_helper.dart';
 import '../data/device_templates.dart';
 import '../services/app_directories.dart';
+import '../services/build_info.dart';
 import '../services/mustache_renderer.dart';
 import '../services/mustache_template_service.dart';
 import '../services/provisioning_server.dart';
@@ -188,7 +189,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _loadAppVersion() async {
     final info = await PackageInfo.fromPlatform();
-    if (mounted) setState(() => _appVersion = "Build ${info.buildNumber}");
+    if (mounted) {
+      // Show build number and commit hash for CI builds, just build number for local
+      final commitSuffix = BuildInfo.isCiBuild ? ' (${BuildInfo.commitSha})' : '';
+      setState(() => _appVersion = "Build ${info.buildNumber}$commitSuffix");
+    }
   }
 
   Future<void> _autoCheckForUpdate() async {

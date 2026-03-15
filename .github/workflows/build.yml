@@ -65,7 +65,7 @@ jobs:
       - name: Build APK
         env:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g"
-        run: flutter build apk --release --split-per-abi
+        run: flutter build apk --release --split-per-abi --dart-define=COMMIT_SHA=${{ steps.build_info.outputs.COMMIT_SHORT }}
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
