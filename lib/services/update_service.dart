@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -141,6 +142,12 @@ class UpdateService {
         final response = await streamedResponse
             .timeout(const Duration(minutes: 10));
 
+        // Verify successful response before attempting to download
+        if (response.statusCode != 200) {
+          onError('Download failed: Server returned ${response.statusCode}');
+          return;
+        }
+
         final contentLength = response.contentLength ?? 0;
         int downloaded = 0;
 
@@ -161,6 +168,13 @@ class UpdateService {
         client.close();
       }
 
+      // Verify the downloaded file is not empty
+      final fileSize = await apkFile.length();
+      if (fileSize == 0) {
+        onError('Download failed: Empty file received');
+        return;
+      }
+
       final result = await OpenFilex.open(
         apkPath,
         type: 'application/vnd.android.package-archive',
@@ -168,6 +182,8 @@ class UpdateService {
       if (result.type != ResultType.done) {
         onError('Could not open installer: ${result.message}');
       }
+    } on TimeoutException {
+      onError('Download timed out. Please check your connection and try again.');
     } on SocketException catch (e) {
       onError('Network error: ${e.message}');
     } catch (e) {
