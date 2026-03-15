@@ -46,4 +46,3 @@ app.*.map.json
 # Generated files
 android/local.properties
 android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
-pubspec.lock
