@@ -282,7 +282,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               _buildFormatRow(
                 field: 'Phone / DID',
-                headers: '"Phone", "User ID", "DN", "DID", or any column containing "direct"',
+                headers: '"Phone", "Phone Number", "User ID", "DN", "DID", "Direct Dial", "Direct Number"',
               ),
               _buildFormatRow(
                 field: 'MAC Address',
@@ -511,11 +511,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
           h.contains('phone model') ||
           h.contains('handset'));
       int phoneIndex = headers.indexWhere((h) =>
-          h.contains('user id') ||
-          h.contains('phone') ||
+          h == 'phone' ||
           h == 'dn' ||
+          h.contains('user id') ||
+          h.contains('phone number') ||
           h.contains('did') ||
-          h.contains('direct'));
+          h.contains('direct dial') ||
+          h.contains('direct number') ||
+          h.contains('direct inward'));
       int macIndex = headers.indexWhere((h) => h.contains('mac'));
 
       if (extIndex == -1) throw "Could not find an Extension / Device Username column. Expected a column named 'Extension', 'Device Username', 'Username', or 'User'.";
