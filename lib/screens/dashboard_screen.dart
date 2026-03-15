@@ -967,7 +967,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 _isServerRunning 
                                     ? ProvisioningServer.serverUrl ?? 'http://$_localIp:8080'
                                     : 'http://$_localIp:8080'),
-                            _dhcpOptionRow('Option 150 (Cisco)', _localIp!),
+                            _dhcpOptionRow('Option 150 (Cisco)', _localIp ?? ''),
                           ],
                         ),
                       ),

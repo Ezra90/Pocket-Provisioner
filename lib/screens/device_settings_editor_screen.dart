@@ -893,8 +893,8 @@ class _DeviceSettingsEditorScreenState
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Override the extension, password, or display name from the CSV import. '
-                            'Leave blank to use the original values (Ext ${widget.extension}).',
+                            'Override the extension, password, display name, or auth username from the CSV import. '
+                            'Leave any field blank to use the original imported value.',
                             style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
                           ),
                           const SizedBox(height: 12),
