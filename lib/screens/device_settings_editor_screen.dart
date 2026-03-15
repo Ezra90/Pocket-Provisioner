@@ -172,9 +172,13 @@ class _DeviceSettingsEditorScreenState
         TextEditingController(text: s?.outboundProxyPort ?? '');
     _backupServerCtrl = TextEditingController(text: s?.backupServer ?? '');
     _backupPortCtrl = TextEditingController(text: s?.backupPort ?? '');
-    // Line-level overrides - pre-populate with CSV values if no override is saved
+    // Line-level fields - pre-populate with CSV values if no override is saved.
+    // These are editable so users can make last-minute changes before provisioning.
     _extensionOverrideCtrl = TextEditingController(
         text: s?.extensionOverride ?? widget.extension);
+    // Note: Password is shown in plaintext intentionally to allow editing before
+    // provisioning. This matches the use case where users need to verify or modify
+    // credentials from the CSV import (e.g., after a last-minute password change).
     _passwordOverrideCtrl = TextEditingController(
         text: s?.passwordOverride ?? widget.secret ?? '');
     _displayNameOverrideCtrl = TextEditingController(
