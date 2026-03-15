@@ -102,7 +102,7 @@ class DeviceTemplates {
   // --- WALLPAPER DATABASE ---
   static const Map<String, WallpaperSpec> wallpaperSpecs = {
     'Yealink T54W / T46U': WallpaperSpec(480, 272, 'Standard Color Screen'),
-    'Yealink T48G / T57W': WallpaperSpec(800, 480, 'Touch Screen Large'),
+    'Yealink T48G / T57W': WallpaperSpec(800, 480, 'Large Color Display'),
     'Yealink T58W':        WallpaperSpec(1024, 600, 'Flagship Video Phone'),
     'Poly VVX 150-350':    WallpaperSpec(320, 240, 'VVX Compact'),
     'Poly VVX 450':        WallpaperSpec(480, 272, 'VVX Full'),
@@ -185,8 +185,9 @@ class DeviceTemplates {
 
     // ── Yealink touchscreen models ───────────────────────────────────────────
 
-    // T48G: 29 max keys; 6 left + 5 right visible by default, then expand to
-    //        4-column grid; customisable bottom soft keys.
+    // T48G: 7" color touchscreen (800x480), 29 virtual DSS keys displayed in
+    // a grid pattern. Keys 1-6 shown on left, 7-11 on right initially, then
+    // expand to show all 29 in a 4-5 column grid via touchscreen navigation.
     'T48G': PhysicalLayout(
       leftKeyCount: 6, rightKeyCount: 5,
       hasSoftKeys: true, hasNavCluster: true, hasDialPad: true,
@@ -199,18 +200,18 @@ class DeviceTemplates {
       softKeyLabels: <String>['Directory', 'UnPark', 'GPickup', 'Menu'],
       softKeysAreCustomizable: true,
     ),
+    // T57W: 7" color LCD (800x480) - NOT a touchscreen! Has 10 physical line keys
+    // (5 left + 5 right) around the display, pageable to 27 total across 3 pages.
     'T57W': PhysicalLayout(
-      leftKeyCount: 6, rightKeyCount: 5,
+      leftKeyCount: 5, rightKeyCount: 5,
       hasSoftKeys: true, hasNavCluster: true, hasDialPad: true,
       bodyColorValue: 0xFF37474F,
       modelFamily: 'Yealink T4x/T5x',
-      isTouchscreen: true,
-      maxKeys: 29, initialVisibleKeys: 11,
-      expandButtonLabel: '+ Show More',
-      collapseButtonLabel: '— Show Less',
-      softKeyLabels: <String>['Directory', 'UnPark', 'GPickup', 'Menu'],
-      softKeysAreCustomizable: true,
+      isTouchscreen: false,  // T57W has a non-touch LCD display
+      maxKeys: 27, keyPages: 3,
     ),
+    // T58W: 7" color capacitive touchscreen (1024x600), 27 virtual DSS keys
+    // arranged on the touchscreen. Supports swipe navigation between 3 pages.
     'T58W': PhysicalLayout(
       leftKeyCount: 6, rightKeyCount: 5,
       hasSoftKeys: true, hasNavCluster: true, hasDialPad: true,
@@ -223,6 +224,8 @@ class DeviceTemplates {
       softKeyLabels: <String>['Directory', 'UnPark', 'GPickup', 'Menu'],
       softKeysAreCustomizable: true,
     ),
+    // T58G: 7" color capacitive touchscreen (800x480), similar to T48G but
+    // video capable. 27 virtual DSS keys arranged on the touchscreen.
     'T58G': PhysicalLayout(
       leftKeyCount: 6, rightKeyCount: 5,
       hasSoftKeys: true, hasNavCluster: true, hasDialPad: true,
@@ -238,6 +241,7 @@ class DeviceTemplates {
 
     // ── Polycom VVX physical models ──────────────────────────────────────────
 
+    // VVX150: 2 line keys (1 left + 1 right), 2.5" monochrome LCD
     'VVX150': PhysicalLayout(
       leftKeyCount: 1, rightKeyCount: 1,
       hasSoftKeys: true, hasNavCluster: true, hasDialPad: true,
@@ -245,6 +249,7 @@ class DeviceTemplates {
       modelFamily: 'Polycom VVX / Poly Edge',
       maxKeys: 2,
     ),
+    // VVX250: 4 line keys (2 left + 2 right), 2.8" color LCD (320x240)
     'VVX250': PhysicalLayout(
       leftKeyCount: 2, rightKeyCount: 2,
       hasSoftKeys: true, hasNavCluster: true, hasDialPad: true,
@@ -252,6 +257,7 @@ class DeviceTemplates {
       modelFamily: 'Polycom VVX / Poly Edge',
       maxKeys: 4,
     ),
+    // VVX350: 6 line keys (3 left + 3 right), 3.5" color LCD (320x240)
     'VVX350': PhysicalLayout(
       leftKeyCount: 3, rightKeyCount: 3,
       hasSoftKeys: true, hasNavCluster: true, hasDialPad: true,
@@ -259,6 +265,7 @@ class DeviceTemplates {
       modelFamily: 'Polycom VVX / Poly Edge',
       maxKeys: 6,
     ),
+    // VVX450: 12 line keys (6 left + 6 right), 4.3" color LCD (480x272)
     'VVX450': PhysicalLayout(
       leftKeyCount: 6, rightKeyCount: 6,
       hasSoftKeys: true, hasNavCluster: true, hasDialPad: true,
@@ -268,10 +275,11 @@ class DeviceTemplates {
     ),
 
     // ── Polycom VVX1500 landscape touchscreen ────────────────────────────────
-
+    // 7" TFT LCD touchscreen (800x480, 16:9), resistive touch
+    // Line keys shown on right side of screen, up to 6 visible, 24 total with overlay
     'VVX1500': PhysicalLayout(
       leftKeyCount: 0, rightKeyCount: 6,
-      hasSoftKeys: false, hasNavCluster: false, hasDialPad: false,
+      hasSoftKeys: true, hasNavCluster: false, hasDialPad: false,
       bodyColorValue: 0xFF212121,
       modelFamily: 'Polycom VVX / Poly Edge',
       isTouchscreen: true, isLandscape: true,
@@ -283,24 +291,30 @@ class DeviceTemplates {
 
     // ── Poly Edge physical models ────────────────────────────────────────────
 
+    // Edge E350: 8 line keys (4 left + 4 right), pageable to 32 total (4 pages)
+    // 3.5" color LCD (320x240)
     'EDGE E350': PhysicalLayout(
       leftKeyCount: 4, rightKeyCount: 4,
       hasSoftKeys: true, hasNavCluster: true, hasDialPad: true,
       bodyColorValue: 0xFF4A148C,
       modelFamily: 'Polycom VVX / Poly Edge',
-      maxKeys: 8,
+      maxKeys: 32, keyPages: 4,
     ),
+    // Edge E450: 14 line keys (8 main + 6 secondary display), pageable
+    // Main: 3.5" LCD (320x240), Secondary: 2.4" LCD (240x320)
     'EDGE E450': PhysicalLayout(
-      leftKeyCount: 6, rightKeyCount: 6,
+      leftKeyCount: 4, rightKeyCount: 4,  // Main display keys per page
       hasSoftKeys: true, hasNavCluster: true, hasDialPad: true,
       bodyColorValue: 0xFF4A148C,
       modelFamily: 'Polycom VVX / Poly Edge',
-      maxKeys: 12,
+      maxKeys: 44, keyPages: 4,  // 32 main + 12 secondary
     ),
 
     // ── Cisco physical models ────────────────────────────────────────────────
 
-    // 8851 / 8865: 10 keys across 2 pages of 5 (left column only, per hardware)
+    // Cisco 8851: 5" color LCD (800x480), 5 physical programmable line keys
+    // on the LEFT side only. Keys are pageable to 10 total across 2 pages.
+    // Right side has session buttons (not programmable for features).
     'CISCO 8851': PhysicalLayout(
       leftKeyCount: 5, rightKeyCount: 0,
       hasSoftKeys: true, hasNavCluster: true, hasDialPad: true,
@@ -308,6 +322,8 @@ class DeviceTemplates {
       modelFamily: 'Cisco 78xx/88xx',
       maxKeys: 10, keyPages: 2, initialVisibleKeys: 5,
     ),
+    // Cisco 8865: Same as 8851 but with video camera. 5" color LCD (800x480),
+    // 5 physical programmable line keys on left, pageable to 10 across 2 pages.
     'CISCO 8865': PhysicalLayout(
       leftKeyCount: 5, rightKeyCount: 0,
       hasSoftKeys: true, hasNavCluster: true, hasDialPad: true,
