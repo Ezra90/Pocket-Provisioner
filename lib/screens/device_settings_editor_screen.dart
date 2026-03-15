@@ -38,6 +38,7 @@ class DeviceSettingsEditorScreen extends StatefulWidget {
   final String extension;
   final String label;
   final String model;
+  final String? secret; // SIP password from CSV import
   final DeviceSettings? initialSettings;
   final String? initialWallpaper;
   final List<WallpaperInfo> wallpapers;
@@ -48,6 +49,7 @@ class DeviceSettingsEditorScreen extends StatefulWidget {
     required this.extension,
     required this.label,
     required this.model,
+    this.secret,
     this.initialSettings,
     this.initialWallpaper,
     this.wallpapers = const [],
@@ -901,7 +903,9 @@ class _DeviceSettingsEditorScreenState
                           _field(_extensionOverrideCtrl, 'Extension / Username Override',
                               hint: 'Default: ${widget.extension}'),
                           _field(_passwordOverrideCtrl, 'SIP Password Override',
-                              hint: 'Default: (from import)',
+                              hint: widget.secret != null && widget.secret!.isNotEmpty
+                                  ? 'Default: ${'•' * widget.secret!.length.clamp(4, 12)}'
+                                  : 'Default: (not set)',
                               obscure: true,
                               showPassword: _showPasswordOverride,
                               onTogglePassword: () => setState(
