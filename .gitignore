@@ -42,7 +42,11 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+/android/.gradle
 
 # Generated files
 android/local.properties
 android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
+android/gradlew
+android/gradlew.bat
+android/gradle/wrapper/gradle-wrapper.jar
