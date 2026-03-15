@@ -162,6 +162,11 @@ class MustacheRenderer {
     // Use extension as auth username if not explicitly provided
     final effectiveAuthUsername = authUsername ?? extension;
     
+    // Check if SIP server is configured — when false (DMS mode), accounts
+    // should be disabled so the phone doesn't try to register until DMS
+    // delivers the actual SIP credentials.
+    final bool hasSipServer = sipServer.isNotEmpty;
+    
     final bool hasOutboundProxy =
         outboundProxyHost != null && outboundProxyHost.isNotEmpty;
     final bool hasBackupServer =
@@ -223,6 +228,7 @@ class MustacheRenderer {
     return {
       'mac_address': macAddress,
       'model': model,
+      'has_sip_server': hasSipServer,
       'sip_server': sipServer,
       'sip_port': sipPort ?? '5060',
       'has_outbound_proxy': hasOutboundProxy,
@@ -285,6 +291,7 @@ class MustacheRenderer {
       'lines': [
         {
           'line_index': 1,
+          'has_sip_server': hasSipServer,
           'label': displayName,
           'display_name': displayName,
           'user_name': extension,
