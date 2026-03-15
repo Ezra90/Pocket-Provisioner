@@ -203,15 +203,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _checkingUpdate = true;
       _pendingUpdate = null;
     });
-    final update = await UpdateService.checkForUpdate();
+    
+    // Get detailed status for better user feedback
+    final status = await UpdateService.getUpdateStatus();
+    final update = status.updateAvailable ? await UpdateService.checkForUpdate() : null;
+    
     if (!mounted) return;
     setState(() {
       _checkingUpdate = false;
       _pendingUpdate = update;
     });
+    
     if (update == null) {
+      // Show detailed status message instead of generic "latest version"
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("You're on the latest version.")),
+        SnackBar(content: Text(status.message)),
       );
     } else {
       _showUpdateDialog(update);
