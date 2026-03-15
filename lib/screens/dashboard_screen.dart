@@ -403,9 +403,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               _dhcpRow('Option 160',
                   'Alternative provisioning URL — used by some vendors when Option 66 is reserved for TFTP',
                   ip),
-              _dhcpRow('Option 150 (Cisco)',
-                  'TFTP Server IP(s) — primarily for Cisco IP Phones',
-                  _localIp ?? '<your-ip>'),
               const SizedBox(height: 12),
               const Text(
                 'Vendor Requirements:',
@@ -414,7 +411,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const Text(
                 '• Yealink: Option 66 (HTTP/HTTPS) or Option 43 (vendor-specific)\n'
                 '• Polycom VVX/Edge: Option 66 (HTTP) or provisioning via ZTP\n'
-                '• Cisco: Option 66 (TFTP/HTTP) or Option 150 (TFTP)\n'
+                '• Cisco MPP: Option 66 (HTTP)\n'
                 '• Grandstream: Option 66 (HTTP/HTTPS)\n',
                 style: TextStyle(fontSize: 12, color: Colors.black54),
               ),
@@ -983,7 +980,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 _isServerRunning 
                                     ? ProvisioningServer.serverUrl ?? 'http://$_localIp:8080'
                                     : 'http://$_localIp:8080'),
-                            _dhcpOptionRow('Option 150 (Cisco)', _localIp ?? ''),
                           ],
                         ),
                       ),
