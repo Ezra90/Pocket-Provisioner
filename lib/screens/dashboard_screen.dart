@@ -106,8 +106,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       
       // Create a unique key combining MAC (or IP fallback) and resource type
       // This allows one toast per resource type per device per session
-      final deviceKey = entry.resolvedMac ?? entry.clientIp;
-      final notifyKey = '$deviceKey:${entry.resourceType}';
+      final deviceIdentifier = entry.resolvedMac ?? entry.clientIp;
+      final notifyKey = '$deviceIdentifier:${entry.resourceType}';
       
       // Only notify once per device per resource type per session
       if (_notifiedMacs.contains(notifyKey)) return;

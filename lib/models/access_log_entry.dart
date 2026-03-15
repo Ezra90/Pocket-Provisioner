@@ -47,12 +47,12 @@ class AccessLogEntry {
   }
 
   /// Returns a formatted summary string for toast notifications.
-  /// Format: "Device accessed Config | Ext 101 | Reception | 192.168.1.100"
+  /// Format: "fetched Config | Ext 101 | Reception | 192.168.1.100"
   String get toastSummary {
     final parts = <String>[];
     
     // Add what was accessed
-    parts.add('accessed $resourceTypeLabel');
+    parts.add('fetched $resourceTypeLabel');
     
     // Add device identification info (in order of specificity)
     if (deviceExtension != null) {
