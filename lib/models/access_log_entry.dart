@@ -4,6 +4,7 @@ class AccessLogEntry {
   final String requestedPath;
   final String? resolvedMac;
   final String? deviceLabel;
+  final String? deviceExtension;
   final String resourceType;
   final int statusCode;
   final DateTime timestamp;
@@ -13,6 +14,7 @@ class AccessLogEntry {
     required this.requestedPath,
     this.resolvedMac,
     this.deviceLabel,
+    this.deviceExtension,
     required this.resourceType,
     required this.statusCode,
     required this.timestamp,
@@ -24,5 +26,18 @@ class AccessLogEntry {
     final m = resolvedMac!.toUpperCase();
     return '${m.substring(0, 2)}:${m.substring(2, 4)}:${m.substring(4, 6)}:'
         '${m.substring(6, 8)}:${m.substring(8, 10)}:${m.substring(10, 12)}';
+  }
+
+  /// Returns a formatted summary string for toast notifications.
+  /// Format: "MAC: AA:BB:CC:DD:EE:FF | Ext 101 - Reception | 192.168.1.100"
+  String get toastSummary {
+    final parts = <String>[];
+    if (resolvedMac != null) parts.add('MAC: $formattedMac');
+    if (deviceExtension != null) parts.add('Ext $deviceExtension');
+    if (deviceLabel != null && deviceLabel!.isNotEmpty) {
+      parts.add(deviceLabel!);
+    }
+    parts.add(clientIp);
+    return parts.join(' | ');
   }
 }

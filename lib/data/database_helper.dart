@@ -224,6 +224,24 @@ class DatabaseHelper {
     await db.delete('devices', where: 'id = ?', whereArgs: [id]);
   }
 
+  /// Updates the label (name) for a single device.
+  Future<void> updateDeviceLabel(int id, String label) async {
+    final db = await instance.database;
+    await db.update('devices', {'label': label}, where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Updates basic device info (label, secret, model) for a single device.
+  Future<void> updateDeviceInfo(int id, {String? label, String? secret, String? model}) async {
+    final db = await instance.database;
+    final fields = <String, dynamic>{};
+    if (label != null) fields['label'] = label;
+    if (secret != null) fields['secret'] = secret;
+    if (model != null) fields['model'] = model;
+    if (fields.isNotEmpty) {
+      await db.update('devices', fields, where: 'id = ?', whereArgs: [id]);
+    }
+  }
+
   /// Batch insert devices using a single transaction for performance
   Future<void> insertDevices(List<Device> devices) async {
     final db = await instance.database;

@@ -1,9 +1,13 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path/path.dart' as p;
 import '../data/database_helper.dart';
 import '../data/device_templates.dart';
 import '../models/device.dart';
 import '../models/device_settings.dart';
+import '../services/app_directories.dart';
 import '../services/wallpaper_service.dart';
 import 'device_settings_editor_screen.dart';
 
@@ -156,6 +160,204 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
         false;
   }
 
+  // ── edit extension name/info ──────────────────────────────────────────────
+
+  Future<void> _editDevice(Device device) async {
+    final labelCtrl = TextEditingController(text: device.label);
+    final secretCtrl = TextEditingController(text: device.secret);
+    String selectedModel = device.model;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDS) => AlertDialog(
+          title: Text('Edit Ext ${device.extension}'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: labelCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Label / Name',
+                    hintText: 'e.g. Reception',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: secretCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'SIP Password',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  value: selectedModel,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Model',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: DeviceTemplates.supportedModels
+                      .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+                      .toList(),
+                  onChanged: (v) => setDS(() => selectedModel = v!),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel')),
+            ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Save')),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true || device.id == null) {
+      labelCtrl.dispose();
+      secretCtrl.dispose();
+      return;
+    }
+
+    final newLabel = labelCtrl.text.trim();
+    final newSecret = secretCtrl.text.trim();
+    labelCtrl.dispose();
+    secretCtrl.dispose();
+
+    if (newLabel.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Label cannot be empty')),
+        );
+      }
+      return;
+    }
+
+    await DatabaseHelper.instance.updateDeviceInfo(
+      device.id!,
+      label: newLabel,
+      secret: newSecret.isNotEmpty ? newSecret : null,
+      model: selectedModel != device.model ? selectedModel : null,
+    );
+    await _load();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Updated Ext ${device.extension}')),
+      );
+    }
+  }
+
+  // ── long-press context menu ───────────────────────────────────────────────
+
+  void _showDeviceMenu(Device device, TapDownDetails details) {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(
+        details.globalPosition & const Size(40, 40),
+        Offset.zero & overlay.size,
+      ),
+      items: [
+        const PopupMenuItem(value: 'edit', child: ListTile(
+          leading: Icon(Icons.edit),
+          title: Text('Edit Name / Password'),
+          dense: true,
+        )),
+        const PopupMenuItem(value: 'settings', child: ListTile(
+          leading: Icon(Icons.settings),
+          title: Text('Device Settings'),
+          dense: true,
+        )),
+        if (device.macAddress != null)
+          const PopupMenuItem(value: 'download', child: ListTile(
+            leading: Icon(Icons.download),
+            title: Text('Download Config File'),
+            dense: true,
+          )),
+        const PopupMenuItem(value: 'delete', child: ListTile(
+          leading: Icon(Icons.delete, color: Colors.red),
+          title: Text('Delete', style: TextStyle(color: Colors.red)),
+          dense: true,
+        )),
+      ],
+    ).then((value) async {
+      if (value == null) return;
+      switch (value) {
+        case 'edit':
+          await _editDevice(device);
+          break;
+        case 'settings':
+          await _openSettings(device);
+          break;
+        case 'download':
+          await _downloadConfigFile(device);
+          break;
+        case 'delete':
+          if (device.id != null && await _confirmDelete(device)) {
+            await DatabaseHelper.instance.deleteDevice(device.id!);
+            await _load();
+          }
+          break;
+      }
+    });
+  }
+
+  // ── download config file ──────────────────────────────────────────────────
+
+  Future<void> _downloadConfigFile(Device device) async {
+    if (device.macAddress == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No MAC address assigned - generate configs first')),
+      );
+      return;
+    }
+
+    try {
+      final configsDir = await AppDirectories.configsDir();
+      final mac = device.macAddress!.replaceAll(':', '').toUpperCase();
+      
+      // Try both .cfg and .xml extensions
+      File? configFile;
+      final cfgPath = p.join(configsDir.path, '$mac.cfg');
+      final xmlPath = p.join(configsDir.path, '$mac.xml');
+      
+      if (await File(cfgPath).exists()) {
+        configFile = File(cfgPath);
+      } else if (await File(xmlPath).exists()) {
+        configFile = File(xmlPath);
+      }
+
+      if (configFile == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Config file not found - generate configs first')),
+          );
+        }
+        return;
+      }
+
+      // Share the file using share_plus
+      await Share.shareXFiles(
+        [XFile(configFile.path)],
+        subject: 'Config for Ext ${device.extension} (${device.label})',
+        text: 'Provisioning config file for ${device.label}',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Download failed: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   // ── "Add Extension" FAB ───────────────────────────────────────────────────
 
   Future<void> _showAddDialog() async {
@@ -262,14 +464,71 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
     await _load();
   }
 
+  // ── mass download all configs ─────────────────────────────────────────────
+
+  Future<void> _downloadAllConfigs() async {
+    final readyDevices = _devices.where((d) => d.macAddress != null).toList();
+    if (readyDevices.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No devices with MAC addresses - generate configs first')),
+      );
+      return;
+    }
+
+    try {
+      final configsDir = await AppDirectories.configsDir();
+      final files = <XFile>[];
+
+      for (final device in readyDevices) {
+        final mac = device.macAddress!.replaceAll(':', '').toUpperCase();
+        final cfgPath = p.join(configsDir.path, '$mac.cfg');
+        final xmlPath = p.join(configsDir.path, '$mac.xml');
+        
+        if (await File(cfgPath).exists()) {
+          files.add(XFile(cfgPath));
+        } else if (await File(xmlPath).exists()) {
+          files.add(XFile(xmlPath));
+        }
+      }
+
+      if (files.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No config files found - generate configs first')),
+          );
+        }
+        return;
+      }
+
+      await Share.shareXFiles(
+        files,
+        subject: 'All provisioning config files (${files.length})',
+        text: 'Provisioning config files for ${files.length} devices',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Download failed: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   // ── build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
+    final readyCount = _devices.where((d) => d.macAddress != null).length;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Extensions'),
         actions: [
+          if (readyCount > 0)
+            IconButton(
+              icon: const Icon(Icons.download),
+              tooltip: 'Download All Configs ($readyCount)',
+              onPressed: _downloadAllConfigs,
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',
@@ -322,7 +581,9 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
                               }
                               await _load();
                             },
-                            child: ListTile(
+                            child: GestureDetector(
+                              onSecondaryTapDown: (details) => _showDeviceMenu(device, details),
+                              child: ListTile(
                               leading: CircleAvatar(
                                 backgroundColor:
                                     Theme.of(context)
@@ -357,6 +618,15 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
                                 children: [
                                   _statusBadge(device.status),
                                   const SizedBox(width: 4),
+                                  // Edit button
+                                  IconButton(
+                                    icon: const Icon(
+                                        Icons.edit,
+                                        size: 18),
+                                    tooltip: 'Edit Name / Password',
+                                    onPressed: () =>
+                                        _editDevice(device),
+                                  ),
                                   // Scan/enter MAC button
                                   IconButton(
                                     icon: const Icon(
@@ -369,6 +639,15 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
                                 ],
                               ),
                               onTap: () => _openSettings(device),
+                              onLongPress: () {
+                                // Show context menu on long press
+                                final renderObject = context.findRenderObject();
+                                if (renderObject is RenderBox) {
+                                  final position = renderObject.localToGlobal(Offset.zero);
+                                  _showDeviceMenu(device, TapDownDetails(globalPosition: position + const Offset(50, 30)));
+                                }
+                              },
+                            ),
                             ),
                           );
                         },
