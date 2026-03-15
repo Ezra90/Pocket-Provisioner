@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import '../data/device_templates.dart';
 import '../models/button_key.dart';
@@ -254,14 +256,14 @@ class _PhysicalButtonEditorScreenState
     // Calculate scale factor to fit the schematic into available space
     final double scaleX = constraints.maxWidth / schematic.chassisWidth;
     final double scaleY = constraints.maxHeight / schematic.chassisHeight;
-    final double scale = (scaleX < scaleY ? scaleX : scaleY)
+    final double scale = math.min(scaleX, scaleY)
         .clamp(_minScaleFactor, _maxScaleFactor);
 
     final double phoneW = schematic.chassisWidth * scale;
     final double phoneH = schematic.chassisHeight * scale;
     final Color bodyColor = Color(layout.bodyColorValue);
 
-    // Filter keys for the current page
+    // Filter keys for the current page (pages are 1-indexed in template data)
     final pageKeys = meta.keysForPage(_currentPage + 1);
 
     // Page navigation row (only when pageCount > 1)
