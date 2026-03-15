@@ -506,12 +506,26 @@ class _WallpapersTabState extends State<_WallpapersTab>
           : RefreshIndicator(
               onRefresh: _load,
               child: _wallpapers.isEmpty
-                  ? ListView(children: [
-                      const Padding(
-                        padding: EdgeInsets.all(32),
-                        child: Center(child: Text('No wallpapers yet', style: TextStyle(color: Colors.grey))),
-                      ),
-                    ])
+                  ? ListView(
+                      padding: const EdgeInsets.all(12),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Column(
+                            children: [
+                              const Icon(Icons.image_not_supported, size: 48, color: Colors.grey),
+                              const SizedBox(height: 12),
+                              const Text('No wallpapers yet', style: TextStyle(color: Colors.grey)),
+                              const SizedBox(height: 8),
+                              ElevatedButton.icon(
+                                onPressed: _import,
+                                icon: const Icon(Icons.upload),
+                                label: const Text('Import Wallpaper'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ])
                   : ListView.builder(
                       padding: const EdgeInsets.all(12),
                       itemCount: _wallpapers.length,
@@ -1284,20 +1298,23 @@ class _FirmwareTabState extends State<_FirmwareTab>
         children: [
           _firmwareVendorSection(
             'Yealink',
-            'File extension: .rom\nNaming: T54W.rom, T46U.rom, etc.',
-            'Download from support.yealink.com',
+            '.rom',
+            'T54W.rom, T46U.rom, etc.',
+            'support.yealink.com',
           ),
           const Divider(),
           _firmwareVendorSection(
             'Polycom / Poly',
-            'File extension: .sip.ld or .ld\nNaming: sip.ld (shared), or model-specific.',
-            'Download from support.polycom.com',
+            '.sip.ld or .ld',
+            'sip.ld (shared), or model-specific.',
+            'support.polycom.com',
           ),
           const Divider(),
           _firmwareVendorSection(
             'Cisco MPP',
-            'File extension: .loads (manifest) or .cop.sgn\nCisco phones reference the .loads manifest.',
-            'Download from software.cisco.com',
+            '.loads (manifest) or .cop.sgn',
+            'Cisco phones reference the .loads manifest.',
+            'software.cisco.com',
           ),
           const SizedBox(height: 8),
           const Text(
@@ -1309,16 +1326,44 @@ class _FirmwareTabState extends State<_FirmwareTab>
     );
   }
 
-  Widget _firmwareVendorSection(String vendor, String requirements, String downloadInfo) {
+  Widget _firmwareVendorSection(String vendor, String fileExtension, String naming, String downloadSite) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(vendor, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          const SizedBox(height: 4),
+          Table(
+            columnWidths: const {
+              0: IntrinsicColumnWidth(),
+              1: FlexColumnWidth(),
+            },
+            defaultVerticalAlignment: TableCellVerticalAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              TableRow(children: [
+                const Padding(
+                  padding: EdgeInsets.only(right: 8),
+                  child: Text('File extension:', style: TextStyle(fontSize: 12)),
+                ),
+                Text(fileExtension, style: const TextStyle(fontSize: 12)),
+              ]),
+              TableRow(children: [
+                const Padding(
+                  padding: EdgeInsets.only(right: 8),
+                  child: Text('Naming:', style: TextStyle(fontSize: 12)),
+                ),
+                Text(naming, style: const TextStyle(fontSize: 12)),
+              ]),
+            ],
+          ),
           const SizedBox(height: 2),
-          Text(requirements, style: const TextStyle(fontSize: 12)),
-          Text(downloadInfo, style: const TextStyle(fontSize: 11, color: Colors.blue)),
+          InkWell(
+            onTap: () {}, // Could add URL launch later
+            child: Text('Download from $downloadSite', 
+                style: const TextStyle(fontSize: 11, color: Colors.blue)),
+          ),
         ],
       ),
     );

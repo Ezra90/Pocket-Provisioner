@@ -92,6 +92,7 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
           extension: device.extension,
           label: device.label,
           model: device.model,
+          secret: device.secret,
           initialSettings: device.deviceSettings,
           initialWallpaper: device.wallpaper,
           wallpapers: _wallpapers,
