@@ -1,7 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import '../data/device_templates.dart';
 import '../models/button_key.dart';
 import '../models/device.dart';
+import '../services/mustache_renderer.dart';
+import '../services/template_metadata_parser.dart';
 import 'button_layout_editor.dart';
 
 /// Visual, interactive handset diagram button-layout editor.
@@ -12,11 +16,12 @@ import 'button_layout_editor.dart';
 /// grid editor — but now spatially tied to where the button lives on the
 /// real handset.
 ///
-/// Three rendering modes are supported, selected automatically from the
-/// [PhysicalLayout]:
-///   • Mode A – VVX 1500 landscape touchscreen
-///   • Mode B – T48G / T57W portrait touchscreen
-///   • Mode C – physical key models (with optional page navigation)
+/// Four rendering modes are supported:
+///   • Template Mode – Uses precise button positions from template visual_editor
+///     metadata (preferred when available)
+///   • Mode A – VVX 1500 landscape touchscreen (fallback)
+///   • Mode B – T48G / T57W portrait touchscreen (fallback)
+///   • Mode C – physical key models with optional page navigation (fallback)
 ///
 /// Returns the modified [List<ButtonKey>] via [Navigator.pop].
 class PhysicalButtonEditorScreen extends StatefulWidget {
@@ -50,10 +55,39 @@ class _PhysicalButtonEditorScreenState
   /// Current page for paginated physical-key models (Mode C, 0-indexed).
   int _currentPage = 0;
 
+  /// Template visual editor metadata (null until loaded, or if not available).
+  VisualEditorMeta? _visualEditorMeta;
+
+  /// Whether template metadata has finished loading.
+  bool _metaLoaded = false;
+
   @override
   void initState() {
     super.initState();
     _layout = widget.initialLayout.map((k) => k.clone()).toList();
+    _loadTemplateMetadata();
+  }
+
+  /// Asynchronously load the template's VisualEditorMeta for the device model.
+  Future<void> _loadTemplateMetadata() async {
+    try {
+      final templateKey = await MustacheRenderer.resolveTemplateKey(widget.model);
+      final meta = await TemplateMetadataParser.parse(templateKey);
+      if (mounted) {
+        setState(() {
+          _visualEditorMeta = meta.visualEditor;
+          _metaLoaded = true;
+        });
+      }
+    } catch (e) {
+      // If template loading fails, fall back to PhysicalLayout rendering.
+      // Common causes: unsupported model, missing template, parse error.
+      debugPrint('PhysicalButtonEditor: Template metadata load failed for '
+          '${widget.model}: $e');
+      if (mounted) {
+        setState(() => _metaLoaded = true);
+      }
+    }
   }
 
   // ── helpers ────────────────────────────────────────────────────────────────
@@ -180,6 +214,11 @@ class _PhysicalButtonEditorScreenState
   // ── phone diagram dispatcher ───────────────────────────────────────────────
 
   Widget _buildPhoneDiagram(PhysicalLayout layout, BoxConstraints constraints) {
+    // If we have template visual editor metadata with keys, use template-based rendering
+    if (_visualEditorMeta != null && _visualEditorMeta!.keys.isNotEmpty) {
+      return _buildTemplateDiagram(_visualEditorMeta!, layout, constraints);
+    }
+    // Fall back to layout-based rendering
     if (layout.isLandscape) {
       return _buildVVX1500Diagram(layout, constraints);
     } else if (layout.isTouchscreen) {
@@ -187,6 +226,356 @@ class _PhysicalButtonEditorScreenState
     } else {
       return _buildPhysicalKeyDiagram(layout, constraints);
     }
+  }
+
+  // ── Template-based rendering (using VisualEditorMeta positions) ────────────
+
+  // Layout ratio constants for template-based rendering.
+  // Templates specify exact button positions, but soft-key bar, nav cluster,
+  // and dial pad positions are calculated using these ratios relative to chassis.
+  static const double _softKeyBarBottomRatio = 0.4;
+  static const double _navClusterBottomRatio = 0.22;
+  static const double _dialPadHorizontalInsetRatio = 0.2;
+  static const double _dialPadHeightRatio = 0.18;
+
+  // Scale bounds: min 0.5 prevents UI from becoming too tiny on large screens,
+  // max 2.0 prevents excessive pixelation on small screens.
+  static const double _minScaleFactor = 0.5;
+  static const double _maxScaleFactor = 2.0;
+
+  // Icon scale factor for navigation buttons (smaller than container for padding)
+  static const double _navIconScaleFactor = 0.7;
+  // Default icon sizes for navigation buttons
+  static const double _navArrowIconSize = 18.0;
+  static const double _navCenterIconSize = 14.0;
+
+  Widget _buildTemplateDiagram(
+      VisualEditorMeta meta, PhysicalLayout layout, BoxConstraints constraints) {
+    final schematic = meta.schematic;
+
+    // Calculate scale factor to fit the schematic into available space
+    final double scaleX = constraints.maxWidth / schematic.chassisWidth;
+    final double scaleY = constraints.maxHeight / schematic.chassisHeight;
+    final double scale = math.min(scaleX, scaleY)
+        .clamp(_minScaleFactor, _maxScaleFactor);
+
+    final double phoneW = schematic.chassisWidth * scale;
+    final double phoneH = schematic.chassisHeight * scale;
+    final Color bodyColor = Color(layout.bodyColorValue);
+
+    // Filter keys for the current page (pages are 1-indexed in template data)
+    final pageKeys = meta.keysForPage(_currentPage + 1);
+
+    // Page navigation row (only when pageCount > 1)
+    Widget? pageNav;
+    if (meta.pageCount > 1) {
+      pageNav = Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.chevron_left, size: 20),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            onPressed: _currentPage > 0
+                ? () => setState(() => _currentPage--)
+                : null,
+          ),
+          Text(
+            'Page ${_currentPage + 1}/${meta.pageCount}',
+            style: const TextStyle(fontSize: 11, color: Colors.white70),
+          ),
+          IconButton(
+            icon: const Icon(Icons.chevron_right, size: 20),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            onPressed: _currentPage < meta.pageCount - 1
+                ? () => setState(() => _currentPage++)
+                : null,
+          ),
+        ],
+      );
+    }
+
+    return Center(
+      child: SizedBox(
+        width: phoneW,
+        height: phoneH,
+        child: Container(
+          decoration: BoxDecoration(
+            color: bodyColor,
+            borderRadius: BorderRadius.circular(20 * scale),
+            boxShadow: const [
+              BoxShadow(
+                  color: Colors.black54,
+                  blurRadius: 12,
+                  offset: Offset(0, 4))
+            ],
+          ),
+          child: Stack(
+            children: [
+              // Speaker grille at top
+              Positioned(
+                top: 8 * scale,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    width: 40 * scale,
+                    height: 5 * scale,
+                    decoration: BoxDecoration(
+                      color: Colors.black38,
+                      borderRadius: BorderRadius.circular(3 * scale),
+                    ),
+                  ),
+                ),
+              ),
+              // Page navigation (below speaker grille)
+              if (pageNav != null)
+                Positioned(
+                  top: 18 * scale,
+                  left: 0,
+                  right: 0,
+                  child: pageNav,
+                ),
+              // Screen area (from schematic coordinates)
+              Positioned(
+                left: schematic.screenX * scale,
+                top: schematic.screenY * scale,
+                width: schematic.screenWidth * scale,
+                height: schematic.screenHeight * scale,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade900,
+                    borderRadius: BorderRadius.circular(4 * scale),
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.phone,
+                            color: Colors.green.shade400, size: 22 * scale),
+                        SizedBox(height: 4 * scale),
+                        Text(
+                          'Ext ${widget.extension}',
+                          style: TextStyle(
+                              color: Colors.white70, fontSize: 11 * scale),
+                        ),
+                        Text(
+                          widget.label,
+                          style: TextStyle(
+                              color: Colors.white38, fontSize: 9 * scale),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        SizedBox(height: 4 * scale),
+                        Text(
+                          widget.model,
+                          style: TextStyle(
+                              color: Colors.white24, fontSize: 8 * scale),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // Buttons positioned according to template coordinates
+              ...pageKeys.map((keyMeta) {
+                return Positioned(
+                  left: keyMeta.x * scale,
+                  top: keyMeta.y * scale,
+                  width: keyMeta.width * scale,
+                  height: keyMeta.height * scale,
+                  child: _templateKeyButton(keyMeta.index, scale),
+                );
+              }),
+              // Soft-key bar at bottom (if layout supports it)
+              if (layout.hasSoftKeys)
+                Positioned(
+                  left: 8 * scale,
+                  right: 8 * scale,
+                  bottom: (schematic.chassisHeight * _softKeyBarBottomRatio) * scale,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: ['Menu', 'Dir', 'DND', 'History']
+                        .map((l) => Container(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 5 * scale, vertical: 3 * scale),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade600,
+                                borderRadius: BorderRadius.circular(3 * scale),
+                              ),
+                              child: Text(l,
+                                  style: TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 8 * scale)),
+                            ))
+                        .toList(),
+                  ),
+                ),
+              // Nav cluster (if layout supports it)
+              if (layout.hasNavCluster)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: (schematic.chassisHeight * _navClusterBottomRatio) * scale,
+                  child: Center(
+                    child: SizedBox(
+                      width: 52 * scale,
+                      height: 52 * scale,
+                      child: Stack(
+                        children: [
+                          Positioned(
+                              top: 0,
+                              left: 16 * scale,
+                              child: _scaledNavBtn(
+                                  Icons.keyboard_arrow_up, scale)),
+                          Positioned(
+                              bottom: 0,
+                              left: 16 * scale,
+                              child: _scaledNavBtn(
+                                  Icons.keyboard_arrow_down, scale)),
+                          Positioned(
+                              left: 0,
+                              top: 16 * scale,
+                              child: _scaledNavBtn(
+                                  Icons.keyboard_arrow_left, scale)),
+                          Positioned(
+                              right: 0,
+                              top: 16 * scale,
+                              child: _scaledNavBtn(
+                                  Icons.keyboard_arrow_right, scale)),
+                          Positioned(
+                              left: 16 * scale,
+                              top: 16 * scale,
+                              child: _scaledNavBtn(Icons.circle, scale,
+                                  iconSize: _navCenterIconSize)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              // Dial pad (if layout supports it)
+              if (layout.hasDialPad)
+                Positioned(
+                  left: (schematic.chassisWidth * _dialPadHorizontalInsetRatio) * scale,
+                  right: (schematic.chassisWidth * _dialPadHorizontalInsetRatio) * scale,
+                  bottom: 8 * scale,
+                  height: (schematic.chassisHeight * _dialPadHeightRatio) * scale,
+                  child: GridView.count(
+                    crossAxisCount: 3,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: 2 * scale,
+                    crossAxisSpacing: 2 * scale,
+                    childAspectRatio: 1.8,
+                    children: [
+                      '1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'
+                    ]
+                        .map((d) => Container(
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade600,
+                                borderRadius: BorderRadius.circular(4 * scale),
+                              ),
+                              child: Center(
+                                child: Text(d,
+                                    style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 11 * scale)),
+                              ),
+                            ))
+                        .toList(),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Key button widget for template-based rendering (with scale factor).
+  Widget _templateKeyButton(int keyId, double scale) {
+    final key = _keyById(keyId);
+    final color = _keyColor(key);
+    final isProgrammed = key.type != 'none';
+
+    return GestureDetector(
+      onTap: () => _editKey(keyId),
+      child: Container(
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(6 * scale),
+          border: Border.all(
+            color: isProgrammed ? Colors.white30 : Colors.white10,
+            width: 1,
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black38,
+              blurRadius: 3,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        padding: EdgeInsets.symmetric(
+            horizontal: 3 * scale, vertical: 2 * scale),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              '$keyId',
+              style: TextStyle(
+                  color: Colors.white54,
+                  fontSize: 8 * scale,
+                  fontWeight: FontWeight.bold),
+            ),
+            if (isProgrammed) ...[
+              Text(
+                key.type.toUpperCase(),
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 7 * scale,
+                    fontWeight: FontWeight.bold),
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (key.label.isNotEmpty)
+                Text(
+                  key.label,
+                  style:
+                      TextStyle(color: Colors.white70, fontSize: 6 * scale),
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                )
+              else if (key.value.isNotEmpty)
+                Text(
+                  key.value,
+                  style:
+                      TextStyle(color: Colors.white60, fontSize: 6 * scale),
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                ),
+            ] else
+              Text('—',
+                  style:
+                      TextStyle(color: Colors.white24, fontSize: 10 * scale)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Scaled navigation button helper.
+  Widget _scaledNavBtn(IconData icon, double scale,
+      {double iconSize = _navArrowIconSize}) {
+    return Container(
+      width: 20 * scale,
+      height: 20 * scale,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade600,
+        borderRadius: BorderRadius.circular(10 * scale),
+      ),
+      child:
+          Icon(icon, size: iconSize * _navIconScaleFactor * scale, color: Colors.white70),
+    );
   }
 
   // ── Mode A: VVX 1500 landscape touchscreen ────────────────────────────────
@@ -958,7 +1347,30 @@ class _PhysicalButtonEditorScreenState
   Widget build(BuildContext context) {
     final layout = DeviceTemplates.getPhysicalLayout(widget.model);
     final programmed = _layout.where((k) => k.type != 'none').length;
-    final total = layout.totalKeyCount;
+    // Use template key count if available, otherwise fall back to PhysicalLayout
+    final total = _visualEditorMeta?.keys.length ?? layout.totalKeyCount;
+
+    // Show loading indicator while template metadata is loading
+    if (!_metaLoaded) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Visual Layout',
+                  style: TextStyle(fontSize: 16)),
+              Text(
+                'Ext ${widget.extension}  —  ${widget.label}  •  ${widget.model}',
+                style: const TextStyle(
+                    fontSize: 11, fontWeight: FontWeight.normal),
+              ),
+            ],
+          ),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -998,6 +1410,16 @@ class _PhysicalButtonEditorScreenState
                     style: const TextStyle(
                         fontSize: 11, color: Colors.grey),
                   ),
+                  // Indicator showing which rendering mode is used
+                  if (_visualEditorMeta != null && _visualEditorMeta!.keys.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    const Icon(Icons.auto_fix_high, size: 12, color: Colors.teal),
+                    const SizedBox(width: 2),
+                    const Text(
+                      'Template',
+                      style: TextStyle(fontSize: 9, color: Colors.teal),
+                    ),
+                  ],
                   const Spacer(),
                   _LegendDot(
                       color: Colors.green.shade700, label: 'BLF'),
