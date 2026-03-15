@@ -77,8 +77,11 @@ class _PhysicalButtonEditorScreenState
           _metaLoaded = true;
         });
       }
-    } catch (_) {
-      // If template loading fails, fall back to PhysicalLayout rendering
+    } catch (e) {
+      // If template loading fails, fall back to PhysicalLayout rendering.
+      // Common causes: unsupported model, missing template, parse error.
+      debugPrint('PhysicalButtonEditor: Template metadata load failed for '
+          '${widget.model}: $e');
       if (mounted) {
         setState(() => _metaLoaded = true);
       }
@@ -225,6 +228,25 @@ class _PhysicalButtonEditorScreenState
 
   // ── Template-based rendering (using VisualEditorMeta positions) ────────────
 
+  // Layout ratio constants for template-based rendering.
+  // Templates specify exact button positions, but soft-key bar, nav cluster,
+  // and dial pad positions are calculated using these ratios relative to chassis.
+  static const double _softKeyBarBottomRatio = 0.4;
+  static const double _navClusterBottomRatio = 0.22;
+  static const double _dialPadHorizontalInsetRatio = 0.2;
+  static const double _dialPadHeightRatio = 0.18;
+
+  // Scale bounds: min 0.5 prevents UI from becoming too tiny on large screens,
+  // max 2.0 prevents excessive pixelation on small screens.
+  static const double _minScaleFactor = 0.5;
+  static const double _maxScaleFactor = 2.0;
+
+  // Icon scale factor for navigation buttons (smaller than container for padding)
+  static const double _navIconScaleFactor = 0.7;
+  // Default icon sizes for navigation buttons
+  static const double _navArrowIconSize = 18.0;
+  static const double _navCenterIconSize = 14.0;
+
   Widget _buildTemplateDiagram(
       VisualEditorMeta meta, PhysicalLayout layout, BoxConstraints constraints) {
     final schematic = meta.schematic;
@@ -232,7 +254,8 @@ class _PhysicalButtonEditorScreenState
     // Calculate scale factor to fit the schematic into available space
     final double scaleX = constraints.maxWidth / schematic.chassisWidth;
     final double scaleY = constraints.maxHeight / schematic.chassisHeight;
-    final double scale = (scaleX < scaleY ? scaleX : scaleY).clamp(0.5, 2.0);
+    final double scale = (scaleX < scaleY ? scaleX : scaleY)
+        .clamp(_minScaleFactor, _maxScaleFactor);
 
     final double phoneW = schematic.chassisWidth * scale;
     final double phoneH = schematic.chassisHeight * scale;
@@ -367,7 +390,7 @@ class _PhysicalButtonEditorScreenState
                 Positioned(
                   left: 8 * scale,
                   right: 8 * scale,
-                  bottom: (schematic.chassisHeight * 0.4) * scale,
+                  bottom: (schematic.chassisHeight * _softKeyBarBottomRatio) * scale,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: ['Menu', 'Dir', 'DND', 'History']
@@ -391,7 +414,7 @@ class _PhysicalButtonEditorScreenState
                 Positioned(
                   left: 0,
                   right: 0,
-                  bottom: (schematic.chassisHeight * 0.22) * scale,
+                  bottom: (schematic.chassisHeight * _navClusterBottomRatio) * scale,
                   child: Center(
                     child: SizedBox(
                       width: 52 * scale,
@@ -422,7 +445,7 @@ class _PhysicalButtonEditorScreenState
                               left: 16 * scale,
                               top: 16 * scale,
                               child: _scaledNavBtn(Icons.circle, scale,
-                                  iconSize: 14)),
+                                  iconSize: _navCenterIconSize)),
                         ],
                       ),
                     ),
@@ -431,10 +454,10 @@ class _PhysicalButtonEditorScreenState
               // Dial pad (if layout supports it)
               if (layout.hasDialPad)
                 Positioned(
-                  left: (schematic.chassisWidth * 0.2) * scale,
-                  right: (schematic.chassisWidth * 0.2) * scale,
+                  left: (schematic.chassisWidth * _dialPadHorizontalInsetRatio) * scale,
+                  right: (schematic.chassisWidth * _dialPadHorizontalInsetRatio) * scale,
                   bottom: 8 * scale,
-                  height: (schematic.chassisHeight * 0.18) * scale,
+                  height: (schematic.chassisHeight * _dialPadHeightRatio) * scale,
                   child: GridView.count(
                     crossAxisCount: 3,
                     shrinkWrap: true,
@@ -539,7 +562,8 @@ class _PhysicalButtonEditorScreenState
   }
 
   /// Scaled navigation button helper.
-  Widget _scaledNavBtn(IconData icon, double scale, {double iconSize = 18}) {
+  Widget _scaledNavBtn(IconData icon, double scale,
+      {double iconSize = _navArrowIconSize}) {
     return Container(
       width: 20 * scale,
       height: 20 * scale,
@@ -548,7 +572,7 @@ class _PhysicalButtonEditorScreenState
         borderRadius: BorderRadius.circular(10 * scale),
       ),
       child:
-          Icon(icon, size: iconSize * 0.7 * scale, color: Colors.white70),
+          Icon(icon, size: iconSize * _navIconScaleFactor * scale, color: Colors.white70),
     );
   }
 
