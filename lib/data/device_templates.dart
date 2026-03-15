@@ -277,6 +277,8 @@ class DeviceTemplates {
     // ── Polycom VVX1500 landscape touchscreen ────────────────────────────────
     // 7" TFT LCD touchscreen (800x480, 16:9), resistive touch
     // Line keys shown on right side of screen, up to 6 visible, 24 total with overlay
+    // hasSoftKeys: true because the VVX1500 has on-screen soft keys at the bottom
+    // of the touchscreen interface (New Call, Forward, MyStat, Buddies)
     'VVX1500': PhysicalLayout(
       leftKeyCount: 0, rightKeyCount: 6,
       hasSoftKeys: true, hasNavCluster: false, hasDialPad: false,
