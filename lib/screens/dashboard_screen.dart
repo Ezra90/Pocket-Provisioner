@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
@@ -335,6 +336,100 @@ class _DashboardScreenState extends State<DashboardScreen> {
               style: const TextStyle(fontSize: 12, color: Colors.black87)),
           SelectableText(value,
               style: const TextStyle(fontSize: 12, fontFamily: 'monospace', color: Colors.blue)),
+        ],
+      ),
+    );
+  }
+
+  /// Compact DHCP option row for inline display in server status card.
+  Widget _dhcpOptionRow(String option, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(option,
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500)),
+          ),
+          Expanded(
+            child: SelectableText(
+              value,
+              style: const TextStyle(fontSize: 11, fontFamily: 'monospace', color: Colors.blue),
+            ),
+          ),
+          InkWell(
+            onTap: () {
+              Clipboard.setData(ClipboardData(text: value));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Copied: $value'), duration: const Duration(seconds: 1)),
+              );
+            },
+            child: const Icon(Icons.copy, size: 14, color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Shows detailed DHCP configuration guide dialog.
+  void _showDhcpGuide(BuildContext context) {
+    final ip = _isServerRunning
+        ? ProvisioningServer.serverUrl ?? _localIp ?? '<your-ip>'
+        : 'http://${_localIp ?? '<your-ip>'}:8080';
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("DHCP Configuration Guide"),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Configure your router\'s DHCP options so handsets '
+                'automatically find this provisioning server on boot:\n',
+                style: TextStyle(fontSize: 13),
+              ),
+              _dhcpRow('Option 66 (Standard)',
+                  'Primary provisioning server URL — used by Yealink, Polycom, Cisco, and most other VoIP phones',
+                  ip),
+              _dhcpRow('Option 160',
+                  'Alternative provisioning URL — used by some vendors when Option 66 is reserved for TFTP',
+                  ip),
+              _dhcpRow('Option 150 (Cisco)',
+                  'TFTP Server IP(s) — primarily for Cisco IP Phones',
+                  _localIp ?? '<your-ip>'),
+              const SizedBox(height: 12),
+              const Text(
+                'Vendor Requirements:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              const Text(
+                '• Yealink: Option 66 (HTTP/HTTPS) or Option 43 (vendor-specific)\n'
+                '• Polycom VVX/Edge: Option 66 (HTTP) or provisioning via ZTP\n'
+                '• Cisco: Option 66 (TFTP/HTTP) or Option 150 (TFTP)\n'
+                '• Grandstream: Option 66 (HTTP/HTTPS)\n',
+                style: TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Tips:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              const Text(
+                '• Factory reset handsets so they query DHCP on boot.\n'
+                '• Ensure firewall allows HTTP traffic on port 8080.\n'
+                '• In DMS / Carrier mode, the handset contacts the DMS first, '
+                'which then redirects to this server.\n'
+                '• Some routers require Option 66 as plain IP without http:// prefix.',
+                style: TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Got it"))
         ],
       ),
     );
@@ -811,34 +906,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     const SizedBox(height: 10),
                     Text(_serverStatus, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
-                    // Mode badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _globalMode == GlobalSettings.modeDms
-                            ? Colors.purple.shade100
-                            : Colors.teal.shade100,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: _globalMode == GlobalSettings.modeDms
-                              ? Colors.purple.shade300
-                              : Colors.teal.shade300,
-                        ),
-                      ),
-                      child: Text(
-                        _globalMode == GlobalSettings.modeDms
-                            ? '☁️  DMS / Carrier Mode'
-                            : '🏢  Standalone / FreePBX Mode',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: _globalMode == GlobalSettings.modeDms
-                              ? Colors.purple.shade800
-                              : Colors.teal.shade800,
-                        ),
-                      ),
-                    ),
                     // Always show network info (even when offline)
                     Padding(
                       padding: const EdgeInsets.only(top: 8.0),
@@ -862,88 +929,70 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ],
                       ),
                     ),
-                    // DHCP options guidance — always shown
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              _isServerRunning
-                                  ? "Set Router DHCP Option 66 to this URL"
-                                  : "Configure DHCP Options before starting",
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          InkWell(
-                            onTap: () {
-                              final ip = _isServerRunning
-                                  ? ProvisioningServer.serverUrl ?? _localIp ?? '<your-ip>'
-                                  : 'http://${_localIp ?? '<your-ip>'}:8080';
-                              showDialog(
-                                context: context,
-                                builder: (ctx) => AlertDialog(
-                                  title: const Text("DHCP Configuration Guide"),
-                                  content: SingleChildScrollView(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Text(
-                                          'Configure your router\'s DHCP options so handsets '
-                                          'automatically find this provisioning server on boot:\n',
-                                          style: TextStyle(fontSize: 13),
-                                        ),
-                                        _dhcpRow('Option 66 (Standard)',
-                                            'Primary provisioning server URL — used by Yealink, Polycom, Cisco, and most other VoIP phones',
-                                            ip),
-                                        _dhcpRow('Option 160',
-                                            'Alternative provisioning URL — used by some vendors when Option 66 is reserved for TFTP',
-                                            ip),
-                                        _dhcpRow('Option 150 (Cisco)',
-                                            'TFTP Server IP(s) — primarily for Cisco IP Phones',
-                                            _localIp ?? '<your-ip>'),
-                                        const SizedBox(height: 12),
-                                        const Text(
-                                          'Vendor Requirements:',
-                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                        ),
-                                        const Text(
-                                          '• Yealink: Option 66 (HTTP/HTTPS) or Option 43 (vendor-specific)\n'
-                                          '• Polycom VVX/Edge: Option 66 (HTTP) or provisioning via ZTP\n'
-                                          '• Cisco: Option 66 (TFTP/HTTP) or Option 150 (TFTP)\n'
-                                          '• Grandstream: Option 66 (HTTP/HTTPS)\n',
-                                          style: TextStyle(fontSize: 12, color: Colors.black54),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        const Text(
-                                          'Tips:',
-                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                        ),
-                                        const Text(
-                                          '• Factory reset handsets so they query DHCP on boot.\n'
-                                          '• Ensure firewall allows HTTP traffic on port 8080.\n'
-                                          '• In DMS / Carrier mode, the handset contacts the DMS first, '
-                                          'which then redirects to this server.\n'
-                                          '• Some routers require Option 66 as plain IP without http:// prefix.',
-                                          style: TextStyle(fontSize: 12, color: Colors.black54),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  actions: [
-                                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Got it"))
-                                  ],
+                    // DHCP options section - expanded inline
+                    if (_localIp != null) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.settings_ethernet, size: 16, color: Colors.blueGrey),
+                                const SizedBox(width: 6),
+                                const Text(
+                                  'DHCP Options',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                                 ),
-                              );
-                            },
-                            child: const Icon(Icons.info_outline, size: 16, color: Colors.blue),
-                          ),
-                        ],
+                                const Spacer(),
+                                InkWell(
+                                  onTap: () => _showDhcpGuide(context),
+                                  child: const Icon(Icons.help_outline, size: 16, color: Colors.blue),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            _dhcpOptionRow('Option 66', 
+                                _isServerRunning 
+                                    ? ProvisioningServer.serverUrl ?? 'http://$_localIp:8080'
+                                    : 'http://$_localIp:8080'),
+                            _dhcpOptionRow('Option 160', 
+                                _isServerRunning 
+                                    ? ProvisioningServer.serverUrl ?? 'http://$_localIp:8080'
+                                    : 'http://$_localIp:8080'),
+                            _dhcpOptionRow('Option 150 (Cisco)', _localIp!),
+                          ],
+                        ),
                       ),
-                    ),
+                    ] else ...[
+                      // DHCP options guidance — when no IP
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Flexible(
+                              child: Text(
+                                "Connect to WiFi to see DHCP options",
+                                style: TextStyle(fontSize: 12, color: Colors.grey),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            InkWell(
+                              onTap: () => _showDhcpGuide(context),
+                              child: const Icon(Icons.info_outline, size: 16, color: Colors.blue),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

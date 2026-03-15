@@ -70,6 +70,13 @@ class _DeviceSettingsEditorScreenState
   late final TextEditingController _outboundProxyPortCtrl;
   late final TextEditingController _backupServerCtrl;
   late final TextEditingController _backupPortCtrl;
+  
+  // Line-level overrides
+  late final TextEditingController _extensionOverrideCtrl;
+  late final TextEditingController _passwordOverrideCtrl;
+  late final TextEditingController _displayNameOverrideCtrl;
+  late final TextEditingController _authUsernameOverrideCtrl;
+  bool _showPasswordOverride = false;
 
   // Display & Audio
   String? _wallpaper;
@@ -164,6 +171,11 @@ class _DeviceSettingsEditorScreenState
         TextEditingController(text: s?.outboundProxyPort ?? '');
     _backupServerCtrl = TextEditingController(text: s?.backupServer ?? '');
     _backupPortCtrl = TextEditingController(text: s?.backupPort ?? '');
+    // Line-level overrides
+    _extensionOverrideCtrl = TextEditingController(text: s?.extensionOverride ?? '');
+    _passwordOverrideCtrl = TextEditingController(text: s?.passwordOverride ?? '');
+    _displayNameOverrideCtrl = TextEditingController(text: s?.displayNameOverride ?? '');
+    _authUsernameOverrideCtrl = TextEditingController(text: s?.authUsernameOverride ?? '');
     _ringtone = s?.ringtone;
     _screensaverTimeoutCtrl =
         TextEditingController(text: s?.screensaverTimeout ?? '');
@@ -221,6 +233,10 @@ class _DeviceSettingsEditorScreenState
     _outboundProxyPortCtrl.dispose();
     _backupServerCtrl.dispose();
     _backupPortCtrl.dispose();
+    _extensionOverrideCtrl.dispose();
+    _passwordOverrideCtrl.dispose();
+    _displayNameOverrideCtrl.dispose();
+    _authUsernameOverrideCtrl.dispose();
     _screensaverTimeoutCtrl.dispose();
     _adminPasswordCtrl.dispose();
     _voiceVlanCtrl.dispose();
@@ -263,6 +279,10 @@ class _DeviceSettingsEditorScreenState
         outboundProxyPort: _nonEmpty(_outboundProxyPortCtrl.text),
         backupServer: _nonEmpty(_backupServerCtrl.text),
         backupPort: _nonEmpty(_backupPortCtrl.text),
+        extensionOverride: _nonEmpty(_extensionOverrideCtrl.text),
+        passwordOverride: _nonEmpty(_passwordOverrideCtrl.text),
+        displayNameOverride: _nonEmpty(_displayNameOverrideCtrl.text),
+        authUsernameOverride: _nonEmpty(_authUsernameOverrideCtrl.text),
         ringtone: _ringtone?.isNotEmpty == true ? _ringtone : null,
         screensaverTimeout: _nonEmpty(_screensaverTimeoutCtrl.text),
         adminPassword: _nonEmpty(_adminPasswordCtrl.text),
@@ -300,6 +320,8 @@ class _DeviceSettingsEditorScreenState
       _outboundProxyPortCtrl.text = s.outboundProxyPort ?? '';
       _backupServerCtrl.text = s.backupServer ?? '';
       _backupPortCtrl.text = s.backupPort ?? '';
+      // Note: Don't clone line-level overrides (extension, password, display name, auth username)
+      // as these are unique to each device
       _ringtone = s.ringtone;
       _screensaverTimeoutCtrl.text = s.screensaverTimeout ?? '';
       _adminPasswordCtrl.text = s.adminPassword ?? '';
@@ -671,6 +693,46 @@ class _DeviceSettingsEditorScreenState
     nameCtrl.dispose();
   }
 
+  /// Upload a firmware file to the server's firmware directory.
+  Future<void> _uploadFirmwareFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.any,
+    );
+    if (result == null || result.files.isEmpty) return;
+
+    final file = result.files.single;
+    final sourcePath = file.path;
+    if (sourcePath == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not access selected file')),
+        );
+      }
+      return;
+    }
+
+    try {
+      final saved = await FirmwareService.copyFirmware(sourcePath, file.name);
+      final updated = await FirmwareService.listFirmware();
+      if (mounted) {
+        setState(() {
+          _firmwareFiles = updated;
+          _firmwareLocalFile = 'LOCAL:${saved.filename}';
+          _firmwareCustomUrlCtrl.clear();
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Uploaded: ${saved.filename}')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Upload failed: $e')),
+        );
+      }
+    }
+  }
+
   Widget _field(TextEditingController ctrl, String label,
       {String? hint,
       bool obscure = false,
@@ -803,18 +865,54 @@ class _DeviceSettingsEditorScreenState
             leading: const Text('📞',
                 style: TextStyle(fontSize: 20)),
             title: const Text('SIP & Registration'),
-            subtitle: _globalMode == GlobalSettings.modeDms
-                ? const Text(
-                    'DMS mode – SIP is supplied by the DMS server',
-                    style: TextStyle(fontSize: 11, color: Colors.purple),
-                  )
-                : null,
             children: [
               Padding(
                 padding:
                     const EdgeInsets.fromLTRB(16, 8, 16, 8),
                 child: Column(
                   children: [
+                    // Line-level overrides section
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Line Configuration Overrides',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: Colors.blue,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Override the extension, password, or display name from the CSV import. '
+                            'Leave blank to use the original values (Ext ${widget.extension}).',
+                            style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                          ),
+                          const SizedBox(height: 12),
+                          _field(_extensionOverrideCtrl, 'Extension / Username Override',
+                              hint: 'Default: ${widget.extension}'),
+                          _field(_passwordOverrideCtrl, 'SIP Password Override',
+                              hint: 'Default: (from import)',
+                              obscure: true,
+                              showPassword: _showPasswordOverride,
+                              onTogglePassword: () => setState(
+                                  () => _showPasswordOverride = !_showPasswordOverride)),
+                          _field(_displayNameOverrideCtrl, 'Display Name Override',
+                              hint: 'Default: ${widget.label.isNotEmpty ? widget.label : widget.extension}'),
+                          _field(_authUsernameOverrideCtrl, 'Auth Username Override',
+                              hint: 'Default: same as extension'),
+                        ],
+                      ),
+                    ),
                     _field(_sipServerCtrl,
                         _globalMode == GlobalSettings.modeDms
                             ? 'SIP Server Override (DMS mode: leave blank)'
@@ -1149,12 +1247,6 @@ class _DeviceSettingsEditorScreenState
             leading: const Text('🔧',
                 style: TextStyle(fontSize: 20)),
             title: const Text('Provisioning'),
-            subtitle: _globalMode == GlobalSettings.modeDms
-                ? const Text(
-                    'DMS mode – target URL is set in Global Settings',
-                    style: TextStyle(fontSize: 11, color: Colors.purple),
-                  )
-                : null,
             children: [
               Padding(
                 padding:
@@ -1175,30 +1267,42 @@ class _DeviceSettingsEditorScreenState
                           style: TextStyle(fontSize: 12, color: Colors.grey)),
                       const SizedBox(height: 4),
                       // ① Pick a server-hosted file
-                      DropdownButtonFormField<String?>(
-                        value: _firmwareLocalFile,
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Server-hosted file',
-                          border: OutlineInputBorder(),
-                          isDense: true,
-                        ),
-                        items: [
-                          const DropdownMenuItem<String?>(
-                              value: null,
-                              child: Text('None (no firmware push)')),
-                          ..._firmwareFiles.map((f) =>
-                              DropdownMenuItem<String?>(
-                                value: 'LOCAL:${f.filename}',
-                                child: Text(f.filename,
-                                    overflow: TextOverflow.ellipsis),
-                              )),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String?>(
+                              value: _firmwareLocalFile,
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Server-hosted file',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                              items: [
+                                const DropdownMenuItem<String?>(
+                                    value: null,
+                                    child: Text('None (no firmware push)')),
+                                ..._firmwareFiles.map((f) =>
+                                    DropdownMenuItem<String?>(
+                                      value: 'LOCAL:${f.filename}',
+                                      child: Text(f.filename,
+                                          overflow: TextOverflow.ellipsis),
+                                    )),
+                              ],
+                              onChanged: (v) => setState(() {
+                                _firmwareLocalFile = v;
+                                // Clear custom URL so only one source is active
+                                _firmwareCustomUrlCtrl.clear();
+                              }),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.upload_file),
+                            tooltip: 'Upload firmware file',
+                            onPressed: _uploadFirmwareFile,
+                          ),
                         ],
-                        onChanged: (v) => setState(() {
-                          _firmwareLocalFile = v;
-                          // Clear custom URL so only one source is active
-                          _firmwareCustomUrlCtrl.clear();
-                        }),
                       ),
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 6),

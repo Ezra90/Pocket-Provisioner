@@ -14,6 +14,12 @@ class DeviceSettings {
   String? outboundProxyPort;
   String? backupServer;
   String? backupPort;
+  
+  // Line-level overrides (override values from Device model)
+  String? extensionOverride;   // Override extension/user_name
+  String? passwordOverride;    // Override SIP password/secret
+  String? displayNameOverride; // Override display_name/label
+  String? authUsernameOverride; // Override auth_name (if different from extension)
 
   // Display & Audio
   String? ringtone;
@@ -67,6 +73,10 @@ class DeviceSettings {
     this.outboundProxyPort,
     this.backupServer,
     this.backupPort,
+    this.extensionOverride,
+    this.passwordOverride,
+    this.displayNameOverride,
+    this.authUsernameOverride,
     this.ringtone,
     this.screensaverTimeout,
     this.adminPassword,
@@ -104,6 +114,10 @@ class DeviceSettings {
       outboundProxyPort != null ||
       backupServer != null ||
       backupPort != null ||
+      extensionOverride != null ||
+      passwordOverride != null ||
+      displayNameOverride != null ||
+      authUsernameOverride != null ||
       ringtone != null ||
       screensaverTimeout != null ||
       adminPassword != null ||
@@ -140,6 +154,10 @@ class DeviceSettings {
         outboundProxyPort: outboundProxyPort,
         backupServer: backupServer,
         backupPort: backupPort,
+        extensionOverride: extensionOverride,
+        passwordOverride: passwordOverride,
+        displayNameOverride: displayNameOverride,
+        authUsernameOverride: authUsernameOverride,
         ringtone: ringtone,
         screensaverTimeout: screensaverTimeout,
         adminPassword: adminPassword,
@@ -176,6 +194,10 @@ class DeviceSettings {
         if (outboundProxyPort != null) 'outbound_proxy_port': outboundProxyPort,
         if (backupServer != null) 'backup_server': backupServer,
         if (backupPort != null) 'backup_port': backupPort,
+        if (extensionOverride != null) 'extension_override': extensionOverride,
+        if (passwordOverride != null) 'password_override': passwordOverride,
+        if (displayNameOverride != null) 'display_name_override': displayNameOverride,
+        if (authUsernameOverride != null) 'auth_username_override': authUsernameOverride,
         if (ringtone != null) 'ringtone': ringtone,
         if (screensaverTimeout != null) 'screensaver_timeout': screensaverTimeout,
         if (adminPassword != null) 'admin_password': adminPassword,
@@ -215,6 +237,10 @@ class DeviceSettings {
         outboundProxyPort: m['outbound_proxy_port'] as String?,
         backupServer: m['backup_server'] as String?,
         backupPort: m['backup_port'] as String?,
+        extensionOverride: m['extension_override'] as String?,
+        passwordOverride: m['password_override'] as String?,
+        displayNameOverride: m['display_name_override'] as String?,
+        authUsernameOverride: m['auth_username_override'] as String?,
         ringtone: m['ringtone'] as String?,
         screensaverTimeout: m['screensaver_timeout'] as String?,
         adminPassword: m['admin_password'] as String?,

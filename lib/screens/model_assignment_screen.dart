@@ -499,7 +499,7 @@ class _ModelAssignmentScreenState extends State<ModelAssignmentScreen> {
           ),
         ],
       ),
-      body: Column(
+      body: ListView(
         children: [
           // Header row (labels the 3 dropdowns)
           Container(
@@ -531,14 +531,12 @@ class _ModelAssignmentScreenState extends State<ModelAssignmentScreen> {
               ],
             ),
           ),
-          Expanded(
-            child: ListView.separated(
-              itemCount: _rows.length,
-              separatorBuilder: (_, __) =>
-                  const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final row = _rows[index];
-                return _DeviceRow(
+          // Device rows
+          ...List.generate(_rows.length, (index) {
+            final row = _rows[index];
+            return Column(
+              children: [
+                _DeviceRow(
                   row: row,
                   wallpapers: _wallpapers,
                   scannedMacs: _scannedMacs,
@@ -563,18 +561,20 @@ class _ModelAssignmentScreenState extends State<ModelAssignmentScreen> {
                       _uploadWallpaperForRow(index),
                   onModelChanged: (newModel) =>
                       _reprocessWallpaperForRow(index, newModel),
-                );
-              },
-            ),
-          ),
+                ),
+                if (index < _rows.length - 1) const Divider(height: 1),
+              ],
+            );
+          }),
 
-          // Bulk action bar
+          // Bulk action bar (moved into scrollable area)
           if (_anySelected)
             Container(
               color:
                   Theme.of(context).colorScheme.primaryContainer,
               padding: const EdgeInsets.symmetric(
                   horizontal: 12, vertical: 8),
+              margin: const EdgeInsets.only(top: 8),
               child: Row(
                 children: [
                   Text('$selectedCount selected',
@@ -606,7 +606,7 @@ class _ModelAssignmentScreenState extends State<ModelAssignmentScreen> {
               ),
             ),
 
-          // Bottom confirm/cancel bar
+          // Bottom confirm/cancel bar (moved into scrollable area)
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(12.0),

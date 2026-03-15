@@ -120,6 +120,7 @@ class MustacheRenderer {
     required String model,
     required String sipServer,
     required String provisioningUrl,
+    String? authUsername, // Auth username override (defaults to extension)
     String? sipPort,
     String? transport,
     String? regExpiry,
@@ -158,6 +159,9 @@ class MustacheRenderer {
     Map<String, String>? extToLabel,
     String? phonebookUrl,
   }) {
+    // Use extension as auth username if not explicitly provided
+    final effectiveAuthUsername = authUsername ?? extension;
+    
     final bool hasOutboundProxy =
         outboundProxyHost != null && outboundProxyHost.isNotEmpty;
     final bool hasBackupServer =
@@ -284,7 +288,7 @@ class MustacheRenderer {
           'label': displayName,
           'display_name': displayName,
           'user_name': extension,
-          'auth_name': extension,
+          'auth_name': effectiveAuthUsername,
           'password': secret,
           'sip_server': sipServer,
           'sip_port': sipPort ?? '5060',
