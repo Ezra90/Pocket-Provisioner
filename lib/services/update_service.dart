@@ -50,7 +50,7 @@ class UpdateStatus {
     if (error != null) return error!;
     if (latestBuild == null) return 'Could not determine latest version';
     if (updateAvailable) return 'Update available: Build $latestBuild';
-    return 'You have the latest version (Build ${latestBuild ?? currentBuild})';
+    return 'You have the latest version (Build $latestBuild)';
   }
 }
 
@@ -65,6 +65,9 @@ class UpdateStatus {
 class UpdateService {
   static const String _repoOwner = 'Ezra90';
   static const String _repoName = 'Pocket-Provisioner';
+
+  /// Matches a short commit SHA in parentheses, e.g. "(a016a6e)" in "Build 346 (a016a6e)".
+  static final RegExp _shaPattern = RegExp(r'\(([a-f0-9]{7,})\)');
 
   /// Returns [UpdateInfo] if a newer release is available, otherwise null.
   ///
@@ -135,7 +138,7 @@ class UpdateService {
       final latestBuild = int.tryParse(buildMatch.group(1)!) ?? 0;
 
       // Extract commit SHA from release name (format: "Build N (abc1234)")
-      final shaMatch = RegExp(r'\(([a-f0-9]{7,})\)').firstMatch(releaseName);
+      final shaMatch = _shaPattern.firstMatch(releaseName);
       final latestSha = shaMatch?.group(1);
 
       // Determine if an update is available:
@@ -194,7 +197,7 @@ class UpdateService {
       // - For CI builds: compare commit SHAs (immune to git history rewrites)
       // - For local/dev builds: fall back to build number comparison
       if (BuildInfo.isCiBuild) {
-        final shaMatch = RegExp(r'\(([a-f0-9]{7,})\)').firstMatch(releaseName);
+        final shaMatch = _shaPattern.firstMatch(releaseName);
         final releaseSha = shaMatch?.group(1);
         if (releaseSha != null && releaseSha == BuildInfo.commitSha) return null;
         // SHAs differ (or couldn't extract SHA) – fall through to offer update
