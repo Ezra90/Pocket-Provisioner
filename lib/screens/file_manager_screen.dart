@@ -11,7 +11,6 @@ import '../services/wallpaper_service.dart';
 import '../services/firmware_service.dart';
 import '../services/mustache_template_service.dart';
 import 'access_log_screen.dart';
-import 'button_layout_editor.dart';
 import 'file_editor_screen.dart';
 
 /// Unified file manager with tabs for all server-hosted content:
@@ -67,22 +66,11 @@ class _FileManagerScreenState extends State<FileManagerScreen>
       appBar: AppBar(
         title: const Text('File Manager'),
         actions: [
-          if (serverUrl != null)
-            IconButton(
-              icon: const Icon(Icons.monitor_heart),
-              tooltip: 'Access Log',
-              onPressed: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const AccessLogScreen())),
-            ),
-          // Button Layouts (model-level defaults) still accessible here
           IconButton(
-            icon: const Icon(Icons.keyboard),
-            tooltip: 'Default Button Layouts',
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => const ButtonLayoutEditorScreen()),
-            ),
+            icon: const Icon(Icons.monitor_heart),
+            tooltip: 'App Logs',
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const AccessLogScreen())),
           ),
         ],
         bottom: TabBar(
@@ -509,6 +497,8 @@ class _WallpapersTabState extends State<_WallpapersTab>
                   ? ListView(
                       padding: const EdgeInsets.all(12),
                       children: [
+                        _StoragePathBanner(
+                            directoryGetter: AppDirectories.mediaDir),
                         Padding(
                           padding: const EdgeInsets.all(32),
                           child: Column(
@@ -528,9 +518,13 @@ class _WallpapersTabState extends State<_WallpapersTab>
                       ])
                   : ListView.builder(
                       padding: const EdgeInsets.all(12),
-                      itemCount: _wallpapers.length,
+                      itemCount: _wallpapers.length + 1,
                       itemBuilder: (context, i) {
-                        final info = _wallpapers[i];
+                        if (i == 0) {
+                          return _StoragePathBanner(
+                              directoryGetter: AppDirectories.mediaDir);
+                        }
+                        final info = _wallpapers[i - 1];
                         final dimMatch = WallpaperService.dimensionPattern.firstMatch(info.filename);
                         final dims = dimMatch != null ? '${dimMatch.group(1)}×${dimMatch.group(2)}' : '';
                         final mediaUrl = serverUrl != null ? '$serverUrl/media/${info.filename}' : null;
@@ -562,9 +556,20 @@ class _WallpapersTabState extends State<_WallpapersTab>
                                   ),
                               ],
                             ),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.more_vert),
-                              onPressed: () => _showActions(info),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (mediaUrl != null)
+                                  IconButton(
+                                    icon: const Icon(Icons.link, size: 18),
+                                    tooltip: 'Copy URL',
+                                    onPressed: () => widget.onCopy(mediaUrl),
+                                  ),
+                                IconButton(
+                                  icon: const Icon(Icons.more_vert),
+                                  onPressed: () => _showActions(info),
+                                ),
+                              ],
                             ),
                           ),
                         );

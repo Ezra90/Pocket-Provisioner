@@ -97,26 +97,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   /// Subscribes to access log stream to show toast notifications when a device
-  /// connects and pulls its config for the first time in this session.
+  /// connects and accesses any file for the first time in this session.
   void _startLogListener() {
     _logSubscription?.cancel();
     _notifiedMacs.clear();
     _logSubscription = ProvisioningServer.accessLogStream.listen((entry) {
       if (!_toastNotificationsEnabled) return;
-      if (entry.resourceType != 'config') return;
-      if (entry.resolvedMac == null) return;
-      // Only notify once per MAC per session
-      if (_notifiedMacs.contains(entry.resolvedMac)) return;
-      _notifiedMacs.add(entry.resolvedMac!);
+      
+      // Create a unique key combining MAC (or IP fallback) and resource type
+      // This allows one toast per resource type per device per session
+      final deviceKey = entry.resolvedMac ?? entry.clientIp;
+      final notifyKey = '$deviceKey:${entry.resourceType}';
+      
+      // Only notify once per device per resource type per session
+      if (_notifiedMacs.contains(notifyKey)) return;
+      _notifiedMacs.add(notifyKey);
 
-      // Show toast notification
+      // Show toast notification with device info and what was accessed
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('📱 ${entry.toastSummary}'),
-            duration: const Duration(seconds: 3),
+            duration: const Duration(seconds: 4),
             action: SnackBarAction(
-              label: 'View Log',
+              label: 'View Logs',
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const AccessLogScreen()),
@@ -281,7 +285,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               _buildFormatRow(
                 field: 'Secret / Password',
-                headers: '"Secret", "DMS Password", or any column containing "pass"',
+                headers: '"Secret", "SIP Password", "DMS Password", or any column containing "pass"',
               ),
               _buildFormatRow(
                 field: 'Label / Name',
@@ -823,15 +827,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
         actions: [
-          if (_isServerRunning)
-            IconButton(
-              icon: const Icon(Icons.monitor_heart),
-              tooltip: 'Access Log',
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (c) => const AccessLogScreen()),
-              ),
+          IconButton(
+            icon: const Icon(Icons.monitor_heart),
+            tooltip: 'App Logs',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (c) => const AccessLogScreen()),
             ),
+          ),
           IconButton(
             icon: const Icon(Icons.folder_open),
             tooltip: 'File Manager',
