@@ -10,7 +10,7 @@
   "wallpaper_specs": {
     "VVX150": {"width": 320, "height": 240},
     "VVX250": {"width": 320, "height": 240},
-    "VVX350": {"width": 480, "height": 272},
+    "VVX350": {"width": 320, "height": 240},
     "VVX450": {"width": 480, "height": 272},
     "VVX1500": {"width": 800, "height": 480},
     "Edge E350": {"width": 320, "height": 240},
@@ -60,6 +60,7 @@
   "visual_editor": {
     "svg_fallback": true,
     "expandable_layout": false,
+    "comment": "This visual_editor defines the maximum layout (VVX450 with 12 keys). Actual key counts per model are defined in device_templates.dart PhysicalLayout. The rendering code uses PhysicalLayout.totalKeyCount to determine visible keys.",
     "schematic": {
       "chassis_width": 340,
       "chassis_height": 540,
@@ -68,20 +69,28 @@
       "screen_width": 210,
       "screen_height": 150
     },
-    "keys_per_page": 10,
+    "keys_per_page": 12,
+    "model_key_counts": {
+      "VVX150": 2,
+      "VVX250": 4,
+      "VVX350": 6,
+      "VVX450": 12,
+      "Edge E350": 8,
+      "Edge E450": 14
+    },
     "keys": [
       {"index":1,  "x":12,  "y":66,  "width":44, "height":24, "page":1, "side":"left"},
       {"index":2,  "x":12,  "y":94,  "width":44, "height":24, "page":1, "side":"left"},
       {"index":3,  "x":12,  "y":122, "width":44, "height":24, "page":1, "side":"left"},
       {"index":4,  "x":12,  "y":150, "width":44, "height":24, "page":1, "side":"left"},
       {"index":5,  "x":12,  "y":178, "width":44, "height":24, "page":1, "side":"left"},
-      {"index":6,  "x":286, "y":66,  "width":44, "height":24, "page":1, "side":"right"},
-      {"index":7,  "x":286, "y":94,  "width":44, "height":24, "page":1, "side":"right"},
-      {"index":8,  "x":286, "y":122, "width":44, "height":24, "page":1, "side":"right"},
-      {"index":9,  "x":286, "y":150, "width":44, "height":24, "page":1, "side":"right"},
-      {"index":10, "x":286, "y":178, "width":44, "height":24, "page":1, "side":"right"},
-      {"index":11, "x":12,  "y":66,  "width":44, "height":24, "page":2, "side":"left"},
-      {"index":12, "x":286, "y":66,  "width":44, "height":24, "page":2, "side":"right"}
+      {"index":6,  "x":12,  "y":206, "width":44, "height":24, "page":1, "side":"left"},
+      {"index":7,  "x":286, "y":66,  "width":44, "height":24, "page":1, "side":"right"},
+      {"index":8,  "x":286, "y":94,  "width":44, "height":24, "page":1, "side":"right"},
+      {"index":9,  "x":286, "y":122, "width":44, "height":24, "page":1, "side":"right"},
+      {"index":10, "x":286, "y":150, "width":44, "height":24, "page":1, "side":"right"},
+      {"index":11, "x":286, "y":178, "width":44, "height":24, "page":1, "side":"right"},
+      {"index":12, "x":286, "y":206, "width":44, "height":24, "page":1, "side":"right"}
     ]
   }
 } }}
