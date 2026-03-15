@@ -1359,11 +1359,8 @@ class _FirmwareTabState extends State<_FirmwareTab>
             ],
           ),
           const SizedBox(height: 2),
-          InkWell(
-            onTap: () {}, // Could add URL launch later
-            child: Text('Download from $downloadSite', 
-                style: const TextStyle(fontSize: 11, color: Colors.blue)),
-          ),
+          Text('Download from $downloadSite', 
+              style: const TextStyle(fontSize: 11, color: Colors.blue)),
         ],
       ),
     );

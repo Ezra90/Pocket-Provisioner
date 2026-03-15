@@ -904,7 +904,7 @@ class _DeviceSettingsEditorScreenState
                               hint: 'Default: ${widget.extension}'),
                           _field(_passwordOverrideCtrl, 'SIP Password Override',
                               hint: widget.secret != null && widget.secret!.isNotEmpty
-                                  ? 'Default: ${widget.secret}'
+                                  ? 'Default: ${'•' * widget.secret!.length.clamp(4, 12)}'
                                   : 'Default: (not set)',
                               obscure: true,
                               showPassword: _showPasswordOverride,
