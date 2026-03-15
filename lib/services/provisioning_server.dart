@@ -424,11 +424,18 @@ class ProvisioningServer {
                 if (d.label.isNotEmpty) d.extension: d.label,
             };
 
+            // Apply line-level overrides from device settings
+            final effectiveExtension = ds?.extensionOverride ?? device.extension;
+            final effectivePassword = ds?.passwordOverride ?? device.secret;
+            final effectiveDisplayName = ds?.displayNameOverride ?? device.label;
+            final effectiveAuthUsername = ds?.authUsernameOverride ?? effectiveExtension;
+
             final variables = MustacheRenderer.buildVariables(
               macAddress: device.macAddress ?? mac,
-              extension: device.extension,
-              displayName: device.label,
-              secret: device.secret,
+              extension: effectiveExtension,
+              displayName: effectiveDisplayName,
+              secret: effectivePassword,
+              authUsername: effectiveAuthUsername,
               model: device.model,
               sipServer: gs.resolveSipServer(ds?.sipServer),
               provisioningUrl: gs.resolveProvisioningUrl(
