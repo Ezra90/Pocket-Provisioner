@@ -23,6 +23,9 @@ void main() {
     expect(lineKeys[0]['position'], 1);
     expect(lineKeys[1]['position'], 2);
 
+    expect(vars['provisioning_base'], 'http://192.168.1.2/');
+    expect(vars['provisioning_url'], 'http://192.168.1.2/');
+
     final attendant = vars['attendant_keys'] as List<Map<String, dynamic>>;
     expect(attendant.single['position'], 2);
   });

@@ -254,6 +254,10 @@ class MustacheRenderer {
       'gmt_offset': gmtOffset ?? '36000',
       'admin_password': adminPassword ?? '',
       'provisioning_url': provisioningUrl,
+      'provisioning_base': provisioningUrl.endsWith('/')
+          ? provisioningUrl
+          : '$provisioningUrl/',
+      'has_provisioning_base': provisioningUrl.isNotEmpty,
       'provision_user': extension,
       'provision_pass': secret,
       'has_screensaver_timeout': hasScreensaverTimeout,

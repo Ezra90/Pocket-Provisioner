@@ -224,8 +224,18 @@ class GlobalSettingsData {
   ///
   /// Priority: per-device [override] → global DMS URL (DMS mode) →
   /// [serverUrl] (the app's own URL, used as a fallback in standalone mode).
+  /// Returns a trailing slash so handsets append {MAC}.cfg / {MAC}.xml (RPS style).
   String resolveProvisioningUrl(String? override, {String? serverUrl}) {
-    if (override != null && override.isNotEmpty) return override;
-    return isDmsMode ? (dmsUrl ?? serverUrl ?? '') : (serverUrl ?? '');
+    if (override != null && override.isNotEmpty) {
+      return override.endsWith('/') ? override : '$override/';
+    }
+    if (isDmsMode) {
+      final base = dmsUrl ?? serverUrl ?? '';
+      if (base.isEmpty) return '';
+      return base.endsWith('/') ? base : '$base/';
+    }
+    final base = serverUrl ?? '';
+    if (base.isEmpty) return '';
+    return base.endsWith('/') ? base : '$base/';
   }
 }
