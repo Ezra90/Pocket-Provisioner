@@ -194,14 +194,14 @@ class MustacheRenderer {
     final keys = lineKeys ?? <ButtonKey>[];
     final labels = extToLabel ?? <String, String>{};
 
-    final int lineCount = 1; // Currently single-line, but future-proof
+    // id is 1-based handset linekey index (matches Quick-Provisioner keys_json.index)
     final List<Map<String, dynamic>> lineKeysList = keys
         .where((k) => k.type != 'none' && (k.type == 'line' || k.value.isNotEmpty))
         .map((k) {
           final effectiveLabel =
               k.label.isNotEmpty ? k.label : (labels[k.value] ?? k.value);
           return {
-            'position': k.id + lineCount, // Offset past SIP lines
+            'position': k.id,
             'type_code': buttonTypeToCode(k.type),
             'key_line': 1,
             'key_value': k.value,
@@ -218,7 +218,7 @@ class MustacheRenderer {
           final effectiveLabel =
               k.label.isNotEmpty ? k.label : (labels[k.value] ?? k.value);
           return {
-            'position': k.id + lineCount,
+            'position': k.id,
             'key_value': k.value,
             'key_label': effectiveLabel,
             'sip_server': sipServer,
