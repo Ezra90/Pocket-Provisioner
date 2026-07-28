@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
+import '../models/button_key.dart';
 import '../models/phonebook_entry.dart';
 import 'app_directories.dart';
 
@@ -8,6 +9,9 @@ import 'app_directories.dart';
 /// Files are stored in `<appDocuments>/phonebook/` as
 /// `pb_<extension>.xml` and served by the provisioning server at
 /// `/phonebook/pb_<extension>.xml`.
+///
+/// Polycom also uses `{mac}-directory.xml` (local contacts directory) with
+/// optional `<sd>` / `<bw>` tags for VVX1500 home-screen hotkeys.
 class PhonebookService {
   /// Saves a phonebook XML file for the given extension and returns the
   /// filename (without path) that was written, or `null` if [entries] is
@@ -44,6 +48,99 @@ class PhonebookService {
     final dir = await _phonebookDir();
     final file = File(p.join(dir.path, 'pb_$extension.xml'));
     if (await file.exists()) await file.delete();
+  }
+
+  /// Saves Polycom `{mac}-directory.xml` and returns the filename, or null.
+  static Future<String?> savePolyDirectory(
+    String mac,
+    List<PhonebookEntry> entries, {
+    String displayName = '',
+  }) async {
+    final cleanMac =
+        mac.replaceAll(RegExp(r'[^A-Fa-f0-9]'), '').toUpperCase();
+    if (cleanMac.length != 12) return null;
+    final dir = await _phonebookDir();
+    final filename = '${cleanMac.toLowerCase()}-directory.xml';
+    final file = File(p.join(dir.path, filename));
+    if (entries.isEmpty) {
+      if (await file.exists()) await file.delete();
+      return null;
+    }
+    await file.writeAsString(
+      generatePolycomXml(entries, displayName: displayName),
+      flush: true,
+    );
+    return filename;
+  }
+
+  /// Apply Poly directory speed-dial / buddy-watch fields from programmed
+  /// button keys (mirrors Quick-Provisioner `qp_apply_poly_directory_speed_dials`).
+  static List<PhonebookEntry> applyPolyDirectorySpeedDials({
+    required List<PhonebookEntry> contacts,
+    List<ButtonKey>? lineKeys,
+    String extension = '',
+    Map<String, String>? labels,
+  }) {
+    final keys = List<ButtonKey>.from(lineKeys ?? const <ButtonKey>[]);
+    keys.sort((a, b) => a.id.compareTo(b.id));
+    final ext = extension.trim();
+    final sdByNumber = <String, int>{};
+    final bwNumbers = <String>{};
+    var sdIndex = 1;
+
+    String normalizeType(String type) =>
+        type == 'speeddial' ? 'speed_dial' : type;
+
+    for (final k in keys) {
+      final rawType = normalizeType(k.type);
+      final num = k.value.trim();
+      if (num.isEmpty || (ext.isNotEmpty && num == ext)) continue;
+      if (rawType == 'blf') bwNumbers.add(num);
+      if ((rawType == 'speed_dial' || rawType == 'blf') &&
+          !sdByNumber.containsKey(num)) {
+        sdByNumber[num] = sdIndex++;
+      }
+    }
+
+    final out = contacts.map((e) => e.clone()).toList();
+    final byNumber = <String>{
+      for (final c in out)
+        if (c.phone.trim().isNotEmpty) c.phone.trim(),
+    };
+
+    for (final k in keys) {
+      final rawType = normalizeType(k.type);
+      if (rawType != 'speed_dial' && rawType != 'blf') continue;
+      final num = k.value.trim();
+      if (num.isEmpty || byNumber.contains(num) || (ext.isNotEmpty && num == ext)) {
+        continue;
+      }
+      final label = k.label.trim().isNotEmpty
+          ? k.label.trim()
+          : (labels?[num] ?? num);
+      out.add(PhonebookEntry(name: label, phone: num));
+      byNumber.add(num);
+    }
+
+    for (final c in out) {
+      final n = c.phone.trim();
+      if (n.isNotEmpty && sdByNumber.containsKey(n)) {
+        c.speedDialIndex = sdByNumber[n];
+      }
+      if (n.isNotEmpty && bwNumbers.contains(n)) {
+        c.buddyWatch = true;
+      }
+    }
+
+    out.sort((a, b) {
+      final sa = a.speedDialIndex ?? 0;
+      final sb = b.speedDialIndex ?? 0;
+      if (sa > 0 && sb > 0) return sa.compareTo(sb);
+      if (sa > 0) return -1;
+      if (sb > 0) return 1;
+      return a.name.compareTo(b.name);
+    });
+    return out;
   }
 
   /// Returns the directory where phonebook XML files are stored,
@@ -143,8 +240,18 @@ class PhonebookService {
       buf.writeln('    <item>');
       buf.writeln('      <fn>${_xmlEscape(e.name)}</fn>');
       buf.writeln('      <ct>${_xmlEscape(e.phone)}</ct>');
-      if (e.group.isNotEmpty && e.group != 'All Contacts') {
+      // VVX1500 home-screen hotkeys use directory speed-dial indexes
+      // (lineKey.reassignment is NOT supported on VVX1500).
+      if (e.speedDialIndex != null && e.speedDialIndex! > 0) {
+        buf.writeln('      <sd>${e.speedDialIndex}</sd>');
+      } else if (e.group.isNotEmpty &&
+          e.group != 'All Contacts' &&
+          int.tryParse(e.group) != null) {
+        // Legacy: some older Pocket builds stored SD index in group.
         buf.writeln('      <sd>${_xmlEscape(e.group)}</sd>');
+      }
+      if (e.buddyWatch) {
+        buf.writeln('      <bw>1</bw>');
       }
       buf.writeln('    </item>');
     }

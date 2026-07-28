@@ -91,6 +91,7 @@ class MustacheRenderer {
     return switch (type) {
       'blf' => 16,
       'speeddial' => 13,
+      'speed_dial' => 13,
       'line' => 15,
       'dtmf' => 34,
       'park' => 16, // BLF-based park monitoring for FreePBX/Asterisk
@@ -159,6 +160,7 @@ class MustacheRenderer {
     List<ButtonKey>? lineKeys,
     Map<String, String>? extToLabel,
     String? phonebookUrl,
+    String? polycomContactsDirectory,
   }) {
     // Use extension as auth username if not explicitly provided
     final effectiveAuthUsername = authUsername ?? extension;
@@ -179,7 +181,7 @@ class MustacheRenderer {
         voicemailNumber != null && voicemailNumber.isNotEmpty;
     final bool hasScreensaverTimeout =
         screensaverTimeout != null && screensaverTimeout.isNotEmpty;
-    final bool hasWebUi = webUiEnabled != null;
+    final bool hasWebUi = true;
     final bool hasCdpLldp = cdpLldpEnabled != null;
     final bool hasAutoAnswer = autoAnswer != null;
     final bool hasDnd = dndDefault != null;
@@ -188,43 +190,158 @@ class MustacheRenderer {
     final bool hasCfwBusy = cfwBusy != null && cfwBusy.isNotEmpty;
     final bool hasCfwNoAnswer = cfwNoAnswer != null && cfwNoAnswer.isNotEmpty;
     final bool hasSyslog = syslogServer != null && syslogServer.isNotEmpty;
-    final bool hasDialPlan = dialPlan != null && dialPlan.isNotEmpty;
+    const defaultDialPlan = '[1-9]xx|*xx.|*x.T|911|0T';
+    final String effectiveDialPlan =
+        (dialPlan != null && dialPlan.isNotEmpty) ? dialPlan : defaultDialPlan;
+    const bool hasDialPlan = true;
     final bool hasFirmware = firmwareUrl != null && firmwareUrl.isNotEmpty;
 
     final keys = lineKeys ?? <ButtonKey>[];
     final labels = extToLabel ?? <String, String>{};
 
+    String normalizeType(String type) {
+      if (type == 'speeddial') return 'speed_dial';
+      return type;
+    }
+
     // id is 1-based handset linekey index (matches Quick-Provisioner keys_json.index)
     final List<Map<String, dynamic>> lineKeysList = keys
-        .where((k) => k.type != 'none' && (k.type == 'line' || k.value.isNotEmpty))
+        .where((k) {
+          final t = normalizeType(k.type);
+          return t != 'none' && (t == 'line' || k.value.isNotEmpty);
+        })
         .map((k) {
+          final t = normalizeType(k.type);
           final effectiveLabel =
               k.label.isNotEmpty ? k.label : (labels[k.value] ?? k.value);
           return {
             'position': k.id,
-            'type_code': buttonTypeToCode(k.type),
+            'type_code': buttonTypeToCode(t),
             'key_line': 1,
             'key_value': k.value,
             'key_label': effectiveLabel,
-            'is_blf': k.type == 'blf',
+            'is_blf': t == 'blf',
             'pickup_code': '**',
           };
         })
         .toList();
 
-    final List<Map<String, dynamic>> attendantKeysList = keys
-        .where((k) => k.type == 'blf' && k.value.isNotEmpty)
-        .map((k) {
-          final effectiveLabel =
-              k.label.isNotEmpty ? k.label : (labels[k.value] ?? k.value);
-          return {
-            'position': k.id,
-            'key_value': k.value,
-            'key_label': effectiveLabel,
-            'sip_server': sipServer,
-          };
-        })
+    final blfKeys = keys
+        .where((k) =>
+            normalizeType(k.type) == 'blf' &&
+            k.value.isNotEmpty &&
+            k.value.trim() != extension.trim())
         .toList();
+    final List<Map<String, dynamic>> attendantKeysList = [];
+    for (var i = 0; i < blfKeys.length; i++) {
+      final k = blfKeys[i];
+      final effectiveLabel =
+          k.label.isNotEmpty ? k.label : (labels[k.value] ?? k.value);
+      attendantKeysList.add({
+        'position': i + 1, // Poly resourceList indexes must be sequential
+        'key_value': k.value,
+        'key_label': effectiveLabel,
+        'sip_server': sipServer,
+      });
+    }
+
+    final speedDialKeys = keys
+        .where((k) =>
+            normalizeType(k.type) == 'speed_dial' && k.value.isNotEmpty)
+        .toList();
+    final List<Map<String, dynamic>> speedDialKeysList = [];
+    for (var i = 0; i < speedDialKeys.length; i++) {
+      final k = speedDialKeys[i];
+      final effectiveLabel =
+          k.label.isNotEmpty ? k.label : (labels[k.value] ?? k.value);
+      speedDialKeysList.add({
+        'position': i + 1,
+        'key_value': k.value,
+        'key_label': effectiveLabel,
+      });
+    }
+
+    final bool hasExplicitPrimaryLine =
+        keys.any((k) => normalizeType(k.type) == 'line');
+    final List<Map<String, dynamic>> polyLineKeyAssignments = [];
+    if (!hasExplicitPrimaryLine) {
+      polyLineKeyAssignments.add({
+        'position': 1,
+        'category': 'Line',
+        'index': 1,
+        'has_index': true,
+      });
+    }
+    for (final key in keys) {
+      final t = normalizeType(key.type);
+      if (t == 'none' || (t != 'line' && key.value.isEmpty)) {
+        continue;
+      }
+      if (t == 'line') {
+        polyLineKeyAssignments.add({
+          'position': key.id,
+          'category': 'Line',
+          'index': 1,
+          'has_index': true,
+        });
+        continue;
+      }
+      if (t == 'blf') {
+        if (key.value.trim() == extension.trim()) {
+          continue;
+        }
+        var renderPosition = key.id;
+        if (!hasExplicitPrimaryLine && renderPosition >= 1) {
+          renderPosition += 1;
+        }
+        final blfIndex =
+            attendantKeysList.indexWhere((a) => a['key_value'] == key.value) +
+                1;
+        polyLineKeyAssignments.add({
+          'position': renderPosition,
+          'category': 'BLF',
+          'index': 0,
+          'has_index': true,
+          'resource_position': blfIndex > 0 ? blfIndex : 1,
+        });
+        continue;
+      }
+      if (t == 'speed_dial') {
+        var renderPosition = key.id;
+        if (!hasExplicitPrimaryLine && renderPosition >= 1) {
+          renderPosition += 1;
+        }
+        final sdIndex =
+            speedDialKeysList.indexWhere((a) => a['key_value'] == key.value) +
+                1;
+        polyLineKeyAssignments.add({
+          'position': renderPosition,
+          'category': 'SpeedDial',
+          'index': sdIndex > 0 ? sdIndex : 1,
+          'has_index': true,
+        });
+      }
+    }
+    final bool polyTwoColumnDisplay = model == 'VVX1500' || model == 'VVX 1500';
+    final bool isVvx1500 = polyTwoColumnDisplay;
+    // VVX1500 does NOT support Flexible Line Key reassignment.
+    // Home-screen hotkeys come from directory <sd> indexes instead.
+    final List<Map<String, dynamic>> effectivePolyAssignments =
+        isVvx1500 ? <Map<String, dynamic>>[] : polyLineKeyAssignments;
+    if (effectivePolyAssignments.isNotEmpty) {
+      effectivePolyAssignments
+          .sort((a, b) => (a['position'] as int).compareTo(b['position'] as int));
+    }
+
+    // VVX1500: video over UDP fragments SIP INVITEs — prefer TCP signalling.
+    final String videoEnable = isVvx1500 ? '1' : '0';
+    final String sipTransportMode =
+        videoEnable == '1' ? 'TCPPreferred' : 'UDPOnly';
+    final String videoAutoStart = videoEnable;
+
+    final String contactsDir = polycomContactsDirectory ?? '';
+    final bool hasPhonebook = (phonebookUrl != null && phonebookUrl.isNotEmpty) ||
+        contactsDir.isNotEmpty;
 
     return {
       'mac_address': macAddress,
@@ -232,6 +349,9 @@ class MustacheRenderer {
       'has_sip_server': hasSipServer,
       'sip_server': sipServer,
       'sip_port': sipPort ?? '5060',
+      'sip_transport_mode': sipTransportMode,
+      'video_enable': videoEnable,
+      'video_auto_start': videoAutoStart,
       'has_outbound_proxy': hasOutboundProxy,
       'outbound_proxy_host': outboundProxyHost ?? '',
       'outbound_proxy_port': outboundProxyPort ?? '5060',
@@ -263,8 +383,8 @@ class MustacheRenderer {
       'has_screensaver_timeout': hasScreensaverTimeout,
       'screensaver_timeout': screensaverTimeout ?? '',
       'has_web_ui': hasWebUi,
-      'web_ui_enabled': _boolFlag(webUiEnabled),
-      'is_web_ui_enabled': webUiEnabled == true,
+      'web_ui_enabled': webUiEnabled == false ? '0' : '1',
+      'is_web_ui_enabled': webUiEnabled != false,
       'has_cdp_lldp': hasCdpLldp,
       'cdp_lldp_enabled': _boolFlag(cdpLldpEnabled),
       'is_cdp_lldp_enabled': cdpLldpEnabled == true,
@@ -288,7 +408,7 @@ class MustacheRenderer {
       'has_syslog': hasSyslog,
       'syslog_server': syslogServer ?? '',
       'has_dial_plan': hasDialPlan,
-      'dial_plan': dialPlan ?? '',
+      'dial_plan': effectiveDialPlan,
       'dst_enable': dstEnable ?? '0',
       'debug_level': debugLevel ?? '0',
       'has_firmware': hasFirmware,
@@ -304,6 +424,7 @@ class MustacheRenderer {
           'password': secret,
           'sip_server': sipServer,
           'sip_port': sipPort ?? '5060',
+          'sip_transport_mode': sipTransportMode,
           'transport': transport ?? 'UDP',
           'transport_code': _transportToCode(transport ?? 'UDP'),
           'expires': regExpiry ?? '3600',
@@ -327,9 +448,18 @@ class MustacheRenderer {
       ],
       'line_keys': lineKeysList,
       'has_line_keys': lineKeysList.isNotEmpty,
+      'has_poly_line_key_assignments': effectivePolyAssignments.isNotEmpty,
+      'poly_two_column_display': polyTwoColumnDisplay,
+      'poly_line_key_assignments': effectivePolyAssignments,
       'has_attendant_keys': attendantKeysList.isNotEmpty,
       'attendant_keys': attendantKeysList,
+      'has_speed_dial_keys': speedDialKeysList.isNotEmpty,
+      'speed_dial_keys': speedDialKeysList,
       'expansion_keys': <Map<String, dynamic>>[],
+      'has_phonebook': hasPhonebook,
+      'phonebook_url': phonebookUrl ?? '',
+      'polycom_contacts_directory': contactsDir,
+      'has_polycom_contacts_directory': contactsDir.isNotEmpty,
       'remote_phonebooks': phonebookUrl != null && phonebookUrl.isNotEmpty
           ? [
               {

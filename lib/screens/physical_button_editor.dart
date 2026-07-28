@@ -101,6 +101,7 @@ class _PhysicalButtonEditorScreenState
     return switch (k.type) {
       'blf'       => Colors.green.shade700,
       'line'      => Colors.blue.shade700,
+      'speed_dial'  => Colors.orange.shade700,
       'speeddial' => Colors.orange.shade700,
       'dtmf'      => Colors.purple.shade700,
       'park'      => Colors.teal.shade700,

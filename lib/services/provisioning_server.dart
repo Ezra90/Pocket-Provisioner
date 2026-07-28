@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 import '../data/database_helper.dart';
 import '../models/access_log_entry.dart';
 import '../models/button_key.dart';
+import '../models/phonebook_entry.dart';
 import 'app_directories.dart';
 import 'button_layout_service.dart';
 import 'global_settings.dart';
@@ -39,6 +40,12 @@ class ProvisioningServer {
       Map.unmodifiable(_deviceAccessMap);
 
   static String? get serverUrl => _serverUrl;
+
+  static String _polyPrimaryConfig(String mac) {
+    final secondary = '${mac.toLowerCase()}-prov.cfg';
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        '<APPLICATION APP_FILE_PATH="sip.ld" CONFIG_FILES="$secondary" />\n';
+  }
 
   /// Clears the access log, device access map, and IP→MAC cache without
   /// stopping the server.  Useful for purging old entries during a session.
@@ -325,16 +332,84 @@ class ProvisioningServer {
 
     // --- CONFIG HANDLER (dynamic generation with static fallback) ---
     router.get('/<filename>', (Request request, String filename) async {
+      if (filename.toLowerCase() == '000000000000.cfg') {
+        final content = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+            '<APPLICATION APP_FILE_PATH="sip.ld" CONFIG_FILES="[PHONE_MAC_ADDRESS]-prov.cfg" />\n';
+        return Response.ok(content, headers: {
+          'Content-Type': 'application/xml; charset=utf-8',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        });
+      }
+
       // --- Try dynamic config generation first ---
       final macMatch = RegExp(r'^([0-9a-fA-F]{12})\.(cfg|xml)$', caseSensitive: false).firstMatch(filename);
+      final polyProvMatch = RegExp(r'^([0-9a-fA-F]{12})-prov\.cfg$', caseSensitive: false).firstMatch(filename);
+      final polyDirMatch = RegExp(
+        r'^([0-9a-fA-F]{12})-directory\.xml$',
+        caseSensitive: false,
+      ).firstMatch(filename);
 
-      if (macMatch != null) {
-        final mac = macMatch.group(1)!.toUpperCase();
+      // Polycom local contacts directory ({mac}-directory.xml)
+      if (polyDirMatch != null) {
+        final mac = polyDirMatch.group(1)!.toUpperCase();
+        final device = await DatabaseHelper.instance.getDeviceByMac(mac);
+        if (device == null) {
+          return Response.notFound('Device not found');
+        }
+        final ds = device.deviceSettings;
+        List<ButtonKey>? lineKeys;
+        if (ds?.buttonLayout != null &&
+            ds!.buttonLayout!.any((k) => k.type != 'none')) {
+          lineKeys = ds.buttonLayout!.map((k) => k.clone()).toList();
+        } else {
+          final modelLayout =
+              await ButtonLayoutService.getLayoutForModel(device.model);
+          if (modelLayout.isNotEmpty &&
+              modelLayout.any((k) => k.type != 'none')) {
+            lineKeys = modelLayout;
+          }
+        }
+        final allDevices = await DatabaseHelper.instance.getAllDevices();
+        final extToLabel = <String, String>{
+          for (final d in allDevices)
+            if (d.label.isNotEmpty) d.extension: d.label,
+        };
+        final contacts = PhonebookService.applyPolyDirectorySpeedDials(
+          contacts: ds?.phonebookEntries ?? <PhonebookEntry>[],
+          lineKeys: lineKeys,
+          extension: device.extension,
+          labels: extToLabel,
+        );
+        if (contacts.isEmpty) {
+          return Response.notFound('No contacts');
+        }
+        final xml = PhonebookService.generatePolycomXml(
+          contacts,
+          displayName: device.label,
+        );
+        return Response.ok(xml, headers: {
+          'Content-Type': 'application/xml; charset=utf-8',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        });
+      }
+
+      if (macMatch != null || polyProvMatch != null) {
+        final mac = (macMatch?.group(1) ?? polyProvMatch!.group(1)!).toUpperCase();
+        final req = filename.toLowerCase();
         final device = await DatabaseHelper.instance.getDeviceByMac(mac);
 
         if (device != null) {
           try {
             final templateKey = await MustacheRenderer.resolveTemplateKey(device.model);
+            final isPoly = templateKey == 'polycom_vvx';
+
+            if (isPoly && req == '${mac.toLowerCase()}.cfg') {
+              return Response.ok(_polyPrimaryConfig(mac), headers: {
+                'Content-Type': 'application/xml; charset=utf-8',
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+              });
+            }
+
             final ds = device.deviceSettings;
 
             // Resolve wallpaper URL
@@ -410,26 +485,6 @@ class ProvisioningServer {
               }
             }
 
-            // Generate and persist phonebook XML if the device has entries,
-            // then build the URL the phone will fetch it from.
-            String? devicePhonebookUrl;
-            final phonebookEntries = ds?.phonebookEntries;
-            if (phonebookEntries != null &&
-                phonebookEntries.isNotEmpty &&
-                _serverUrl != null) {
-              final pbFilename = await PhonebookService.saveForExtension(
-                device.extension,
-                phonebookEntries,
-                displayName: device.label,
-                model: device.model,
-              );
-              if (pbFilename != null) {
-                devicePhonebookUrl = '$_serverUrl/phonebook/$pbFilename';
-              }
-            }
-
-            final gs = await GlobalSettings.load();
-
             // Build extension → label map so BLF key labels can resolve to
             // friendly device names (e.g. "102" → "Sales") when no explicit
             // label override has been set.
@@ -438,6 +493,46 @@ class ProvisioningServer {
               for (final d in allDevices)
                 if (d.label.isNotEmpty) d.extension: d.label,
             };
+
+            // Generate and persist phonebook XML. For Poly, merge button SD/BLF
+            // into {mac}-directory.xml (VVX1500 home-screen hotkeys need <sd>).
+            String? devicePhonebookUrl;
+            String? polycomContactsDirectory;
+            final rawPhonebookEntries =
+                ds?.phonebookEntries ?? <PhonebookEntry>[];
+            final polyContacts = PhonebookService.applyPolyDirectorySpeedDials(
+              contacts: rawPhonebookEntries,
+              lineKeys: lineKeys,
+              extension: device.extension,
+              labels: extToLabel,
+            );
+            if (polyContacts.isNotEmpty && _serverUrl != null) {
+              final pbFilename = await PhonebookService.saveForExtension(
+                device.extension,
+                polyContacts,
+                displayName: device.label,
+                model: device.model,
+              );
+              if (pbFilename != null) {
+                devicePhonebookUrl = '$_serverUrl/phonebook/$pbFilename';
+              }
+              if (isPoly) {
+                await PhonebookService.savePolyDirectory(
+                  mac,
+                  polyContacts,
+                  displayName: device.label,
+                );
+                // Trailing slash: phone appends {mac}-directory.xml
+                final base = _serverUrl!.endsWith('/')
+                    ? _serverUrl!
+                    : '$_serverUrl/';
+                polycomContactsDirectory = base;
+                devicePhonebookUrl ??=
+                    '${base}${mac.toLowerCase()}-directory.xml';
+              }
+            }
+
+            final gs = await GlobalSettings.load();
 
             // Apply line-level overrides from device settings
             final effectiveExtension = ds?.extensionOverride ?? device.extension;
@@ -488,11 +583,13 @@ class ProvisioningServer {
               lineKeys: lineKeys,
               extToLabel: extToLabel,
               phonebookUrl: devicePhonebookUrl,
+              polycomContactsDirectory: polycomContactsDirectory,
             );
 
             final content = await MustacheRenderer.render(templateKey, variables);
-            final isXml = filename.toLowerCase().endsWith('.xml');
-            final contentType = isXml ? 'application/xml; charset=utf-8' : 'text/plain; charset=utf-8';
+            final contentType = (templateKey == 'yealink_t4x')
+                ? 'text/plain; charset=utf-8'
+                : 'application/xml; charset=utf-8';
 
             return Response.ok(content, headers: {
               'Content-Type': contentType,
