@@ -134,6 +134,31 @@ class VisualEditorKey {
       );
 }
 
+/// Non-programmable page-switcher chrome (e.g. Yealink bottom-right DSS).
+class PageSwitcherMeta {
+  final int x;
+  final int y;
+  final int width;
+  final int height;
+  final String label;
+
+  const PageSwitcherMeta({
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+    this.label = 'Page',
+  });
+
+  factory PageSwitcherMeta.fromJson(Map<String, dynamic> m) => PageSwitcherMeta(
+        x: (m['x'] as num?)?.toInt() ?? 0,
+        y: (m['y'] as num?)?.toInt() ?? 0,
+        width: (m['width'] as num?)?.toInt() ?? 42,
+        height: (m['height'] as num?)?.toInt() ?? 22,
+        label: m['label'] as String? ?? 'Page',
+      );
+}
+
 /// Soft-key (under-screen) control — hardware or on-screen.
 class SoftKeyMeta {
   final int? index;
@@ -208,6 +233,7 @@ class VisualEditorMeta {
 
   final ChromeMeta? chrome;
   final List<SoftKeyMeta> softKeys;
+  final PageSwitcherMeta? pageSwitcher;
 
   const VisualEditorMeta({
     required this.svgFallback,
@@ -218,6 +244,7 @@ class VisualEditorMeta {
     this.chassisSvg,
     this.chrome,
     this.softKeys = const [],
+    this.pageSwitcher,
   });
 
   /// True when a custom chassis drawing should be used instead of the rounded rect.
@@ -275,6 +302,9 @@ class VisualEditorMeta {
       softKeys: softJson
           .map((e) => SoftKeyMeta.fromJson(e as Map<String, dynamic>))
           .toList(),
+      pageSwitcher: m['page_switcher'] is Map<String, dynamic>
+          ? PageSwitcherMeta.fromJson(m['page_switcher'] as Map<String, dynamic>)
+          : null,
     );
   }
 }

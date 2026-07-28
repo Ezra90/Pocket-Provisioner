@@ -432,6 +432,39 @@ class _PhysicalButtonEditorScreenState
       ));
     }
 
+    // Yealink-style page switcher (not a programmable linekey)
+    final ps = meta.pageSwitcher;
+    if (ps != null && meta.pageCount > 1) {
+      stackChildren.add(Positioned(
+        left: ps.x * scale,
+        top: ps.y * scale,
+        width: ps.width * scale,
+        height: ps.height * scale,
+        child: Material(
+          color: const Color(0xD91E3C5A),
+          borderRadius: BorderRadius.circular(3 * scale),
+          child: InkWell(
+            onTap: () {
+              setState(() {
+                _currentPage = (_currentPage + 1) % meta.pageCount;
+              });
+            },
+            child: Center(
+              child: Text(
+                '${ps.label} ${_currentPage + 1}/${meta.pageCount}',
+                style: TextStyle(
+                  color: const Color(0xFF99CCFF),
+                  fontSize: 8 * scale,
+                  fontWeight: FontWeight.w600,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+        ),
+      ));
+    }
+
     // Nav cluster from chrome rect or legacy ratio
     if (showNav) {
       final nav = chrome?.navCluster;
