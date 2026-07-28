@@ -4,12 +4,13 @@ import 'mustache_template_service.dart';
 
 class MustacheRenderer {
   /// Regex that matches the `{{! META: {...} }}` comment block for stripping
-  /// before template compilation (the embedded JSON confuses some parsers).
-  /// The lazy `*?` quantifier is intentional: it stops at the first `}}`,
-  /// which is the Mustache comment closing delimiter. Using greedy `*` would
-  /// consume the entire template body up to its last `}}`.
+  /// before template compilation.
+  ///
+  /// Uses a META-aware pattern ending in `} }}` (JSON root close + comment close).
+  /// Nested JSON must not contain raw `}}` — use `} }` whitespace between closes
+  /// (see template packaging). Prefer `chassis_svg_b64` over raw SVG in META.
   static final _metaCommentRegex =
-      RegExp(r'\{\{!\s*META:[\s\S]*?\}\}', multiLine: true);
+      RegExp(r'\{\{!\s*META:\s*\{[\s\S]*\}\s*\}\}', multiLine: true);
 
   /// Renders [templateKey] using [variables].
   /// [htmlEscapeValues] is false so XML/CFG output is not double-escaped.

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../data/device_templates.dart';
 import '../models/button_key.dart';
 import '../models/device.dart';
@@ -230,9 +231,7 @@ class _PhysicalButtonEditorScreenState
 
   // ── Template-based rendering (using VisualEditorMeta positions) ────────────
 
-  // Layout ratio constants for template-based rendering.
-  // Templates specify exact button positions, but soft-key bar, nav cluster,
-  // and dial pad positions are calculated using these ratios relative to chassis.
+  // Fallback ratios when template omits chrome / soft_keys (legacy templates).
   static const double _softKeyBarBottomRatio = 0.4;
   static const double _navClusterBottomRatio = 0.22;
   static const double _dialPadHorizontalInsetRatio = 0.2;
@@ -252,6 +251,7 @@ class _PhysicalButtonEditorScreenState
   Widget _buildTemplateDiagram(
       VisualEditorMeta meta, PhysicalLayout layout, BoxConstraints constraints) {
     final schematic = meta.schematic;
+    final chrome = meta.chrome;
 
     // Calculate scale factor to fit the schematic into available space
     final double scaleX = constraints.maxWidth / schematic.chassisWidth;
@@ -262,9 +262,14 @@ class _PhysicalButtonEditorScreenState
     final double phoneW = schematic.chassisWidth * scale;
     final double phoneH = schematic.chassisHeight * scale;
     final Color bodyColor = Color(layout.bodyColorValue);
+    final bool useChassisSvg = meta.hasChassisSvg;
 
     // Filter keys for the current page (pages are 1-indexed in template data)
     final pageKeys = meta.keysForPage(_currentPage + 1);
+
+    final bool showSoftKeys = chrome?.hasSoftKeys ?? layout.hasSoftKeys;
+    final bool showNav = chrome?.hasNavCluster ?? layout.hasNavCluster;
+    final bool showDial = chrome?.hasDialPad ?? layout.hasDialPad;
 
     // Page navigation row (only when pageCount > 1)
     Widget? pageNav;
@@ -296,199 +301,308 @@ class _PhysicalButtonEditorScreenState
       );
     }
 
+    final List<Widget> stackChildren = <Widget>[
+      // Chassis: template SVG when present, else solid rounded body
+      if (useChassisSvg)
+        Positioned.fill(
+          child: SvgPicture.string(
+            meta.chassisSvg!,
+            fit: BoxFit.fill,
+            allowDrawingOutsideViewBox: false,
+          ),
+        )
+      else ...[
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: bodyColor,
+              borderRadius: BorderRadius.circular(20 * scale),
+            ),
+          ),
+        ),
+        Positioned(
+          top: 8 * scale,
+          left: 0,
+          right: 0,
+          child: Center(
+            child: Container(
+              width: 40 * scale,
+              height: 5 * scale,
+              decoration: BoxDecoration(
+                color: Colors.black38,
+                borderRadius: BorderRadius.circular(3 * scale),
+              ),
+            ),
+          ),
+        ),
+      ],
+      if (pageNav != null)
+        Positioned(
+          top: 18 * scale,
+          left: 0,
+          right: 0,
+          child: pageNav,
+        ),
+      // Screen area (from schematic coordinates)
+      Positioned(
+        left: schematic.screenX * scale,
+        top: schematic.screenY * scale,
+        width: schematic.screenWidth * scale,
+        height: schematic.screenHeight * scale,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(useChassisSvg ? 0.55 : 1.0),
+            borderRadius: BorderRadius.circular(4 * scale),
+          ),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.phone,
+                    color: Colors.green.shade400, size: 22 * scale),
+                SizedBox(height: 4 * scale),
+                Text(
+                  'Ext ${widget.extension}',
+                  style: TextStyle(
+                      color: Colors.white70, fontSize: 11 * scale),
+                ),
+                Text(
+                  widget.label,
+                  style: TextStyle(
+                      color: Colors.white38, fontSize: 9 * scale),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                SizedBox(height: 4 * scale),
+                Text(
+                  widget.model,
+                  style: TextStyle(
+                      color: Colors.white24, fontSize: 8 * scale),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      // Programmable line / DSS keys from template coords
+      ...pageKeys.map((keyMeta) {
+        return Positioned(
+          left: keyMeta.x * scale,
+          top: keyMeta.y * scale,
+          width: keyMeta.width * scale,
+          height: keyMeta.height * scale,
+          child: _templateKeyButton(keyMeta.index, scale),
+        );
+      }),
+    ];
+
+    // Soft keys: absolute positions from META when provided
+    if (showSoftKeys && meta.softKeys.isNotEmpty) {
+      for (final sk in meta.softKeys) {
+        stackChildren.add(Positioned(
+          left: sk.x * scale,
+          top: sk.y * scale,
+          width: sk.width * scale,
+          height: sk.height * scale,
+          child: _templateSoftKey(sk, scale),
+        ));
+      }
+    } else if (showSoftKeys) {
+      stackChildren.add(Positioned(
+        left: 8 * scale,
+        right: 8 * scale,
+        bottom: (schematic.chassisHeight * _softKeyBarBottomRatio) * scale,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: (layout.softKeyLabels.isNotEmpty
+                  ? layout.softKeyLabels
+                  : const ['Menu', 'Dir', 'DND', 'History'])
+              .map((l) => Container(
+                    padding: EdgeInsets.symmetric(
+                        horizontal: 5 * scale, vertical: 3 * scale),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade600,
+                      borderRadius: BorderRadius.circular(3 * scale),
+                    ),
+                    child: Text(l,
+                        style: TextStyle(
+                            color: Colors.white70, fontSize: 8 * scale)),
+                  ))
+              .toList(),
+        ),
+      ));
+    }
+
+    // Nav cluster from chrome rect or legacy ratio
+    if (showNav) {
+      final nav = chrome?.navCluster;
+      if (nav != null && nav.width > 0 && nav.height > 0) {
+        stackChildren.add(Positioned(
+          left: nav.x * scale,
+          top: nav.y * scale,
+          width: nav.width * scale,
+          height: nav.height * scale,
+          child: _templateNavCluster(scale, nav.width * scale, nav.height * scale),
+        ));
+      } else if (!useChassisSvg) {
+        stackChildren.add(Positioned(
+          left: 0,
+          right: 0,
+          bottom: (schematic.chassisHeight * _navClusterBottomRatio) * scale,
+          child: Center(
+            child: SizedBox(
+              width: 52 * scale,
+              height: 52 * scale,
+              child: _templateNavCluster(scale, 52 * scale, 52 * scale),
+            ),
+          ),
+        ));
+      }
+    }
+
+    // Dial pad from chrome rect or legacy ratio
+    if (showDial) {
+      final pad = chrome?.dialPad;
+      if (pad != null && pad.width > 0 && pad.height > 0) {
+        stackChildren.add(Positioned(
+          left: pad.x * scale,
+          top: pad.y * scale,
+          width: pad.width * scale,
+          height: pad.height * scale,
+          child: _templateDialPad(scale),
+        ));
+      } else if (!useChassisSvg) {
+        stackChildren.add(Positioned(
+          left: (schematic.chassisWidth * _dialPadHorizontalInsetRatio) * scale,
+          right:
+              (schematic.chassisWidth * _dialPadHorizontalInsetRatio) * scale,
+          bottom: 8 * scale,
+          height: (schematic.chassisHeight * _dialPadHeightRatio) * scale,
+          child: _templateDialPad(scale),
+        ));
+      }
+    }
+
     return Center(
       child: SizedBox(
         width: phoneW,
         height: phoneH,
         child: Container(
           decoration: BoxDecoration(
-            color: bodyColor,
             borderRadius: BorderRadius.circular(20 * scale),
             boxShadow: const [
               BoxShadow(
-                  color: Colors.black54,
-                  blurRadius: 12,
-                  offset: Offset(0, 4))
+                  color: Colors.black54, blurRadius: 12, offset: Offset(0, 4))
             ],
           ),
-          child: Stack(
-            children: [
-              // Speaker grille at top
-              Positioned(
-                top: 8 * scale,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: Container(
-                    width: 40 * scale,
-                    height: 5 * scale,
-                    decoration: BoxDecoration(
-                      color: Colors.black38,
-                      borderRadius: BorderRadius.circular(3 * scale),
-                    ),
-                  ),
-                ),
-              ),
-              // Page navigation (below speaker grille)
-              if (pageNav != null)
-                Positioned(
-                  top: 18 * scale,
-                  left: 0,
-                  right: 0,
-                  child: pageNav,
-                ),
-              // Screen area (from schematic coordinates)
-              Positioned(
-                left: schematic.screenX * scale,
-                top: schematic.screenY * scale,
-                width: schematic.screenWidth * scale,
-                height: schematic.screenHeight * scale,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade900,
-                    borderRadius: BorderRadius.circular(4 * scale),
-                  ),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.phone,
-                            color: Colors.green.shade400, size: 22 * scale),
-                        SizedBox(height: 4 * scale),
-                        Text(
-                          'Ext ${widget.extension}',
-                          style: TextStyle(
-                              color: Colors.white70, fontSize: 11 * scale),
-                        ),
-                        Text(
-                          widget.label,
-                          style: TextStyle(
-                              color: Colors.white38, fontSize: 9 * scale),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        SizedBox(height: 4 * scale),
-                        Text(
-                          widget.model,
-                          style: TextStyle(
-                              color: Colors.white24, fontSize: 8 * scale),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              // Buttons positioned according to template coordinates
-              ...pageKeys.map((keyMeta) {
-                return Positioned(
-                  left: keyMeta.x * scale,
-                  top: keyMeta.y * scale,
-                  width: keyMeta.width * scale,
-                  height: keyMeta.height * scale,
-                  child: _templateKeyButton(keyMeta.index, scale),
-                );
-              }),
-              // Soft-key bar at bottom (if layout supports it)
-              if (layout.hasSoftKeys)
-                Positioned(
-                  left: 8 * scale,
-                  right: 8 * scale,
-                  bottom: (schematic.chassisHeight * _softKeyBarBottomRatio) * scale,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: ['Menu', 'Dir', 'DND', 'History']
-                        .map((l) => Container(
-                              padding: EdgeInsets.symmetric(
-                                  horizontal: 5 * scale, vertical: 3 * scale),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade600,
-                                borderRadius: BorderRadius.circular(3 * scale),
-                              ),
-                              child: Text(l,
-                                  style: TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 8 * scale)),
-                            ))
-                        .toList(),
-                  ),
-                ),
-              // Nav cluster (if layout supports it)
-              if (layout.hasNavCluster)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: (schematic.chassisHeight * _navClusterBottomRatio) * scale,
-                  child: Center(
-                    child: SizedBox(
-                      width: 52 * scale,
-                      height: 52 * scale,
-                      child: Stack(
-                        children: [
-                          Positioned(
-                              top: 0,
-                              left: 16 * scale,
-                              child: _scaledNavBtn(
-                                  Icons.keyboard_arrow_up, scale)),
-                          Positioned(
-                              bottom: 0,
-                              left: 16 * scale,
-                              child: _scaledNavBtn(
-                                  Icons.keyboard_arrow_down, scale)),
-                          Positioned(
-                              left: 0,
-                              top: 16 * scale,
-                              child: _scaledNavBtn(
-                                  Icons.keyboard_arrow_left, scale)),
-                          Positioned(
-                              right: 0,
-                              top: 16 * scale,
-                              child: _scaledNavBtn(
-                                  Icons.keyboard_arrow_right, scale)),
-                          Positioned(
-                              left: 16 * scale,
-                              top: 16 * scale,
-                              child: _scaledNavBtn(Icons.circle, scale,
-                                  iconSize: _navCenterIconSize)),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              // Dial pad (if layout supports it)
-              if (layout.hasDialPad)
-                Positioned(
-                  left: (schematic.chassisWidth * _dialPadHorizontalInsetRatio) * scale,
-                  right: (schematic.chassisWidth * _dialPadHorizontalInsetRatio) * scale,
-                  bottom: 8 * scale,
-                  height: (schematic.chassisHeight * _dialPadHeightRatio) * scale,
-                  child: GridView.count(
-                    crossAxisCount: 3,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    mainAxisSpacing: 2 * scale,
-                    crossAxisSpacing: 2 * scale,
-                    childAspectRatio: 1.8,
-                    children: [
-                      '1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'
-                    ]
-                        .map((d) => Container(
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade600,
-                                borderRadius: BorderRadius.circular(4 * scale),
-                              ),
-                              child: Center(
-                                child: Text(d,
-                                    style: TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 11 * scale)),
-                              ),
-                            ))
-                        .toList(),
-                  ),
-                ),
-            ],
-          ),
+          clipBehavior: Clip.antiAlias,
+          child: Stack(children: stackChildren),
         ),
       ),
+    );
+  }
+
+  Widget _templateSoftKey(SoftKeyMeta sk, double scale) {
+    final child = Container(
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: sk.programmable
+            ? Colors.blueGrey.shade700.withOpacity(0.85)
+            : Colors.black38,
+        borderRadius: BorderRadius.circular(3 * scale),
+        border: Border.all(color: Colors.white24, width: 1),
+      ),
+      child: Text(
+        sk.label,
+        style: TextStyle(color: Colors.white70, fontSize: 8 * scale),
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
+      ),
+    );
+    if (sk.programmable && sk.index != null) {
+      return GestureDetector(onTap: () => _editKey(sk.index!), child: child);
+    }
+    return child;
+  }
+
+  Widget _templateNavCluster(double scale, double w, double h) {
+    final btn = math.min(w, h) * 0.32;
+    return Stack(
+      children: [
+        Positioned(
+            top: 0,
+            left: (w - btn) / 2,
+            child: SizedBox(
+                width: btn,
+                height: btn,
+                child: _scaledNavBtn(Icons.keyboard_arrow_up, scale))),
+        Positioned(
+            bottom: 0,
+            left: (w - btn) / 2,
+            child: SizedBox(
+                width: btn,
+                height: btn,
+                child: _scaledNavBtn(Icons.keyboard_arrow_down, scale))),
+        Positioned(
+            left: 0,
+            top: (h - btn) / 2,
+            child: SizedBox(
+                width: btn,
+                height: btn,
+                child: _scaledNavBtn(Icons.keyboard_arrow_left, scale))),
+        Positioned(
+            right: 0,
+            top: (h - btn) / 2,
+            child: SizedBox(
+                width: btn,
+                height: btn,
+                child: _scaledNavBtn(Icons.keyboard_arrow_right, scale))),
+        Positioned(
+            left: (w - btn) / 2,
+            top: (h - btn) / 2,
+            child: SizedBox(
+                width: btn,
+                height: btn,
+                child: _scaledNavBtn(Icons.circle, scale,
+                    iconSize: _navCenterIconSize))),
+      ],
+    );
+  }
+
+  Widget _templateDialPad(double scale) {
+    return GridView.count(
+      crossAxisCount: 3,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: 2 * scale,
+      crossAxisSpacing: 2 * scale,
+      childAspectRatio: 1.8,
+      children: const [
+        '1',
+        '2',
+        '3',
+        '4',
+        '5',
+        '6',
+        '7',
+        '8',
+        '9',
+        '*',
+        '0',
+        '#'
+      ]
+          .map((d) => Container(
+                decoration: BoxDecoration(
+                  color: Colors.black26,
+                  borderRadius: BorderRadius.circular(4 * scale),
+                  border: Border.all(color: Colors.white12),
+                ),
+                child: Center(
+                  child: Text(d,
+                      style: TextStyle(
+                          color: Colors.white70, fontSize: 11 * scale)),
+                ),
+              ))
+          .toList(),
     );
   }
 

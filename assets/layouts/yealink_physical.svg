@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="340" height="560" viewBox="0 0 340 560">
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4a5a63"/>
+      <stop offset="55%" stop-color="#2f3b42"/>
+      <stop offset="100%" stop-color="#1f282d"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="324" height="544" rx="28" fill="url(#body)" stroke="#1a2226" stroke-width="2"/>
+  <rect x="130" y="18" width="80" height="8" rx="4" fill="#1a2226"/>
+  <rect x="58" y="42" width="224" height="168" rx="8" fill="#0b1014" stroke="#11181c" stroke-width="2"/>
+  <g fill="#263238" stroke="#455a64" stroke-width="1">
+    <rect x="12" y="52" width="42" height="22" rx="4"/><rect x="12" y="80" width="42" height="22" rx="4"/><rect x="12" y="108" width="42" height="22" rx="4"/><rect x="12" y="136" width="42" height="22" rx="4"/><rect x="12" y="164" width="42" height="22" rx="4"/>
+    <rect x="286" y="52" width="42" height="22" rx="4"/><rect x="286" y="80" width="42" height="22" rx="4"/><rect x="286" y="108" width="42" height="22" rx="4"/><rect x="286" y="136" width="42" height="22" rx="4"/><rect x="286" y="164" width="42" height="22" rx="4"/>
+  </g>
+  <g fill="#37474f" stroke="#546e7a" stroke-width="1">
+    <rect x="58" y="220" width="48" height="20" rx="3"/><rect x="116" y="220" width="48" height="20" rx="3"/><rect x="176" y="220" width="48" height="20" rx="3"/><rect x="234" y="220" width="48" height="20" rx="3"/>
+  </g>
+  <circle cx="170" cy="290" r="36" fill="#263238" stroke="#607d8b" stroke-width="2"/>
+  <circle cx="170" cy="290" r="14" fill="#37474f" stroke="#78909c" stroke-width="1"/>
+  <g fill="#37474f" stroke="#546e7a" stroke-width="1">
+    <rect x="78" y="350" width="54" height="32" rx="6"/><rect x="143" y="350" width="54" height="32" rx="6"/><rect x="208" y="350" width="54" height="32" rx="6"/>
+    <rect x="78" y="390" width="54" height="32" rx="6"/><rect x="143" y="390" width="54" height="32" rx="6"/><rect x="208" y="390" width="54" height="32" rx="6"/>
+    <rect x="78" y="430" width="54" height="32" rx="6"/><rect x="143" y="430" width="54" height="32" rx="6"/><rect x="208" y="430" width="54" height="32" rx="6"/>
+    <rect x="78" y="470" width="54" height="32" rx="6"/><rect x="143" y="470" width="54" height="32" rx="6"/><rect x="208" y="470" width="54" height="32" rx="6"/>
+  </g>
+  <text x="170" y="535" text-anchor="middle" fill="#78909c" font-size="12" font-family="sans-serif" letter-spacing="2">YEALINK</text>
+</svg>

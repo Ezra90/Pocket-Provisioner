@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="340" height="560" viewBox="0 0 340 560">
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5a2a7a"/>
+      <stop offset="55%" stop-color="#3a1458"/>
+      <stop offset="100%" stop-color="#250a3a"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="324" height="544" rx="28" fill="url(#body)" stroke="#180528" stroke-width="2"/>
+  <rect x="130" y="18" width="80" height="8" rx="4" fill="#180528"/>
+  <rect x="58" y="40" width="224" height="190" rx="8" fill="#10041c" stroke="#2a0a40" stroke-width="2"/>
+  <g fill="#3a1458" stroke="#7b4aa0" stroke-width="1">
+    <rect x="12" y="48" width="42" height="22" rx="4"/><rect x="12" y="76" width="42" height="22" rx="4"/><rect x="12" y="104" width="42" height="22" rx="4"/><rect x="12" y="132" width="42" height="22" rx="4"/><rect x="12" y="160" width="42" height="22" rx="4"/><rect x="12" y="188" width="42" height="22" rx="4"/>
+    <rect x="286" y="48" width="42" height="22" rx="4"/><rect x="286" y="76" width="42" height="22" rx="4"/><rect x="286" y="104" width="42" height="22" rx="4"/><rect x="286" y="132" width="42" height="22" rx="4"/><rect x="286" y="160" width="42" height="22" rx="4"/><rect x="286" y="188" width="42" height="22" rx="4"/>
+  </g>
+  <g fill="#4a1a68" stroke="#8e5bb0" stroke-width="1">
+    <rect x="58" y="242" width="48" height="20" rx="3"/><rect x="116" y="242" width="48" height="20" rx="3"/><rect x="176" y="242" width="48" height="20" rx="3"/><rect x="234" y="242" width="48" height="20" rx="3"/>
+  </g>
+  <circle cx="170" cy="312" r="36" fill="#3a1458" stroke="#8e5bb0" stroke-width="2"/>
+  <circle cx="170" cy="312" r="14" fill="#4a1a68" stroke="#a878c0" stroke-width="1"/>
+  <g fill="#4a1a68" stroke="#8e5bb0" stroke-width="1">
+    <rect x="78" y="370" width="54" height="30" rx="6"/><rect x="143" y="370" width="54" height="30" rx="6"/><rect x="208" y="370" width="54" height="30" rx="6"/>
+    <rect x="78" y="408" width="54" height="30" rx="6"/><rect x="143" y="408" width="54" height="30" rx="6"/><rect x="208" y="408" width="54" height="30" rx="6"/>
+    <rect x="78" y="446" width="54" height="30" rx="6"/><rect x="143" y="446" width="54" height="30" rx="6"/><rect x="208" y="446" width="54" height="30" rx="6"/>
+    <rect x="78" y="484" width="54" height="30" rx="6"/><rect x="143" y="484" width="54" height="30" rx="6"/><rect x="208" y="484" width="54" height="30" rx="6"/>
+  </g>
+  <text x="170" y="540" text-anchor="middle" fill="#a878c0" font-size="12" font-family="sans-serif" letter-spacing="2">POLY</text>
+</svg>

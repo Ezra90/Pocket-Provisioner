@@ -302,6 +302,11 @@ class KeyEditDialogState extends State<KeyEditDialog> {
     _filteredDevices = _allKnownDevices;
     _searchController.addListener(_filterDevices);
 
+    // Open the extension list by default for BLF / speed dial when we have
+    // known extensions (CSV batch or DB).
+    _showCsvPicker = _hasCsvDevices &&
+        (_selectedType == 'blf' || _selectedType == 'speeddial');
+
     // Load ALL devices from the database and merge (dedup by extension).
     _loadAllDevices();
   }
@@ -324,6 +329,10 @@ class KeyEditDialogState extends State<KeyEditDialog> {
       setState(() {
         _allKnownDevices = merged;
         _filteredDevices = merged;
+        if ((_selectedType == 'blf' || _selectedType == 'speeddial') &&
+            merged.isNotEmpty) {
+          _showCsvPicker = true;
+        }
       });
       _filterDevices(); // re-apply any active search
     }
@@ -413,7 +422,13 @@ class KeyEditDialogState extends State<KeyEditDialog> {
               ],
               onChanged: (v) => setState(() {
                 _selectedType = v ?? 'none';
-                if (_selectedType == 'none') _showCsvPicker = false;
+                if (_selectedType == 'none') {
+                  _showCsvPicker = false;
+                } else if (_selectedType == 'blf' ||
+                    _selectedType == 'speeddial') {
+                  // Surface the extension list immediately for BLF / speed dial.
+                  _showCsvPicker = _hasCsvDevices;
+                }
               }),
             ),
 

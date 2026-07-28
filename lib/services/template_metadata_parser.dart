@@ -78,6 +78,28 @@ class SchematicMeta {
       );
 }
 
+/// Axis-aligned rect used for chrome (nav cluster, dial pad, etc.).
+class LayoutRectMeta {
+  final int x;
+  final int y;
+  final int width;
+  final int height;
+
+  const LayoutRectMeta({
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+  });
+
+  factory LayoutRectMeta.fromJson(Map<String, dynamic> m) => LayoutRectMeta(
+        x: (m['x'] as num?)?.toInt() ?? 0,
+        y: (m['y'] as num?)?.toInt() ?? 0,
+        width: (m['width'] as num?)?.toInt() ?? 0,
+        height: (m['height'] as num?)?.toInt() ?? 0,
+      );
+}
+
 /// Position data for a single programmable key in the SVG visual editor.
 class VisualEditorKey {
   final int index;
@@ -87,6 +109,7 @@ class VisualEditorKey {
   final int height;
   final int page;
   final String side;
+  final String role;
 
   const VisualEditorKey({
     required this.index,
@@ -96,6 +119,7 @@ class VisualEditorKey {
     required this.height,
     required this.page,
     required this.side,
+    this.role = 'line',
   });
 
   factory VisualEditorKey.fromJson(Map<String, dynamic> m) => VisualEditorKey(
@@ -106,6 +130,67 @@ class VisualEditorKey {
         height: (m['height'] as num?)?.toInt() ?? 24,
         page: (m['page'] as num?)?.toInt() ?? 1,
         side: m['side'] as String? ?? 'left',
+        role: m['role'] as String? ?? 'line',
+      );
+}
+
+/// Soft-key (under-screen) control — hardware or on-screen.
+class SoftKeyMeta {
+  final int? index;
+  final int x;
+  final int y;
+  final int width;
+  final int height;
+  final String label;
+  final bool programmable;
+
+  const SoftKeyMeta({
+    this.index,
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+    required this.label,
+    this.programmable = false,
+  });
+
+  factory SoftKeyMeta.fromJson(Map<String, dynamic> m) => SoftKeyMeta(
+        index: (m['index'] as num?)?.toInt(),
+        x: (m['x'] as num?)?.toInt() ?? 0,
+        y: (m['y'] as num?)?.toInt() ?? 0,
+        width: (m['width'] as num?)?.toInt() ?? 48,
+        height: (m['height'] as num?)?.toInt() ?? 20,
+        label: m['label'] as String? ?? '',
+        programmable: m['programmable'] as bool? ?? false,
+      );
+}
+
+/// Fixed (usually non-editable) handset chrome around the programmable keys.
+class ChromeMeta {
+  final bool hasSoftKeys;
+  final bool hasNavCluster;
+  final bool hasDialPad;
+  final LayoutRectMeta? navCluster;
+  final LayoutRectMeta? dialPad;
+
+  const ChromeMeta({
+    this.hasSoftKeys = true,
+    this.hasNavCluster = true,
+    this.hasDialPad = true,
+    this.navCluster,
+    this.dialPad,
+  });
+
+  factory ChromeMeta.fromJson(Map<String, dynamic> m) => ChromeMeta(
+        hasSoftKeys: m['has_soft_keys'] as bool? ?? true,
+        hasNavCluster: m['has_nav_cluster'] as bool? ?? true,
+        hasDialPad: m['has_dial_pad'] as bool? ?? true,
+        navCluster: m['nav_cluster'] is Map<String, dynamic>
+            ? LayoutRectMeta.fromJson(m['nav_cluster'] as Map<String, dynamic>)
+            : null,
+        dialPad: m['dial_pad'] is Map<String, dynamic>
+            ? LayoutRectMeta.fromJson(m['dial_pad'] as Map<String, dynamic>)
+            : null,
       );
 }
 
@@ -117,13 +202,26 @@ class VisualEditorMeta {
   final int keysPerPage;
   final List<VisualEditorKey> keys;
 
+  /// Decoded chassis SVG markup (from [chassis_svg] or [chassis_svg_b64]).
+  /// Prefer base64 in META comments — raw SVG can break Mustache `{{! … }}`.
+  final String? chassisSvg;
+
+  final ChromeMeta? chrome;
+  final List<SoftKeyMeta> softKeys;
+
   const VisualEditorMeta({
     required this.svgFallback,
     required this.expandableLayout,
     required this.schematic,
     required this.keysPerPage,
     required this.keys,
+    this.chassisSvg,
+    this.chrome,
+    this.softKeys = const [],
   });
+
+  /// True when a custom chassis drawing should be used instead of the rounded rect.
+  bool get hasChassisSvg => chassisSvg != null && chassisSvg!.trim().isNotEmpty;
 
   /// Number of distinct pages the keys span.
   int get pageCount {
@@ -135,8 +233,24 @@ class VisualEditorMeta {
   List<VisualEditorKey> keysForPage(int page) =>
       keys.where((k) => k.page == page).toList();
 
+  /// Decode optional chassis SVG from raw string or base64.
+  static String? decodeChassisSvg(Map<String, dynamic> m) {
+    final raw = m['chassis_svg'] as String?;
+    if (raw != null && raw.trim().isNotEmpty) return raw;
+
+    final b64 = m['chassis_svg_b64'] as String?;
+    if (b64 == null || b64.trim().isEmpty) return null;
+    try {
+      final cleaned = b64.replaceAll(RegExp(r'\s+'), '');
+      return utf8.decode(base64Decode(cleaned));
+    } catch (_) {
+      return null;
+    }
+  }
+
   factory VisualEditorMeta.fromJson(Map<String, dynamic> m) {
     final keysJson = m['keys'] as List<dynamic>? ?? [];
+    final softJson = m['soft_keys'] as List<dynamic>? ?? [];
     return VisualEditorMeta(
       svgFallback: m['svg_fallback'] as bool? ?? true,
       expandableLayout: m['expandable_layout'] as bool? ?? false,
@@ -153,6 +267,13 @@ class VisualEditorMeta {
       keysPerPage: (m['keys_per_page'] as num?)?.toInt() ?? 10,
       keys: keysJson
           .map((e) => VisualEditorKey.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      chassisSvg: decodeChassisSvg(m),
+      chrome: m['chrome'] is Map<String, dynamic>
+          ? ChromeMeta.fromJson(m['chrome'] as Map<String, dynamic>)
+          : null,
+      softKeys: softJson
+          .map((e) => SoftKeyMeta.fromJson(e as Map<String, dynamic>))
           .toList(),
     );
   }
