@@ -3,8 +3,25 @@ class WallpaperSpec {
   final int height;
   final String format; // 'png' or 'jpg'
   final String label;
+  /// Keep artwork clear of on-screen chrome (e.g. VVX1500 right hotkeys).
+  final int insetLeft;
+  final int insetTop;
+  final int insetRight;
+  final int insetBottom;
 
-  const WallpaperSpec(this.width, this.height, this.label, {this.format = 'png'});
+  const WallpaperSpec(
+    this.width,
+    this.height,
+    this.label, {
+    this.format = 'png',
+    this.insetLeft = 0,
+    this.insetTop = 0,
+    this.insetRight = 0,
+    this.insetBottom = 0,
+  });
+
+  int get contentWidth => (width - insetLeft - insetRight).clamp(1, width);
+  int get contentHeight => (height - insetTop - insetBottom).clamp(1, height);
 }
 
 class RingtoneSpec {
@@ -108,7 +125,8 @@ class DeviceTemplates {
     'Poly VVX 450':        WallpaperSpec(480, 272, 'VVX Full'),
     'Poly Edge E450':      WallpaperSpec(480, 272, 'Edge Series Mid'),
     'Poly Edge E350':      WallpaperSpec(320, 240, 'Edge Series Compact'),
-    'Poly VVX 1500':       WallpaperSpec(800, 480, 'Legacy Video'),
+    'Poly VVX 1500':       WallpaperSpec(800, 480, 'Legacy Video',
+        insetLeft: 16, insetTop: 40, insetRight: 168, insetBottom: 56),
     'Cisco 8851 / 8865':   WallpaperSpec(800, 480, 'Cisco High Res'),
   };
 

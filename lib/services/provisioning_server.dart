@@ -567,6 +567,7 @@ class ProvisioningServer {
               voicemailNumber: ds?.voicemailNumber,
               screensaverTimeout: ds?.screensaverTimeout,
               webUiEnabled: ds?.webUiEnabled,
+              kidFriendlyMode: ds?.kidFriendlyMode,
               cdpLldpEnabled: ds?.cdpLldpEnabled,
               autoAnswer: ds?.autoAnswer,
               autoAnswerMode: ds?.autoAnswerMode,

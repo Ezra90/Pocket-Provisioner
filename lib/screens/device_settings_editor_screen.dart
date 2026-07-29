@@ -112,6 +112,7 @@ class _DeviceSettingsEditorScreenState
   // Security
   late final TextEditingController _adminPasswordCtrl;
   bool? _webUiEnabled;
+  bool? _kidFriendlyMode;
   bool _showAdminPassword = false;
 
   // Network
@@ -191,6 +192,7 @@ class _DeviceSettingsEditorScreenState
         TextEditingController(text: s?.screensaverTimeout ?? '');
     _adminPasswordCtrl = TextEditingController(text: s?.adminPassword ?? '');
     _webUiEnabled = s?.webUiEnabled;
+    _kidFriendlyMode = s?.kidFriendlyMode;
     _voiceVlanCtrl = TextEditingController(text: s?.voiceVlanId ?? '');
     _dataVlanCtrl = TextEditingController(text: s?.dataVlanId ?? '');
     _cdpLldpEnabled = s?.cdpLldpEnabled;
@@ -297,6 +299,7 @@ class _DeviceSettingsEditorScreenState
         screensaverTimeout: _nonEmpty(_screensaverTimeoutCtrl.text),
         adminPassword: _nonEmpty(_adminPasswordCtrl.text),
         webUiEnabled: _webUiEnabled,
+        kidFriendlyMode: _kidFriendlyMode,
         voiceVlanId: _nonEmpty(_voiceVlanCtrl.text),
         dataVlanId: _nonEmpty(_dataVlanCtrl.text),
         cdpLldpEnabled: _cdpLldpEnabled,
@@ -336,6 +339,7 @@ class _DeviceSettingsEditorScreenState
       _screensaverTimeoutCtrl.text = s.screensaverTimeout ?? '';
       _adminPasswordCtrl.text = s.adminPassword ?? '';
       _webUiEnabled = s.webUiEnabled;
+      _kidFriendlyMode = s.kidFriendlyMode;
       _voiceVlanCtrl.text = s.voiceVlanId ?? '';
       _dataVlanCtrl.text = s.dataVlanId ?? '';
       _cdpLldpEnabled = s.cdpLldpEnabled;
@@ -1123,6 +1127,13 @@ class _DeviceSettingsEditorScreenState
                         (v) =>
                             setState(() => _webUiEnabled = v),
                         subtitle: 'Enable or disable the phone\'s built-in web management interface'),
+                    _optSwitch(
+                        'Kid-friendly mode',
+                        _kidFriendlyMode,
+                        (v) =>
+                            setState(() => _kidFriendlyMode = v),
+                        subtitle:
+                            'Restrict menus and advanced features; keep dial and answer only'),
                   ],
                 ),
               ),

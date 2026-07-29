@@ -143,6 +143,7 @@ class MustacheRenderer {
     // Call features
     String? screensaverTimeout,
     bool? webUiEnabled,
+    bool? kidFriendlyMode,
     bool? cdpLldpEnabled,
     bool? autoAnswer,
     String? autoAnswerMode,
@@ -182,6 +183,16 @@ class MustacheRenderer {
     final bool hasScreensaverTimeout =
         screensaverTimeout != null && screensaverTimeout.isNotEmpty;
     final bool hasWebUi = true;
+    final bool isKidFriendly = kidFriendlyMode == true;
+    final bool? effectiveWebUi =
+        isKidFriendly ? false : webUiEnabled;
+    // Poly nags until admin password is not factory 456.
+    final String effectiveAdminPassword = () {
+      final p = (adminPassword ?? '').trim();
+      if (p.isEmpty || p == '456') return '789';
+      return p;
+    }();
+    final bool hasAdminPassword = effectiveAdminPassword.isNotEmpty;
     final bool hasCdpLldp = cdpLldpEnabled != null;
     final bool hasAutoAnswer = autoAnswer != null;
     final bool hasDnd = dndDefault != null;
@@ -372,7 +383,8 @@ class MustacheRenderer {
       'timezone': timezone ?? '+10',
       'timezone_name': timezoneName ?? 'Australia/Brisbane',
       'gmt_offset': gmtOffset ?? '36000',
-      'admin_password': adminPassword ?? '',
+      'admin_password': effectiveAdminPassword,
+      'has_admin_password': hasAdminPassword,
       'provisioning_url': provisioningUrl,
       'provisioning_base': provisioningUrl.endsWith('/')
           ? provisioningUrl
@@ -383,8 +395,10 @@ class MustacheRenderer {
       'has_screensaver_timeout': hasScreensaverTimeout,
       'screensaver_timeout': screensaverTimeout ?? '',
       'has_web_ui': hasWebUi,
-      'web_ui_enabled': webUiEnabled == false ? '0' : '1',
-      'is_web_ui_enabled': webUiEnabled != false,
+      'web_ui_enabled': effectiveWebUi == false ? '0' : '1',
+      'is_web_ui_enabled': effectiveWebUi != false,
+      'is_kid_friendly': isKidFriendly,
+      'kid_friendly_mode': isKidFriendly ? '1' : '0',
       'has_cdp_lldp': hasCdpLldp,
       'cdp_lldp_enabled': _boolFlag(cdpLldpEnabled),
       'is_cdp_lldp_enabled': cdpLldpEnabled == true,

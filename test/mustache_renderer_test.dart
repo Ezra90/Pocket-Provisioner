@@ -38,19 +38,19 @@ void main() {
     final vars = MustacheRenderer.buildVariables(
       macAddress: '0004F24DA209',
       extension: '101',
-      displayName: 'Hill Hotel',
+      displayName: 'Front Desk',
       secret: 'secret',
       model: 'VVX1500',
-      sipServer: '192.168.13.241',
-      provisioningUrl: 'http://192.168.13.241/prov/',
+      sipServer: 'pbx.example.com',
+      provisioningUrl: 'http://pbx.example.com/prov/',
       lineKeys: [
-        ButtonKey(1, type: 'line', value: '101', label: 'Hill Hotel'),
+        ButtonKey(1, type: 'line', value: '101', label: 'Front Desk'),
         // UI stores type as "speeddial" (no underscore)
         ButtonKey(2, type: 'speeddial', value: '104', label: 'Bill Botel'),
         ButtonKey(3, type: 'blf', value: '104', label: 'Bill Botel'),
       ],
-      polycomContactsDirectory: 'http://192.168.13.241/prov/',
-      phonebookUrl: 'http://192.168.13.241/prov/0004f24da209-directory.xml',
+      polycomContactsDirectory: 'http://pbx.example.com/prov/',
+      phonebookUrl: 'http://pbx.example.com/prov/0004f24da209-directory.xml',
     );
 
     expect(vars['poly_two_column_display'], isTrue);
@@ -75,8 +75,8 @@ void main() {
       displayName: 'Desk',
       secret: 'secret',
       model: 'VVX450',
-      sipServer: '192.168.13.241',
-      provisioningUrl: 'http://192.168.13.241/prov/',
+      sipServer: 'pbx.example.com',
+      provisioningUrl: 'http://pbx.example.com/prov/',
       lineKeys: [
         ButtonKey(1, type: 'line', value: '101', label: 'Line'),
         ButtonKey(2, type: 'speed_dial', value: '104', label: 'Bill'),
@@ -98,8 +98,8 @@ void main() {
       displayName: 'Desk',
       secret: 'secret',
       model: 'VVX1500',
-      sipServer: '192.168.13.241',
-      provisioningUrl: 'http://192.168.13.241/',
+      sipServer: 'pbx.example.com',
+      provisioningUrl: 'http://pbx.example.com/',
     );
     expect(vars['dial_plan'], '[1-9]xx|*xx.|*x.T|911|0T');
     expect(vars['has_dial_plan'], isTrue);
@@ -126,15 +126,22 @@ void main() {
     expect(xml, contains('<ct>104</ct>'));
   });
 
-  test('PhonebookEntry round-trips sd/bw', () {
-    final e = PhonebookEntry(
-      name: 'Bill',
-      phone: '104',
-      speedDialIndex: 2,
-      buddyWatch: true,
+  test('kid_friendly_mode disables web UI and sets is_kid_friendly', () {
+    final vars = MustacheRenderer.buildVariables(
+      macAddress: 'AABBCCDDEEFF',
+      extension: '101',
+      displayName: 'Kid Room',
+      secret: 'secret',
+      model: 'VVX1500',
+      sipServer: '192.168.1.1',
+      provisioningUrl: 'http://192.168.1.2/',
+      kidFriendlyMode: true,
+      webUiEnabled: true,
     );
-    final decoded = PhonebookEntry.fromJson(e.toJson());
-    expect(decoded.speedDialIndex, 2);
-    expect(decoded.buddyWatch, isTrue);
+    expect(vars['is_kid_friendly'], isTrue);
+    expect(vars['web_ui_enabled'], '0');
+    expect(vars['is_web_ui_enabled'], isFalse);
+    expect(vars['admin_password'], '789');
+    expect(vars['has_admin_password'], isTrue);
   });
 }

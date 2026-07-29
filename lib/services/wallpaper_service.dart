@@ -50,13 +50,33 @@ class WallpaperService {
     img.Image? image = img.decodeImage(bytes);
     if (image == null) throw Exception("Could not decode image file");
 
-    // Resize to exact fit
-    img.Image resized = img.copyResize(
+    // Compose into full screen canvas with optional content insets
+    // (VVX1500: keep logo clear of the right hotkey column / soft keys).
+    final canvas = img.Image(width: spec.width, height: spec.height);
+    img.fill(canvas, color: img.ColorRgb8(16, 16, 24));
+
+    final contentW = spec.contentWidth;
+    final contentH = spec.contentHeight;
+    final srcRatio = image.width / image.height;
+    final contentRatio = contentW / contentH;
+    late final int nw;
+    late final int nh;
+    if (srcRatio > contentRatio) {
+      nw = contentW;
+      nh = (contentW / srcRatio).round();
+    } else {
+      nh = contentH;
+      nw = (contentH * srcRatio).round();
+    }
+    final resized = img.copyResize(
       image,
-      width: spec.width,
-      height: spec.height,
+      width: nw,
+      height: nh,
       interpolation: img.Interpolation.cubic,
     );
+    final dx = spec.insetLeft + ((contentW - nw) / 2).round();
+    final dy = spec.insetTop + ((contentH - nh) / 2).round();
+    img.compositeImage(canvas, resized, dstX: dx, dstY: dy);
 
     // Save original preserving extension
     final origDir = await _originalDir();
@@ -69,7 +89,7 @@ class WallpaperService {
     final mediaDir = await _mediaDir();
     final resizedFilename = '${customName}_${spec.width}x${spec.height}.png';
     final resizedFile = File(p.join(mediaDir.path, resizedFilename));
-    await resizedFile.writeAsBytes(img.encodePng(resized));
+    await resizedFile.writeAsBytes(img.encodePng(canvas));
 
     return resizedFilename;
   }

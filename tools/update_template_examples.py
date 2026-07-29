@@ -10,10 +10,10 @@ ROOT = Path(__file__).resolve().parents[1]  # Pocket-Provisioner
 POCKET = ROOT / "assets" / "templates"
 QUICK = ROOT.parent / "Quick-Provisioner" / "templates"
 
-# Realistic Hill Hotel / AU site-style examples (safe demo values, not secrets).
+# Realistic hotel / AU site-style examples (safe demo values, not secrets).
 COMMON = {
     "sip_server": {
-        "example": "192.168.13.241",
+        "example": "pbx.example.com",
         "default": "",
         "description": "Primary SIP registrar hostname or IP (your FreePBX / PBX address).",
     },
@@ -22,16 +22,16 @@ COMMON = {
     "reg_expiry": {"example": "3600", "default": "3600"},
     "outbound_proxy_host": {"example": "", "default": ""},
     "outbound_proxy_port": {"example": "5060", "default": "5060"},
-    "backup_server": {"example": "192.168.13.242", "default": ""},
+    "backup_server": {"example": "pbx-backup.example.com", "default": ""},
     "backup_port": {"example": "5060", "default": "5060"},
     "voicemail_number": {"example": "*97", "default": "*97"},
     "wallpaper_url": {
-        "example": "http://192.168.13.241/admin/modules/quickprovisioner/media.php?file=logo.jpg",
+        "example": "http://pbx.example.com/admin/modules/quickprovisioner/media.php?file=logo.jpg",
         "default": "",
     },
     "ring_type": {"example": "Ring1.wav", "default": "Ring1.wav"},
     "ringtone_url": {
-        "example": "http://192.168.13.241/admin/modules/quickprovisioner/media.php?file=HotelWake.wav",
+        "example": "http://pbx.example.com/admin/modules/quickprovisioner/media.php?file=HotelWake.wav",
         "default": "",
     },
     "screensaver_timeout": {"example": "120", "default": "0"},
@@ -47,13 +47,13 @@ COMMON = {
     "cfw_busy": {"example": "voicemail", "default": ""},
     "cfw_no_answer": {"example": "voicemail", "default": ""},
     "ntp_server": {"example": "0.au.pool.ntp.org", "default": "0.au.pool.ntp.org"},
-    "syslog_server": {"example": "192.168.13.50", "default": ""},
+    "syslog_server": {"example": "syslog.example.com", "default": ""},
     "provisioning_url": {
-        "example": "http://192.168.13.241/admin/modules/quickprovisioner",
+        "example": "http://pbx.example.com/admin/modules/quickprovisioner",
         "default": "",
     },
     "firmware_url": {
-        "example": "http://192.168.13.241/admin/modules/quickprovisioner/media.php?file=T54W.rom",
+        "example": "http://pbx.example.com/admin/modules/quickprovisioner/media.php?file=T54W.rom",
         "default": "",
     },
 }
@@ -93,8 +93,8 @@ CISCO_EXTRA = {
 
 # Sample button / contact examples for documentation inside META (optional UI later)
 SAMPLE_PRESET = {
-    "label": "Hill Hotel front-desk demo",
-    "notes": "Safe demo values for a typical AU hotel PBX. Load via Quick-Provisioner Settings → Load Examples.",
+    "label": "Hotel front-desk demo",
+    "notes": "Safe demo values for a typical hotel PBX. Load via Quick-Provisioner Settings → Load Examples.",
     "buttons": [
         {"index": 1, "type": "line", "value": "101", "label": "Front Desk"},
         {"index": 2, "type": "blf", "value": "102", "label": "Housekeeping"},

@@ -28,6 +28,8 @@ class DeviceSettings {
   // Security
   String? adminPassword;
   bool? webUiEnabled;
+  /// Restricted handset: dial/answer only; menus and advanced features off.
+  bool? kidFriendlyMode;
 
   // Network
   String? voiceVlanId;
@@ -81,6 +83,7 @@ class DeviceSettings {
     this.screensaverTimeout,
     this.adminPassword,
     this.webUiEnabled,
+    this.kidFriendlyMode,
     this.voiceVlanId,
     this.dataVlanId,
     this.cdpLldpEnabled,
@@ -122,6 +125,7 @@ class DeviceSettings {
       screensaverTimeout != null ||
       adminPassword != null ||
       webUiEnabled != null ||
+      kidFriendlyMode != null ||
       voiceVlanId != null ||
       dataVlanId != null ||
       cdpLldpEnabled != null ||
@@ -162,6 +166,7 @@ class DeviceSettings {
         screensaverTimeout: screensaverTimeout,
         adminPassword: adminPassword,
         webUiEnabled: webUiEnabled,
+        kidFriendlyMode: kidFriendlyMode,
         voiceVlanId: voiceVlanId,
         dataVlanId: dataVlanId,
         cdpLldpEnabled: cdpLldpEnabled,
@@ -202,6 +207,7 @@ class DeviceSettings {
         if (screensaverTimeout != null) 'screensaver_timeout': screensaverTimeout,
         if (adminPassword != null) 'admin_password': adminPassword,
         if (webUiEnabled != null) 'web_ui_enabled': webUiEnabled,
+        if (kidFriendlyMode != null) 'kid_friendly_mode': kidFriendlyMode,
         if (voiceVlanId != null) 'voice_vlan_id': voiceVlanId,
         if (dataVlanId != null) 'data_vlan_id': dataVlanId,
         if (cdpLldpEnabled != null) 'cdp_lldp_enabled': cdpLldpEnabled,
@@ -245,6 +251,7 @@ class DeviceSettings {
         screensaverTimeout: m['screensaver_timeout'] as String?,
         adminPassword: m['admin_password'] as String?,
         webUiEnabled: m['web_ui_enabled'] as bool?,
+        kidFriendlyMode: m['kid_friendly_mode'] as bool?,
         voiceVlanId: m['voice_vlan_id'] as String?,
         dataVlanId: m['data_vlan_id'] as String?,
         cdpLldpEnabled: m['cdp_lldp_enabled'] as bool?,
