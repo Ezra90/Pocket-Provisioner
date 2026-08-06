@@ -7,27 +7,33 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///
 /// **DMS / Carrier Mode** – used for Telstra / Broadworks deployments.
 /// The app generates a minimal bootstrap config that points the handset at
-/// the carrier DMS server.  The DMS then delivers the full phone
-/// configuration on the next boot, bypassing the handset's built-in qsetup
-/// wizard.  Typically the SIP server is *not* set here because the DMS
-/// supplies it.
+/// the carrier DMS server with credentials already filled in.  The DMS then
+/// delivers the full phone configuration on the next boot.  This **bypasses**
+/// the handset's built-in Telstra QSetup softkey — Pocket never asks the tech
+/// to type Prov user/pass on the phone.
 ///
 /// In DMS mode:
 /// - CSV columns `Device username` and `DMS password` are imported
 /// - These become `provision_user` and `provision_pass` in templates
-/// - The phone uses these qsetup credentials to authenticate with DMS
+/// - The phone authenticates to the carrier DMS automatically
 /// - SIP accounts are disabled (`has_sip_server` = false) until DMS provides them
 ///
 /// **Standalone / FreePBX Mode** – used for on-premise PBX deployments
 /// (FreePBX, Asterisk, etc.) that do not have DMS integration.  The app
 /// generates a *complete* config including all SIP registration details.
-/// The phone connects directly to the PBX without a secondary DMS hop.
+/// The phone connects directly to the PBX without a secondary DMS hop and
+/// without FreePBX Quick-Provisioner QSetup (that flow is Quick-only after handoff).
 ///
 /// In Standalone mode:
 /// - CSV columns `Extension` and `Secret` are imported
 /// - These become both SIP credentials AND provisioning credentials
 /// - The phone registers directly with the configured SIP server
 /// - SIP accounts are enabled (`has_sip_server` = true) with full credentials
+///
+/// **Handoff to Quick-Provisioner:** set `provisioning_url` to the FreePBX
+/// `provision.php/` base with Prov user/pass already in the cfg so the phone
+/// keeps working without showing QSetup. Do not point Pocket at Quick's
+/// `bootstrap.php` QSetup stub unless you intentionally want that softkey.
 class GlobalSettings {
   // ── Mode constants ──────────────────────────────────────────────────────────
 
